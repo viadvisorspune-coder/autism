@@ -1,0 +1,96 @@
+openapi: 3.1.0
+info:
+  title: ORCA access decision
+  version: 1.0.0
+servers:
+  - url: https://orca.example.com
+paths:
+  /api/yoxa/access/check:
+    post:
+      operationId: checkAccess
+      summary: Decide whether an actor may use a patient's data for a purpose
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [patient_id, actor_user_id, operation, purpose, requested_categories]
+              properties:
+                patient_id:
+                  type: string
+                  format: uuid
+                  description: The patient whose record is in question.
+                actor_user_id:
+                  type: string
+                  format: uuid
+                  description: The user asking. Their role and consents decide the answer.
+                operation:
+                  type: string
+                  enum: [read, write, disclose]
+                  description: What the actor wants to do with the data.
+                purpose:
+                  type: string
+                  maxLength: 200
+                  description: >-
+                    Why the data is wanted. Matched against the patient's consent
+                    purposes, so it must be the same wording consent was given for.
+                requested_categories:
+                  type: array
+                  minItems: 1
+                  description: Categories of information the actor wants to use.
+                  items:
+                    type: string
+                    enum: [personal, functional, clinical, support, preference, contextual, outcome, administrative]
+                recipient_user_id:
+                  type: string
+                  format: uuid
+                  description: Required when operation is 'disclose'. Who would receive the data.
+                workflow_run_id:
+                  type: string
+                  format: uuid
+                  description: Run this check belongs to, for the audit trail.
+      responses:
+        '200':
+          description: The decision. A denial is still a 200 with decision 'deny'.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [decision, permitted_categories, denied_categories, consent_status, restrictions, reason]
+                properties:
+                  decision:
+                    type: string
+                    enum: [allow, allow_with_scope, deny]
+                  permitted_categories:
+                    type: array
+                    description: Categories the actor may actually use. Never wider than requested.
+                    items:
+                      type: string
+                      enum: [personal, functional, clinical, support, preference, contextual, outcome, administrative]
+                  denied_categories:
+                    type: array
+                    description: Requested categories that were withheld.
+                    items:
+                      type: string
+                      enum: [personal, functional, clinical, support, preference, contextual, outcome, administrative]
+                  consent_status:
+                    type: string
+                    enum: [not_required, active, missing, revoked, expired]
+                  restrictions:
+                    type: array
+                    description: Constraints the caller must honour.
+                    items:
+                      type: string
+                  reason:
+                    type: string
+                    description: Plain-language reason, safe to show a person.
+components:
+  securitySchemes:
+    orcaConnectorBearer:
+      type: http
+      scheme: bearer
+security:
+  - orcaConnectorBearer: []

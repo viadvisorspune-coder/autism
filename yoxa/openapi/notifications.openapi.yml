@@ -1,0 +1,67 @@
+openapi: 3.1.0
+info:
+  title: ORCA stakeholder follow-up
+  version: 1.0.0
+servers:
+  - url: https://orca.example.com
+paths:
+  /api/yoxa/notifications:
+    post:
+      operationId: queueStakeholderFollowUp
+      summary: Queue a follow-up message to an authorised stakeholder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [patient_id, workflow_run_id, recipient_user_id, kind, body]
+              properties:
+                patient_id:
+                  type: string
+                  format: uuid
+                workflow_run_id:
+                  type: string
+                  format: uuid
+                recipient_user_id:
+                  type: string
+                  format: uuid
+                  description: >-
+                    Who to contact. Contacting someone about a patient is itself a
+                    disclosure, so this is permission-checked before anything is queued.
+                kind:
+                  type: string
+                  maxLength: 80
+                  description: Short machine label, e.g. 'outcome_follow_up'.
+                body:
+                  type: string
+                  maxLength: 4000
+                due_at:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: The queued follow-up.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [notification_id, status, due_at]
+                properties:
+                  notification_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                  due_at:
+                    type: [string, 'null']
+                    format: date-time
+components:
+  securitySchemes:
+    orcaConnectorBearer:
+      type: http
+      scheme: bearer
+security:
+  - orcaConnectorBearer: []

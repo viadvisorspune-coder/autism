@@ -1,0 +1,100 @@
+openapi: 3.1.0
+info:
+  title: ORCA longitudinal memory update
+  version: 1.0.0
+servers:
+  - url: https://orca.example.com
+paths:
+  /api/yoxa/records/append:
+    post:
+      operationId: appendPatientRecord
+      summary: Add a new version to the patient's longitudinal record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [patient_id, actor_user_id, workflow_run_id, category, kind, body, provenance, occurred_at]
+              properties:
+                patient_id:
+                  type: string
+                  format: uuid
+                actor_user_id:
+                  type: string
+                  format: uuid
+                workflow_run_id:
+                  type: string
+                  format: uuid
+                category:
+                  type: string
+                  enum: [personal, functional, clinical, support, preference, contextual, outcome, administrative]
+                kind:
+                  type: string
+                  maxLength: 80
+                  description: Short label, e.g. 'observation', 'preference', 'session_note'.
+                body:
+                  type: string
+                  maxLength: 20000
+                  description: The person's own wording. Stored verbatim and never rewritten.
+                structured:
+                  type: object
+                  additionalProperties: true
+                  description: Structured values beside the text - ratings, durations, counts.
+                provenance:
+                  type: string
+                  enum: [patient_reported, clinician_documented, external_document, system_generated, ai_inferred]
+                  description: >-
+                    Where this came from. 'ai_inferred' is rejected unless
+                    confirmed_by_approval_id cites an approved memory-update
+                    approval - model inference cannot become observed fact.
+                uncertainty_note:
+                  type: string
+                  maxLength: 2000
+                  description: What is NOT established by this record, such as causation.
+                occurred_at:
+                  type: string
+                  format: date-time
+                  description: When the thing described happened, not when it was recorded.
+                confirmed_by_approval_id:
+                  type: string
+                  format: uuid
+                  description: Required when provenance is 'ai_inferred'.
+                supersedes_record_id:
+                  type: string
+                  format: uuid
+                  description: >-
+                    Set to revise an existing record. The prior row is kept and
+                    marked superseded; nothing is mutated in place.
+      responses:
+        '200':
+          description: The newly written record version.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [record_id, version, evidence_status, visibility, recorded_at]
+                properties:
+                  record_id:
+                    type: string
+                    format: uuid
+                  version:
+                    type: integer
+                  evidence_status:
+                    type: string
+                    enum: [unvalidated, partially_structured, professionally_documented, contradicted, superseded]
+                  visibility:
+                    type: string
+                    enum: [private, care_team, explicitly_shared]
+                  recorded_at:
+                    type: string
+                    format: date-time
+components:
+  securitySchemes:
+    orcaConnectorBearer:
+      type: http
+      scheme: bearer
+security:
+  - orcaConnectorBearer: []

@@ -1,0 +1,73 @@
+openapi: 3.1.0
+info:
+  title: ORCA workflow state
+  version: 1.0.0
+servers:
+  - url: https://orca.example.com
+paths:
+  /api/yoxa/workflow/state:
+    post:
+      operationId: setWorkflowState
+      summary: Record the run's state and what happens next
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [workflow_run_id, state]
+              properties:
+                workflow_run_id:
+                  type: string
+                  format: uuid
+                  description: ORCA's id for this run, returned when the workflow was triggered.
+                yoxa_run_id:
+                  type: string
+                  maxLength: 200
+                  description: Yoxa's own run id, stored so approval events can be matched later.
+                state:
+                  type: string
+                  enum: [triggered, running, awaiting_clarification, awaiting_approval, executing, closed, blocked, failed]
+                current_step:
+                  type: string
+                  maxLength: 200
+                  description: Workflow step this state belongs to.
+                next_action:
+                  type: string
+                  maxLength: 2000
+                  description: What should happen next, in plain language.
+                closure_reason:
+                  type: string
+                  maxLength: 200
+                  description: Why the run closed. Only meaningful when state is 'closed'.
+      responses:
+        '200':
+          description: The updated run.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [workflow_run_id, state, current_step, next_action, updated_at]
+                properties:
+                  workflow_run_id:
+                    type: string
+                    format: uuid
+                  state:
+                    type: string
+                    enum: [triggered, running, awaiting_clarification, awaiting_approval, executing, closed, blocked, failed]
+                  current_step:
+                    type: [string, 'null']
+                  next_action:
+                    type: [string, 'null']
+                  updated_at:
+                    type: string
+                    format: date-time
+components:
+  securitySchemes:
+    orcaConnectorBearer:
+      type: http
+      scheme: bearer
+security:
+  - orcaConnectorBearer: []

@@ -1,0 +1,75 @@
+openapi: 3.1.0
+info:
+  title: ORCA outcome capture
+  version: 1.0.0
+servers:
+  - url: https://orca.example.com
+paths:
+  /api/yoxa/outcomes:
+    post:
+      operationId: recordStrategyOutcome
+      summary: Record what happened after a support strategy was tried
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [patient_id, actor_user_id, workflow_run_id, body, provenance, occurred_at]
+              properties:
+                patient_id:
+                  type: string
+                  format: uuid
+                actor_user_id:
+                  type: string
+                  format: uuid
+                workflow_run_id:
+                  type: string
+                  format: uuid
+                  description: The run whose strategy this outcome reports on.
+                body:
+                  type: string
+                  maxLength: 20000
+                  description: What happened, in the reporting person's own words.
+                structured:
+                  type: object
+                  additionalProperties: true
+                provenance:
+                  type: string
+                  enum: [patient_reported, clinician_documented, external_document, system_generated]
+                  description: >-
+                    An outcome must be reported by a person. 'ai_inferred' is
+                    rejected here.
+                occurred_at:
+                  type: string
+                  format: date-time
+                uncertainty_note:
+                  type: string
+                  maxLength: 2000
+      responses:
+        '200':
+          description: The stored outcome record.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [record_id, workflow_run_id, recorded_at]
+                properties:
+                  record_id:
+                    type: string
+                    format: uuid
+                  workflow_run_id:
+                    type: string
+                    format: uuid
+                  recorded_at:
+                    type: string
+                    format: date-time
+components:
+  securitySchemes:
+    orcaConnectorBearer:
+      type: http
+      scheme: bearer
+security:
+  - orcaConnectorBearer: []

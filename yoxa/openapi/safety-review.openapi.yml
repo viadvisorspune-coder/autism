@@ -1,0 +1,82 @@
+openapi: 3.1.0
+info:
+  title: ORCA safety and authority review
+  version: 1.0.0
+servers:
+  - url: https://orca.example.com
+paths:
+  /api/yoxa/safety/review:
+    post:
+      operationId: recordSafetyReview
+      summary: Record the consequence decision and enforce it on the run
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [workflow_run_id, patient_id, decision, risk_level, rationale]
+              properties:
+                workflow_run_id:
+                  type: string
+                  format: uuid
+                patient_id:
+                  type: string
+                  format: uuid
+                decision:
+                  type: string
+                  enum: [no_consequential_action, proceed_with_restrictions, requires_human_approval, requires_professional_authority, blocked]
+                  description: >-
+                    The agent's assessment. A decision requiring human or
+                    professional authority moves the run to awaiting_approval,
+                    so nothing downstream can proceed without asking.
+                risk_level:
+                  type: string
+                  enum: [low, moderate, high]
+                rationale:
+                  type: string
+                  maxLength: 4000
+                  description: Why this decision was reached. Stored as an AI-inferred audit event.
+                restrictions:
+                  type: array
+                  maxItems: 20
+                  description: Constraints that apply if the workflow proceeds.
+                  items:
+                    type: string
+                    maxLength: 500
+      responses:
+        '200':
+          description: The recorded decision and the run's resulting state.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [workflow_run_id, decision, risk_level, workflow_state, human_approval_required, restrictions]
+                properties:
+                  workflow_run_id:
+                    type: string
+                    format: uuid
+                  decision:
+                    type: string
+                    enum: [no_consequential_action, proceed_with_restrictions, requires_human_approval, requires_professional_authority, blocked]
+                  risk_level:
+                    type: string
+                    enum: [low, moderate, high]
+                  workflow_state:
+                    type: string
+                    enum: [triggered, running, awaiting_clarification, awaiting_approval, executing, closed, blocked, failed]
+                  human_approval_required:
+                    type: boolean
+                  restrictions:
+                    type: array
+                    items:
+                      type: string
+components:
+  securitySchemes:
+    orcaConnectorBearer:
+      type: http
+      scheme: bearer
+security:
+  - orcaConnectorBearer: []
