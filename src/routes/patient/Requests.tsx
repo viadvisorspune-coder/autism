@@ -1,0 +1,166 @@
+import { useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import {
+  Button,
+  Card,
+  CardBody,
+  CardHead,
+  DefinitionList,
+  PageHeader,
+  StatusPill,
+  Tabs,
+  formatDate,
+} from '../../components/ui'
+import { ClarificationCard, ReviewRequiredCard, WorkflowStatePanel } from '../../components/shared'
+import { requests, requestsFor, reviewItems } from '../../data/db'
+import { useUI } from '../../state/ui'
+
+/** 13.1 My requests. */
+export function PatientRequests() {
+  const [tab, setTab] = useState('Requires action')
+  const all = requestsFor('pt-ananya')
+
+  const filtered = {
+    'Requires action': all.filter((r) =>
+      ['Awaiting approval', 'Awaiting information'].includes(r.status) || r.clarifications.some((c) => !c.answer),
+    ),
+    Active: all.filter((r) => r.status === 'Awaiting stakeholder' || r.status === 'In progress'),
+    Completed: all.filter((r) => r.status === 'Completed'),
+    All: all,
+  }[tab]
+
+  return (
+    <div className="mx-auto max-w-4xl">
+      <PageHeader
+        title="My requests"
+        description="Anything ORCA is carrying on your behalf, and whose desk it is on right now."
+        breadcrumbs={[{ label: 'Home', to: '/patient' }, { label: 'Requests' }]}
+      />
+
+      <Tabs
+        tabs={['Requires action', 'Active', 'Completed', 'All']}
+        active={tab}
+        onChange={setTab}
+      />
+
+      <ul className="space-y-3">
+        {(filtered ?? []).map((request) => (
+          <li key={request.id}>
+            <Link
+              to={`/patient/requests/${request.id}`}
+              className="block rounded-[10px] border border-line bg-surface px-5 py-4 hover:border-line-strong"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[0.93rem] font-medium text-ink">{request.title}</p>
+                  <p className="mt-0.5 text-[0.82rem] text-muted">
+                    {request.type} · {request.destination} · raised {formatDate(request.raised)}
+                  </p>
+                  <p className="mt-1 text-[0.83rem] text-ink-2">Currently with {request.currentOwner}</p>
+                </div>
+                <StatusPill status={request.status} />
+              </div>
+            </Link>
+          </li>
+        ))}
+        {(filtered ?? []).length === 0 ? (
+          <li className="rounded-[10px] border border-dashed border-line-strong px-5 py-6 text-[0.86rem] text-muted">
+            Nothing in this list.
+          </li>
+        ) : null}
+      </ul>
+    </div>
+  )
+}
+
+/** 13.2 Request detail — workflow timeline and current owner. */
+export function PatientRequest() {
+  const { requestId } = useParams()
+  const { say } = useUI()
+  const request = requests.find((r) => r.id === requestId)
+  const review = reviewItems.find((r) => r.id === 'rv-2')
+
+  if (!request) return <p className="text-[0.9rem] text-muted">Request not found.</p>
+
+  return (
+    <div className="mx-auto max-w-4xl">
+      <PageHeader
+        title={request.title}
+        description={`${request.type} request to ${request.destination}`}
+        breadcrumbs={[
+          { label: 'Home', to: '/patient' },
+          { label: 'Requests', to: '/patient/requests' },
+          { label: 'Request' },
+        ]}
+        actions={<StatusPill status={request.status} />}
+      />
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+        <div className="space-y-6">
+          {request.clarifications.filter((c) => !c.answer).map((c) => (
+            <ClarificationCard key={c.date} question={c.question} from={c.from} date={c.date} />
+          ))}
+
+          {request.id === 'rq-1' && review ? <ReviewRequiredCard item={review} /> : null}
+
+          <Card>
+            <CardHead title="What was asked for" />
+            <CardBody>
+              <DefinitionList
+                items={[
+                  { label: 'Functional requirement', value: request.functionalRequirement },
+                  { label: 'Requested adjustment', value: request.requestedAdjustment },
+                  { label: 'Implementation', value: request.implementation },
+                  ...(request.reviewDate
+                    ? [{ label: 'Review date', value: formatDate(request.reviewDate) }]
+                    : []),
+                ]}
+              />
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHead title="What the recipient can see" meta="Nothing else was sent" />
+            <CardBody>
+              <ul className="space-y-2">
+                {request.authorisedInformation.map((item) => (
+                  <li key={item} className="text-[0.87rem] leading-relaxed text-ink">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-4 rounded-[10px] border border-state-good/25 bg-state-good-tint px-4 py-3">
+                <p className="text-[0.8rem] font-semibold uppercase tracking-[0.07em] text-state-good">
+                  Held back
+                </p>
+                <ul className="mt-1 space-y-1 text-[0.85rem] text-ink-2">
+                  {request.withheld.map((w) => (
+                    <li key={w}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            </CardBody>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <WorkflowStatePanel
+            title="Where this has got to"
+            meta={`Currently with ${request.currentOwner}`}
+            steps={request.steps}
+          />
+
+          <Card>
+            <CardHead title="Actions" />
+            <CardBody className="flex flex-col gap-2">
+              <Button onClick={() => say('A reminder was sent to the recipient.')}>Send a reminder</Button>
+              <Button onClick={() => say('Withdrawn. Nothing further will be shared.')} variant="danger">
+                Withdraw this request
+              </Button>
+            </CardBody>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
