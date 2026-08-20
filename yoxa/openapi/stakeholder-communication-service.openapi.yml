@@ -1,0 +1,83 @@
+openapi: 3.1.0
+info:
+  title: ORCA Stakeholder Communication
+  version: 1.0.0
+servers:
+  - url: https://zievqdkhxenenpyxqese.supabase.co
+paths:
+  /functions/v1/stakeholder-communication:
+    post:
+      operationId: raiseClarificationOrFollowUp
+      summary: Raise a clarification question or schedule a follow-up
+      description: >-
+        Creates the question inside ORCA, addressed to a role, in the standard
+        form of what happened, why it matters and what the person needs to do.
+        It sends nothing outside the patient's boundary; that requires a
+        separately approved disclosure.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [purpose, patient_id]
+              properties:
+                purpose:
+                  type: string
+                  enum: [clarification, follow_up]
+                patient_id:
+                  type: string
+                  description: Patient the question concerns.
+                recipient_role:
+                  type: string
+                  enum:
+                    - patient
+                    - psychologist
+                    - psychiatrist
+                    - therapist
+                    - ot
+                    - gp
+                    - clinic
+                    - employer
+                    - university
+                    - trusted
+                    - admin
+                  description: Who should answer. Defaults to the patient.
+                question:
+                  type: string
+                  description: The single question to ask. Required for a clarification.
+                request_id:
+                  type: string
+                  description: Attach the question to this request so the thread stays with it.
+                due:
+                  type: string
+                  format: date
+                  description: When an answer is needed by.
+                workflow_run_id:
+                  type: string
+      responses:
+        '200':
+          description: Clarification or follow-up raised.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [notification_id, purpose, recipient_role, status, created_at, note]
+                properties:
+                  notification_id: { type: string }
+                  purpose: { type: string }
+                  recipient_role: { type: string }
+                  question: { type: [string, 'null'] }
+                  due: { type: [string, 'null'] }
+                  status: { type: string }
+                  created_at: { type: string }
+                  note: { type: string }
+components:
+  securitySchemes:
+    orcaConnectorBearer:
+      type: http
+      scheme: bearer
+security:
+  - orcaConnectorBearer: []

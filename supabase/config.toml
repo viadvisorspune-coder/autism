@@ -1,0 +1,24 @@
+project_id = "zievqdkhxenenpyxqese"
+
+# Yoxa presents its own bearer token, not a Supabase JWT, so Supabase's gateway
+# check must be off and each function verifies YOXA_CONNECTOR_TOKEN itself.
+[functions.identity-access]
+verify_jwt = false
+
+[functions.knowledge-evidence]
+verify_jwt = false
+
+[functions.workflow-state]
+verify_jwt = false
+
+[functions.safety-authority-review]
+verify_jwt = false
+
+[functions.audit-provenance]
+verify_jwt = false
+
+[functions.stakeholder-communication]
+verify_jwt = false
+
+[functions.output-artifact]
+verify_jwt = false

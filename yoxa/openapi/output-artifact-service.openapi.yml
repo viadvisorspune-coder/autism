@@ -1,0 +1,82 @@
+openapi: 3.1.0
+info:
+  title: ORCA Output Artefact Delivery
+  version: 1.0.0
+servers:
+  - url: https://zievqdkhxenenpyxqese.supabase.co
+paths:
+  /functions/v1/output-artifact:
+    post:
+      operationId: deliverGeneratedArtifact
+      summary: Receive an approved artefact and record it on the patient's file
+      description: >-
+        Stores the generated document privately against the patient's record.
+        Attach the workflow's generated output tools to this connector under
+        Attach output files; the endpoint also accepts this plain JSON request
+        with no files, which is what the API Connection Check sends.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [patient_id, title]
+              properties:
+                patient_id:
+                  type: string
+                  description: Patient whose record receives the artefact.
+                title:
+                  type: string
+                  description: Title shown in the patient's document library.
+                category:
+                  type: string
+                  enum: [Clinical, Therapy, OT, Employment, University, Statutory, Personal]
+                  description: Which shelf of the library it belongs on. Defaults to Personal.
+                recipient:
+                  type: string
+                  description: Who the artefact was prepared for. Recorded, not acted on.
+                summary:
+                  type: string
+                  description: One-line description, shown to the patient before they accept it.
+                access:
+                  type: array
+                  description: Roles permitted to open it. Defaults to the patient alone.
+                  items:
+                    type: string
+                workflow_run_id:
+                  type: string
+      responses:
+        '200':
+          description: Artefact recorded.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [document_id, patient_id, title, status, received_file_count, stored_files, note]
+                properties:
+                  document_id: { type: string }
+                  patient_id: { type: string }
+                  title: { type: string }
+                  status: { type: string }
+                  received_file_count: { type: integer }
+                  stored_files:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required: [file_name, content_type, size_bytes, storage_path]
+                      properties:
+                        file_name: { type: string }
+                        content_type: { type: string }
+                        size_bytes: { type: integer }
+                        storage_path: { type: string }
+                  note: { type: string }
+components:
+  securitySchemes:
+    orcaConnectorBearer:
+      type: http
+      scheme: bearer
+security:
+  - orcaConnectorBearer: []

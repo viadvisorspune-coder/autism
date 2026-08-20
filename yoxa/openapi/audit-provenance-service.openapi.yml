@@ -1,0 +1,77 @@
+openapi: 3.1.0
+info:
+  title: ORCA Audit & Provenance
+  version: 1.0.0
+servers:
+  - url: https://zievqdkhxenenpyxqese.supabase.co
+paths:
+  /functions/v1/audit-provenance:
+    post:
+      operationId: recordAuditEvent
+      summary: Append one audit event
+      description: >-
+        Append-only. Records who did what, to which record, why, and whether it
+        was allowed or denied. The patient can read their own audit trail, so
+        entries are written in language they can understand.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [action, record]
+              properties:
+                action:
+                  type: string
+                  description: What happened, in plain language.
+                record:
+                  type: string
+                  description: What it happened to, for example Request rq-1.
+                patient_id:
+                  type: string
+                  description: Patient whose record was involved.
+                actor_id:
+                  type: string
+                  description: Acting user. Their name and role are resolved server-side.
+                actor_label:
+                  type: string
+                  description: Used when the actor is an agent rather than a person.
+                actor_role:
+                  type: string
+                  description: Role of the actor when no actor_id is supplied.
+                access_type:
+                  type: string
+                  enum: [Read, Write, Share, Approve, Revoke, Login]
+                why:
+                  type: string
+                  description: The purpose that made this permissible.
+                result:
+                  type: string
+                  enum: [Allowed, Denied]
+                workflow_run_id:
+                  type: string
+      responses:
+        '200':
+          description: Audit entry written.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [audit_id, recorded_at, actor_label, result]
+                properties:
+                  audit_id: { type: string }
+                  recorded_at: { type: string }
+                  workflow_run_id: { type: [string, 'null'] }
+                  actor_label: { type: string }
+                  result:
+                    type: string
+                    enum: [Allowed, Denied]
+components:
+  securitySchemes:
+    orcaConnectorBearer:
+      type: http
+      scheme: bearer
+security:
+  - orcaConnectorBearer: []
