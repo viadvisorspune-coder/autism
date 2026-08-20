@@ -68,8 +68,36 @@ paths:
                   description: Why the run closed. Used when purpose is close.
                 goal:
                   type: object
-                  additionalProperties: true
+                  additionalProperties: false
                   description: Goal brief to store against the run when purpose is define_goal.
+                  properties:
+                    current_need:
+                      type: string
+                      description: What the person needs right now, in their own terms.
+                    desired_outcome:
+                      type: string
+                      description: What a good result looks like.
+                    stakeholders:
+                      type: array
+                      description: Roles involved in reaching the outcome.
+                      items:
+                        type: string
+                    constraints:
+                      type: array
+                      description: Limits the plan must respect, including stated preferences.
+                      items:
+                        type: string
+                    required_output:
+                      type: string
+                      description: The artefact or action the goal calls for, if any.
+                    goal_statement:
+                      type: string
+                      description: The goal in one sentence.
+                    success_criteria:
+                      type: array
+                      description: Observable criteria. Avoid clinical targets.
+                      items:
+                        type: string
       responses:
         '200':
           description: Current workflow state.
