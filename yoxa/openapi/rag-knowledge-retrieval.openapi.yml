@@ -65,12 +65,15 @@ paths:
                       type: number
                       minimum: 0
                       maximum: 1
+                      description: How strongly the evidence supports it, 0 to 1. Below 0.5 is weak.
                     related_history:
                       type: string
+                      description: Earlier events this pattern connects to.
                     raised_for:
                       type: array
                       items:
                         type: string
+                      description: Roles who should review it, for example patient, psychologist.
                     evidence:
                       type: array
                       items:
@@ -82,10 +85,13 @@ paths:
                         properties:
                           source:
                             type: string
+                            description: Who the evidence came from — the patient, or a named professional.
                           detail:
                             type: string
+                            description: What that source actually reported, in one line.
                           date:
                             type: string
+                            description: When that piece of evidence was recorded.
       responses:
         '200':
           description: Authorised context, with provenance and a sufficiency assessment.
@@ -143,6 +149,7 @@ paths:
                           - AI interpretation
                         source:
                           type: string
+                          description: Who the evidence came from — the patient, or a named professional.
                         source_role:
                           type: string
                   strategies:

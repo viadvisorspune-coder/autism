@@ -159,6 +159,7 @@ paths:
                           type:
                           - string
                           - 'null'
+                          description: Short note shown against this step, if any.
                   updated_at:
                     type: string
 components:
