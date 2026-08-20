@@ -22,3 +22,17 @@ verify_jwt = false
 
 [functions.output-artifact]
 verify_jwt = false
+
+# Yoxa posts signed HITL events here; the function verifies the signature
+# itself, so the gateway JWT check must be off.
+[functions.hitl-receiver]
+verify_jwt = false
+
+# Called by ORCA's own frontend with the signed-in user's session. The gateway
+# check stays ON — an anonymous caller must not be able to start a workflow or
+# answer an approval.
+[functions.workflow-trigger]
+verify_jwt = true
+
+[functions.hitl-respond]
+verify_jwt = true
