@@ -26,6 +26,28 @@ Deno.serve(
       return json({ error: 'patient_id or workflow_run_id is required' }, 400)
     }
 
+    // Patients are created by the application, never by a workflow run. An
+    // unknown id is a typo or an upstream bug, and inventing a record for a
+    // person nobody registered would be worse than refusing.
+    if (patientId) {
+      const { data: known } = await admin
+        .from('patients')
+        .select('id')
+        .eq('id', patientId)
+        .maybeSingle()
+
+      if (!known) {
+        return json(
+          {
+            error: 'patient_not_found',
+            patient_id: patientId,
+            fix: 'Use the id of a patient that exists in the application. Seeded ids: pt-ananya, pt-rohan, pt-farida, pt-dev, pt-neha.',
+          },
+          404,
+        )
+      }
+    }
+
     let run: Record<string, unknown> | null = null
 
     if (workflowRunId) {
