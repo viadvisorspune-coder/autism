@@ -21,6 +21,7 @@ paths:
               additionalProperties: false
               required:
               - purpose
+              - patient_id
               properties:
                 purpose:
                   type: string
@@ -29,7 +30,8 @@ paths:
                   description: 'Fixed for this connector. Send exactly: define_goal'
                 patient_id:
                   type: string
-                  description: Patient the run belongs to. Required when creating a run.
+                  description: 'Patient the run belongs to, for example pt-ananya. Required: a run is
+                    always about one person.'
                 workflow_run_id:
                   type: string
                   description: Existing run to advance. Omit to start a new run.
