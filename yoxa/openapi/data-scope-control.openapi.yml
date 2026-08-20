@@ -1,0 +1,133 @@
+openapi: 3.1.0
+info:
+  title: ORCA Data Scope & Minimisation
+  version: 1.0.0
+servers:
+- url: https://zievqdkhxenenpyxqese.supabase.co
+paths:
+  /functions/v1/identity-access:
+    post:
+      operationId: checkDataScope
+      summary: Determine the minimum necessary data categories for the stated purpose
+      description: Returns a deterministic access decision from the patient's consent records. Also used
+        before any disclosure, to establish which categories of information the recipient may receive.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - purpose
+              - patient_id
+              - actor_id
+              properties:
+                purpose:
+                  type: string
+                  enum:
+                  - scope_check
+                  description: 'Fixed for this connector. Send exactly: scope_check'
+                patient_id:
+                  type: string
+                  description: Patient whose record is in scope, for example pt-ananya.
+                actor_id:
+                  type: string
+                  description: User performing the action, for example u-ananya.
+                recipient_id:
+                  type: string
+                  description: Intended recipient when checking a disclosure. Omit when the actor is acting
+                    within their own record.
+                data_categories:
+                  type: array
+                  description: Categories the step wants to use. Omit for the role's full ceiling.
+                  items:
+                    type: string
+                workflow_run_id:
+                  type: string
+                  description: Workflow run this check belongs to, for the audit trail.
+      responses:
+        '200':
+          description: Access decision.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                - decision
+                - patient_id
+                - permitted_categories
+                - excluded_categories
+                - restrictions
+                - consent_status
+                - reason
+                properties:
+                  decision:
+                    type: string
+                    enum:
+                    - allow
+                    - allow_with_private_scope
+                    - deny
+                    - requires_consent
+                  patient_id:
+                    type: string
+                  actor:
+                    type:
+                    - object
+                    - 'null'
+                    additionalProperties: false
+                    required:
+                    - id
+                    - name
+                    - role
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      role:
+                        type: string
+                  recipient:
+                    type:
+                    - object
+                    - 'null'
+                    additionalProperties: false
+                    required:
+                    - id
+                    - name
+                    - role
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      role:
+                        type: string
+                  permitted_categories:
+                    type: array
+                    items:
+                      type: string
+                  excluded_categories:
+                    type: array
+                    items:
+                      type: string
+                  restrictions:
+                    type: array
+                    items:
+                      type: string
+                  consent_status:
+                    type: string
+                  reason:
+                    type: string
+                  audit_id:
+                    type:
+                    - string
+                    - 'null'
+components:
+  securitySchemes:
+    orcaConnectorBearer:
+      type: http
+      scheme: bearer
+security:
+- orcaConnectorBearer: []

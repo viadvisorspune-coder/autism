@@ -1,0 +1,233 @@
+openapi: 3.1.0
+info:
+  title: ORCA Input Understanding & Evidence Classification
+  version: 1.0.0
+servers:
+- url: https://zievqdkhxenenpyxqese.supabase.co
+paths:
+  /functions/v1/knowledge-evidence:
+    post:
+      operationId: classifyIncomingEvidence
+      summary: Classify incoming information and separate report from inference
+      description: Returns recorded events, strategies and profile items with their provenance and evidence
+        status, plus an explicit statement of what is missing. The only write it performs is creating
+        a memory candidate, which is not part of the record until a person confirms it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - purpose
+              - patient_id
+              properties:
+                purpose:
+                  type: string
+                  enum:
+                  - evidence_provenance
+                  description: 'Fixed for this connector. Send exactly: evidence_provenance'
+                patient_id:
+                  type: string
+                  description: Patient whose record is being read, for example pt-ananya.
+                actor_id:
+                  type: string
+                  description: User on whose behalf the retrieval runs.
+                since:
+                  type: string
+                  format: date
+                  description: Only return events recorded on or after this date.
+                categories:
+                  type: array
+                  description: Restrict to these event categories, for example Work or Functional.
+                  items:
+                    type: string
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  description: Maximum events to return. Defaults to 25.
+                workflow_run_id:
+                  type: string
+                  description: Workflow run this retrieval belongs to.
+                candidate:
+                  type: object
+                  additionalProperties: false
+                  required:
+                  - proposal
+                  description: The proposed longitudinal update. Required when purpose is memory_update.
+                  properties:
+                    proposal:
+                      type: string
+                      description: The pattern in one sentence, in plain language.
+                    confidence:
+                      type: number
+                      minimum: 0
+                      maximum: 1
+                    related_history:
+                      type: string
+                    raised_for:
+                      type: array
+                      items:
+                        type: string
+                    evidence:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        required:
+                        - source
+                        - detail
+                        properties:
+                          source:
+                            type: string
+                          detail:
+                            type: string
+                          date:
+                            type: string
+      responses:
+        '200':
+          description: Authorised context, with provenance and a sufficiency assessment.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                - patient_id
+                - purpose
+                - records
+                - strategies
+                - sufficiency
+                properties:
+                  patient_id:
+                    type: string
+                  purpose:
+                    type: string
+                  records:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                      - id
+                      - title
+                      - summary
+                      - category
+                      - recorded_on
+                      - evidence_status
+                      - source
+                      - source_role
+                      properties:
+                        id:
+                          type: string
+                        title:
+                          type: string
+                        summary:
+                          type: string
+                        category:
+                          type: string
+                        recorded_on:
+                          type: string
+                        occurred_on:
+                          type:
+                          - string
+                          - 'null'
+                        evidence_status:
+                          type: string
+                          enum:
+                          - Reported
+                          - Professionally documented
+                          - Validated
+                          - AI interpretation
+                        source:
+                          type: string
+                        source_role:
+                          type: string
+                  strategies:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                      - id
+                      - title
+                      - goal
+                      - status
+                      - phase
+                      properties:
+                        id:
+                          type: string
+                        title:
+                          type: string
+                        goal:
+                          type: string
+                        status:
+                          type: string
+                        phase:
+                          type: string
+                        review_date:
+                          type:
+                          - string
+                          - 'null'
+                        effectiveness:
+                          type:
+                          - string
+                          - 'null'
+                        outcome_summary:
+                          type:
+                          - string
+                          - 'null'
+                  profile:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                      - id
+                      - section
+                      - text
+                      - evidence_status
+                      - recorded_on
+                      properties:
+                        id:
+                          type: string
+                        section:
+                          type: string
+                        text:
+                          type: string
+                        evidence_status:
+                          type: string
+                        recorded_on:
+                          type: string
+                  sufficiency:
+                    type: object
+                    additionalProperties: false
+                    required:
+                    - status
+                    - missing
+                    - note
+                    properties:
+                      status:
+                        type: string
+                        enum:
+                        - sufficient
+                        - insufficient
+                      missing:
+                        type: array
+                        items:
+                          type: string
+                      note:
+                        type: string
+                  memory_candidate_id:
+                    type:
+                    - string
+                    - 'null'
+components:
+  securitySchemes:
+    orcaConnectorBearer:
+      type: http
+      scheme: bearer
+security:
+- orcaConnectorBearer: []
