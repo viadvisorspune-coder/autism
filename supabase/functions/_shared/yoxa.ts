@@ -32,14 +32,20 @@ export const admin = createClient(
  * environment. Deploy with verify_jwt disabled so this — not Supabase's own
  * JWT check — is the gate, otherwise Yoxa's token is rejected before arrival.
  */
-export function authorised(req: Request): boolean {
+export type AuthResult = 'ok' | 'no_token_configured' | 'no_token_presented' | 'token_mismatch'
+
+export function checkAuth(req: Request): AuthResult {
   const expected = Deno.env.get('YOXA_CONNECTOR_TOKEN')
-  if (!expected) return false
+  // Distinguished deliberately: a missing server-side secret and a wrong token
+  // look identical from outside, and telling them apart is the difference
+  // between "set the secret" and "paste the same value into Yoxa".
+  if (!expected) return 'no_token_configured'
+
   const header = req.headers.get('authorization') ?? ''
   const presented = header.replace(/^Bearer\s+/i, '').trim()
-  // Length-independent comparison is unnecessary here; tokens are compared
-  // after both are normalised and neither is derived from user input.
-  return presented.length > 0 && presented === expected
+  if (!presented) return 'no_token_presented'
+
+  return presented === expected ? 'ok' : 'token_mismatch'
 }
 
 export interface UploadedFile {
@@ -143,7 +149,25 @@ export function guard(
   return async (req: Request) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
     if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
-    if (!authorised(req)) return json({ error: 'unauthorised' }, 401)
+
+    const auth = checkAuth(req)
+    if (auth === 'no_token_configured') {
+      // 503, not 401: the caller did nothing wrong. YOXA_CONNECTOR_TOKEN has
+      // not been set on this project, so no token could ever be accepted.
+      return json(
+        { error: 'connector_token_not_configured', fix: 'Set YOXA_CONNECTOR_TOKEN in Supabase.' },
+        503,
+      )
+    }
+    if (auth !== 'ok') {
+      return json(
+        {
+          error: auth === 'no_token_presented' ? 'no_bearer_token_sent' : 'bearer_token_mismatch',
+          fix: 'The value saved in Yoxa must equal YOXA_CONNECTOR_TOKEN in Supabase.',
+        },
+        401,
+      )
+    }
 
     try {
       const parsed = await readRequest(req)
