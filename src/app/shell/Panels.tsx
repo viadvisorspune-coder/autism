@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, formatDate } from '../../components/ui'
@@ -29,6 +29,16 @@ export function Drawer({
   children: ReactNode
   width?: string
 }) {
+  // Escape always closes. A panel that can only be dismissed by finding the
+  // right button is a panel someone can feel stuck inside.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
       <button
@@ -294,9 +304,50 @@ export function SearchPanel({ onClose }: { onClose: () => void }) {
 /* ------------------------------------------------------------ display settings */
 
 export function DisplayPanel({ onClose }: { onClose: () => void }) {
-  const { textSize, setTextSize, reducedMotion, setReducedMotion } = useUI()
+  const { textSize, setTextSize, reducedMotion, setReducedMotion, density, setDensity } = useUI()
   return (
     <Drawer title="Display & help" subtitle="Change how ORCA looks and behaves" onClose={onClose}>
+      <h3 className="mb-2 text-[0.78rem] font-semibold uppercase tracking-[0.07em] text-muted">
+        How much to show at once
+      </h3>
+      <div className="mb-2 space-y-2">
+        {([
+          {
+            value: 'calm' as const,
+            label: 'One thing at a time',
+            detail:
+              'Supporting sections start closed, with a label saying what is inside and how many items. Colour is used once per screen instead of on every status.',
+          },
+          {
+            value: 'full' as const,
+            label: 'Everything open',
+            detail: 'Every section expanded, every status in colour. Nothing is closed.',
+          },
+        ]).map((choice) => (
+          <label
+            key={choice.value}
+            className={`flex cursor-pointer items-start gap-2.5 rounded-[10px] border px-3.5 py-3 ${
+              density === choice.value ? 'border-brand bg-brand-tint' : 'border-line'
+            }`}
+          >
+            <input
+              type="radio"
+              name="density"
+              className="mt-1"
+              checked={density === choice.value}
+              onChange={() => setDensity(choice.value)}
+            />
+            <span>
+              <span className="block text-[0.86rem] font-medium text-ink">{choice.label}</span>
+              <span className="mt-0.5 block text-[0.8rem] leading-relaxed text-muted">{choice.detail}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <p className="mb-6 text-[0.79rem] leading-relaxed text-muted">
+        Nothing is removed either way. Closed sections say what they hold and open on one press.
+      </p>
+
       <h3 className="mb-2 text-[0.78rem] font-semibold uppercase tracking-[0.07em] text-muted">Text size</h3>
       <div className="mb-6 flex gap-2">
         {(['default', 'large', 'xlarge'] as const).map((size) => (

@@ -8,7 +8,7 @@ import {
   EmptyState,
   LinkButton,
   PageHeader,
-  SectionTitle,
+  Section,
   Tag,
   formatDate,
   formatDateTime,
@@ -130,8 +130,7 @@ export function PatientPrivacy() {
           because an unanswered request is the only thing on this page that is
           costing another person something. */}
       {pending.length > 0 ? (
-        <div className="mb-6">
-          <SectionTitle>Waiting on you</SectionTitle>
+        <Section title="Waiting on you" count={pending.length} important>
           <Card>
             <CardBody>
               <ul className="space-y-4">
@@ -172,7 +171,7 @@ export function PatientPrivacy() {
               </ul>
             </CardBody>
           </Card>
-        </div>
+        </Section>
       ) : null}
 
       <Card className="mb-6">
@@ -220,8 +219,15 @@ export function PatientPrivacy() {
       {/* Consent as a history rather than a current position. Without this the
           record can say who has access, but not what anyone could see on the
           day something went wrong. */}
-      <div className="mb-6">
-        <SectionTitle>How this has changed</SectionTitle>
+      <Section
+        title="How this has changed"
+        count={history.length}
+        summary={
+          history.length
+            ? `Every time you gave, reduced or withdrew someone's access — including the version that was replaced. Most recent: ${changeSentence(history[0].change_type, nameOf(history[0].person_id)).toLowerCase()}.`
+            : 'Nothing has changed yet.'
+        }
+      >
         <Card>
           <CardBody>
             {history.length === 0 ? (
@@ -258,10 +264,17 @@ export function PatientPrivacy() {
             </p>
           </CardBody>
         </Card>
-      </div>
+      </Section>
 
-      <div className="mb-6">
-        <SectionTitle>What have I shared recently?</SectionTitle>
+      <Section
+        title="What have I shared recently?"
+        count={disclosures.length}
+        summary={
+          disclosures.length
+            ? `Most recent: ${disclosures[0].recipient}, ${formatDate(disclosures[0].disclosed_on.slice(0, 10))}.`
+            : 'Nothing has been shared.'
+        }
+      >
         <Card>
           <CardBody>
             <ul className="space-y-3">
@@ -280,7 +293,7 @@ export function PatientPrivacy() {
             </LinkButton>
           </CardBody>
         </Card>
-      </div>
+      </Section>
 
       <Card>
         <CardHead title="Standing rules" meta="These apply to everything ORCA does" />

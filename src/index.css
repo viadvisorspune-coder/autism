@@ -75,3 +75,57 @@ body {
 ::selection {
   background: var(--color-brand-tint);
 }
+
+/* ------------------------------------------------------------------ calm mode
+ *
+ * Applied at the root, so it reaches every screen without each screen having
+ * to know about it. Four moves, each with a reason:
+ *
+ *   1. Colour is spent once. Status chips lose their tinted fill and keep a
+ *      single small dot, so a list of twelve items reads as a list rather than
+ *      as twelve competing signals. The colour still carries the meaning; it
+ *      just stops shouting it.
+ *   2. More space between blocks. Crowding is what makes a page feel like it
+ *      is arriving all at once.
+ *   3. Nothing translucent or blurred. Backdrop blur is decoration, and it
+ *      makes text behind it move and shimmer.
+ *   4. Slightly softer contrast on large filled areas, which are the parts
+ *      that glare.
+ *
+ * None of this removes content. What is on the page in full mode is on the
+ * page in calm mode.
+ */
+
+html[data-density='calm'] .status-chip {
+  background: transparent !important;
+  border-color: var(--color-line) !important;
+  color: var(--color-ink-2) !important;
+}
+
+html[data-density='calm'] .status-chip .status-dot {
+  opacity: 1;
+}
+
+html[data-density='full'] .status-chip .status-dot {
+  display: none;
+}
+
+/* Vertical rhythm. Utility classes stay authoritative where a screen sets one
+ * deliberately; this only lifts the default gap between stacked blocks. */
+html[data-density='calm'] main > * > .mb-6 {
+  margin-bottom: 2rem;
+}
+
+html[data-density='calm'] main {
+  line-height: 1.65;
+}
+
+html[data-density='calm'] .backdrop-blur-\[1px\] {
+  backdrop-filter: none;
+}
+
+/* Collapsed sections keep a visible, named control. The count in the summary
+ * is what stops this being concealment. */
+.disclosure-summary::-webkit-details-marker {
+  display: none;
+}

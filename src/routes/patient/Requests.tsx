@@ -11,14 +11,25 @@ import {
   Tabs,
   formatDate,
 } from '../../components/ui'
-import { ClarificationCard, ReviewRequiredCard, WorkflowStatePanel } from '../../components/shared'
+import { ClarificationCard, RecordSource, ReviewRequiredCard, WorkflowStatePanel } from '../../components/shared'
+import { ApprovalPanel } from '../../components/ApprovalPanel'
+import type { PendingApproval } from '../../components/ApprovalPanel'
 import { requests, requestsFor, reviewItems } from '../../data/db'
+import { useOrcaRead } from '../../lib/orca'
+import { respondToApproval } from '../../lib/approvals'
 import { useUI } from '../../state/ui'
 
 /** 13.1 My requests. */
 export function PatientRequests() {
   const [tab, setTab] = useState('Requires action')
+  const [open, setOpen] = useState<PendingApproval | null>(null)
   const all = requestsFor('pt-ananya')
+
+  // Approvals a workflow is currently stopped on. These come first on the page
+  // because a paused run is costing someone else time, and because they are
+  // the only thing here that cannot move without this person.
+  const approvals = useOrcaRead<{ approvals: PendingApproval[] }>('approvals')
+  const waiting = (approvals.data?.approvals ?? []).filter((a) => a.status === 'Awaiting approval')
 
   const filtered = {
     'Requires action': all.filter((r) =>
@@ -36,6 +47,35 @@ export function PatientRequests() {
         description="Anything ORCA is carrying on your behalf, and whose desk it is on right now."
         breadcrumbs={[{ label: 'Home', to: '/patient' }, { label: 'Requests' }]}
       />
+
+      <RecordSource state={approvals.state} reason={approvals.reason} />
+
+      {waiting.length > 0 ? (
+        <div className="mb-6">
+          <h2 className="mb-2 text-[0.78rem] font-semibold uppercase tracking-[0.07em] text-muted">
+            Waiting for you to decide
+          </h2>
+          <ul className="space-y-2">
+            {waiting.map((a) => (
+              <li key={a.request_id}>
+                <button
+                  type="button"
+                  onClick={() => setOpen(a)}
+                  className="block w-full rounded-[10px] border border-state-wait/30 bg-state-wait-tint px-5 py-4 text-left hover:border-state-wait/50"
+                >
+                  <p className="text-[0.93rem] font-medium text-ink">{a.title}</p>
+                  {a.description ? (
+                    <p className="mt-0.5 text-[0.84rem] leading-relaxed text-ink-2">{a.description}</p>
+                  ) : null}
+                  <p className="mt-1.5 text-[0.81rem] text-muted">
+                    Nothing will happen until you answer. Open to see what would be sent.
+                  </p>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <Tabs
         tabs={['Requires action', 'Active', 'Completed', 'All']}
@@ -69,6 +109,14 @@ export function PatientRequests() {
           </li>
         ) : null}
       </ul>
+
+      {open ? (
+        <ApprovalPanel
+          approval={open}
+          onClose={() => setOpen(null)}
+          onDecide={(optionId, message) => respondToApproval(open.request_id, optionId, message)}
+        />
+      ) : null}
     </div>
   )
 }

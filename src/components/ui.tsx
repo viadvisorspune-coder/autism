@@ -1,5 +1,7 @@
+import { useEffect, useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { useUI } from '../state/ui'
 import type { EvidenceStatus, WorkflowStatus, WorkflowStep } from '../data/types'
 
 /* ---------------------------------------------------------------- primitives */
@@ -121,11 +123,36 @@ const statusTone: Record<WorkflowStatus | 'Recorded', string> = {
   Recorded: 'bg-state-neutral-tint text-state-neutral',
 }
 
+/** The dot that carries the meaning when calm mode drops the tinted fill. */
+const statusDot: Record<WorkflowStatus | 'Recorded', string> = {
+  Draft: 'bg-state-neutral',
+  Active: 'bg-state-info',
+  'In progress': 'bg-state-info',
+  'Awaiting information': 'bg-state-wait',
+  'Awaiting approval': 'bg-state-wait',
+  'Awaiting professional review': 'bg-state-wait',
+  'Awaiting stakeholder': 'bg-state-wait',
+  Completed: 'bg-state-good',
+  'Requires adaptation': 'bg-state-wait',
+  Escalated: 'bg-state-alert',
+  Blocked: 'bg-state-alert',
+  Cancelled: 'bg-state-neutral',
+  Recorded: 'bg-state-neutral',
+}
+
+/**
+ * The word is the status; the colour only repeats it. In calm mode the fill is
+ * dropped and a dot carries the colour, so a list of twelve statuses reads as a
+ * list rather than as twelve separate alarms. Nothing is lost — the same word
+ * is present either way, which is why the word was never allowed to be
+ * decorative in the first place.
+ */
 export function StatusPill({ status }: { status: WorkflowStatus | 'Recorded' }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[0.72rem] font-medium ${statusTone[status]}`}
+      className={`status-chip inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent px-2.5 py-1 text-[0.72rem] font-medium ${statusTone[status]}`}
     >
+      <span className={`status-dot h-1.5 w-1.5 shrink-0 rounded-full ${statusDot[status]}`} aria-hidden />
       {status}
     </span>
   )
@@ -435,4 +462,84 @@ export function formatDate(iso: string) {
 export function formatDateTime(iso: string) {
   const [datePart, timePart] = iso.split('T')
   return timePart ? `${formatDate(datePart)}, ${timePart}` : formatDate(datePart)
+}
+
+/* --------------------------------------------------- progressive disclosure */
+
+/**
+ * A section that can start closed without concealing what is inside it.
+ *
+ * Three rules, and they are the difference between disclosure and hiding:
+ *   1. The control always says what is inside, including how many items.
+ *   2. It opens and closes on one press, and stays where the user put it.
+ *   3. Full mode opens everything, so nobody has to hunt.
+ *
+ * `important` sections ignore calm mode and stay open. Something a person is
+ * being asked to decide is never collapsed behind a chevron — that is not
+ * calm, it is a page deciding on their behalf that it can wait.
+ */
+export function Section({
+  title,
+  count,
+  summary,
+  important = false,
+  children,
+  action,
+}: {
+  title: string
+  count?: number
+  summary?: string
+  important?: boolean
+  children: ReactNode
+  action?: ReactNode
+}) {
+  const { density } = useUI()
+  const startOpen = important || density === 'full'
+  const [open, setOpen] = useState(startOpen)
+  const id = useId()
+
+  // Switching the preference re-sets sections that have not been touched, so
+  // "show me everything" actually shows everything.
+  useEffect(() => {
+    setOpen(important || density === 'full')
+  }, [density, important])
+
+  return (
+    <section className="mb-6">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-controls={id}
+          className="disclosure-summary group inline-flex items-center gap-2 rounded-md py-1 text-left"
+        >
+          <span
+            aria-hidden
+            className={`inline-block text-[0.7rem] text-muted ${open ? 'rotate-90' : ''}`}
+          >
+            ▶
+          </span>
+          <span className="text-[0.78rem] font-semibold uppercase tracking-[0.07em] text-muted group-hover:text-ink-2">
+            {title}
+          </span>
+          {typeof count === 'number' ? (
+            <span className="text-[0.78rem] text-muted">({count})</span>
+          ) : null}
+          {!open ? (
+            <span className="text-[0.78rem] font-normal normal-case tracking-normal text-muted">
+              — show
+            </span>
+          ) : null}
+        </button>
+        {action}
+      </div>
+      {!open && summary ? (
+        <p className="mb-2 text-[0.83rem] leading-relaxed text-muted">{summary}</p>
+      ) : null}
+      <div id={id} hidden={!open}>
+        {children}
+      </div>
+    </section>
+  )
 }
