@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
  * The Supabase client for the browser.
@@ -24,10 +25,39 @@ if (!isSupabaseConfigured && import.meta.env.DEV) {
   console.info('[ORCA] No Supabase credentials found — running on mock data. See .env.example.')
 }
 
-export const supabase = createClient(url ?? '', publishableKey ?? '', {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
+/**
+ * Built on first use, not at module load.
+ *
+ * createClient throws when the URL is missing, and this module is imported by
+ * the boot path — so constructing it eagerly took an unconfigured deployment
+ * from "runs on demonstration data" to a blank white page, before React ran at
+ * all. A missing backend is a condition this app is designed to survive; it
+ * must never be a condition that stops it starting.
+ *
+ * Every caller checks isSupabaseConfigured first, so the throw below is
+ * unreachable in practice and exists to be loud if that ever stops being true.
+ */
+let client: SupabaseClient | null = null
+
+function real(): SupabaseClient {
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured in this build. Check isSupabaseConfigured first.')
+  }
+  if (!client) {
+    client = createClient(url as string, publishableKey as string, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    })
+  }
+  return client
+}
+
+/** Same shape as the client, resolved lazily on first property access. */
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_target, property, receiver) {
+    return Reflect.get(real(), property, receiver)
   },
 })
