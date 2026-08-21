@@ -1,0 +1,333 @@
+openapi: 3.1.0
+info:
+  title: ORCA Governance Ledger
+  version: 1.0.0
+servers:
+- url: https://zievqdkhxenenpyxqese.supabase.co
+paths:
+  /functions/v1/governance-ledger:
+    post:
+      operationId: readGovernanceLedger
+      summary: Consent over time, outstanding access requests, clarification exchanges and retention
+        position
+      description: Answers what a named person was permitted to see at a given moment, who has asked
+        for access and not yet been answered, and what an outside organisation asked and was told. Grants
+        nothing. Recording a request for access is not the same as granting it, and answering a clarification
+        requires the patient's approval.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - purpose
+              properties:
+                purpose:
+                  type: string
+                  enum:
+                  - consent_history
+                  - scope_at
+                  - request_access
+                  - pending_access_requests
+                  - ask_clarification
+                  - answer_clarification
+                  - retention_report
+                  description: Which part of the ledger this step needs. Everything except retention_report
+                    requires patient_id.
+                patient_id:
+                  type: string
+                  description: Patient whose record is concerned, for example pt-ananya. Required for
+                    every purpose except retention_report.
+                actor_id:
+                  type: string
+                  description: User on whose behalf this runs, for example u-kavita.
+                person_id:
+                  type: string
+                  description: The person whose access is being examined. Required for scope_at, optional
+                    for consent_history to narrow it to one person.
+                as_of:
+                  type: string
+                  description: Moment to evaluate access at, as an ISO timestamp, for example 2026-08-12T09:00:00Z.
+                    Required for scope_at.
+                purpose_text:
+                  type: string
+                  description: Why access is being requested, in plain language the patient will read.
+                    Required for request_access.
+                justification:
+                  type: string
+                  description: Supporting detail for an access request, such as a referral or a clinical
+                    reason.
+                requested_scope:
+                  type: array
+                  description: Categories the requester is asking for, for example Timeline or Strategies
+                    & outcomes.
+                  items:
+                    type: string
+                request_id:
+                  type: string
+                  description: Accommodation or adjustment request the clarification belongs to, for example
+                    rq-1.
+                clarification_id:
+                  type: string
+                  description: The clarification being answered. Required for answer_clarification.
+                asked_by_label:
+                  type: string
+                  description: Who asked, when the asker is an organisation rather than a registered user.
+                question:
+                  type: string
+                  description: The question being asked. Required for ask_clarification.
+                answer:
+                  type: string
+                  description: The answer to send. Required for answer_clarification.
+                approved_by:
+                  type: string
+                  description: 'The patient who approved the answer leaving their record, for example
+                    u-ananya. Required for answer_clarification: an unapproved answer is refused.'
+                withheld:
+                  type: array
+                  description: What was deliberately left out of the answer, so the omission is recorded
+                    rather than invisible.
+                  items:
+                    type: string
+                workflow_run_id:
+                  type: string
+                  description: Workflow run this step belongs to.
+      responses:
+        '200':
+          description: The requested part of the ledger. Only the section matching the purpose is populated.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                - purpose
+                properties:
+                  purpose:
+                    type: string
+                  patient_id:
+                    type:
+                    - string
+                    - 'null'
+                  note:
+                    type: string
+                    description: Plain-language statement of what this result does and does not authorise.
+                  consent_history:
+                    type: array
+                    description: Every recorded change to what one or more people could see, most recent
+                      first.
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                      - id
+                      - person_id
+                      - person_name
+                      - changed_at
+                      - change_type
+                      properties:
+                        id:
+                          type: string
+                        person_id:
+                          type: string
+                        person_name:
+                          type: string
+                        changed_at:
+                          type: string
+                        change_type:
+                          type: string
+                          enum:
+                          - Granted
+                          - Widened
+                          - Narrowed
+                          - Renewed
+                          - Revoked
+                          - Expired
+                        previous_scope:
+                          type:
+                          - array
+                          - 'null'
+                          items:
+                            type: string
+                        new_scope:
+                          type:
+                          - array
+                          - 'null'
+                          items:
+                            type: string
+                        previous_status:
+                          type:
+                          - string
+                          - 'null'
+                        new_status:
+                          type:
+                          - string
+                          - 'null'
+                        purpose:
+                          type:
+                          - string
+                          - 'null'
+                        reason:
+                          type:
+                          - string
+                          - 'null'
+                  scope_at:
+                    type: object
+                    additionalProperties: false
+                    required:
+                    - person_id
+                    - as_of
+                    - scope
+                    - had_access
+                    description: What one person could see at one moment.
+                    properties:
+                      person_id:
+                        type: string
+                      person_name:
+                        type: string
+                      as_of:
+                        type: string
+                      scope:
+                        type: array
+                        items:
+                          type: string
+                      had_access:
+                        type: boolean
+                      note:
+                        type: string
+                  access_request:
+                    type: object
+                    additionalProperties: false
+                    required:
+                    - id
+                    - status
+                    - created
+                    description: The access request just recorded, or the one already outstanding.
+                    properties:
+                      id:
+                        type: string
+                      status:
+                        type: string
+                      created:
+                        type: boolean
+                        description: False when a request from this person was already awaiting an answer.
+                      note:
+                        type: string
+                  access_requests:
+                    type: array
+                    description: Requests the patient has not yet answered.
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                      - id
+                      - requested_by
+                      - requested_role
+                      - purpose
+                      - status
+                      properties:
+                        id:
+                          type: string
+                        requested_by:
+                          type: string
+                        requested_by_name:
+                          type: string
+                        requested_role:
+                          type: string
+                        purpose:
+                          type: string
+                        requested_scope:
+                          type: array
+                          items:
+                            type: string
+                        justification:
+                          type:
+                          - string
+                          - 'null'
+                        status:
+                          type: string
+                        created_at:
+                          type: string
+                  clarification:
+                    type: object
+                    additionalProperties: false
+                    required:
+                    - id
+                    - request_id
+                    - question
+                    - answered
+                    description: One question from an outside organisation, and its answer if given.
+                    properties:
+                      id:
+                        type: string
+                      request_id:
+                        type: string
+                      question:
+                        type: string
+                      answer:
+                        type: string
+                      answered:
+                        type: boolean
+                      answered_on:
+                        type: string
+                      awaiting:
+                        type: string
+                      withheld:
+                        type: array
+                        items:
+                          type: string
+                  retention:
+                    type: object
+                    additionalProperties: false
+                    required:
+                    - policies
+                    - past_policy
+                    description: How long each dataset may be kept, and what is already past that.
+                    properties:
+                      policies:
+                        type: array
+                        items:
+                          type: object
+                          additionalProperties: false
+                          required:
+                          - dataset
+                          - keep_months
+                          - basis
+                          - on_expiry
+                          properties:
+                            dataset:
+                              type: string
+                            keep_months:
+                              type: integer
+                            basis:
+                              type: string
+                            on_expiry:
+                              type: string
+                            review_owner:
+                              type: string
+                      past_policy:
+                        type: array
+                        items:
+                          type: object
+                          additionalProperties: false
+                          required:
+                          - dataset
+                          - rows_past_policy
+                          properties:
+                            dataset:
+                              type: string
+                            rows_past_policy:
+                              type: integer
+                            oldest:
+                              type:
+                              - string
+                              - 'null'
+components:
+  securitySchemes:
+    orcaConnectorBearer:
+      type: http
+      scheme: bearer
+security:
+- orcaConnectorBearer: []

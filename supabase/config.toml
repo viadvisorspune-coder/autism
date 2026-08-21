@@ -23,6 +23,9 @@ verify_jwt = false
 [functions.output-artifact]
 verify_jwt = false
 
+[functions.governance-ledger]
+verify_jwt = false
+
 # Yoxa posts signed HITL events here; the function verifies the signature
 # itself, so the gateway JWT check must be off.
 [functions.hitl-receiver]
