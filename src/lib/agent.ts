@@ -174,8 +174,12 @@ export function followRun(
   onChange: (state: RunState) => void,
   options: { intervalMs?: number; maxMs?: number } = {},
 ): () => void {
-  const interval = options.intervalMs ?? 3000
-  const limit = options.maxMs ?? 5 * 60 * 1000
+  // Measured against real runs: the first agent step lands three to five
+  // minutes after the trigger, so a five-minute ceiling gave up before the run
+  // had done anything. Polling every three seconds for that long is also just
+  // noise — slow down once the first minute has passed without news.
+  const interval = options.intervalMs ?? 4000
+  const limit = options.maxMs ?? 20 * 60 * 1000
   const startedAt = Date.now()
 
   let stopped = false
@@ -208,7 +212,8 @@ export function followRun(
       return
     }
 
-    window.setTimeout(tick, interval)
+    const elapsed = Date.now() - startedAt
+    window.setTimeout(tick, elapsed > 60_000 ? interval * 2 : interval)
   }
 
   void tick()

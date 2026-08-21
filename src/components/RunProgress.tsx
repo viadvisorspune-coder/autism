@@ -54,6 +54,13 @@ export function RunProgress({
         action={<StatusPill status={run.status as never} />}
       />
       <CardBody>
+        {run.current_step === 'Trigger received' ? (
+          <p className="mb-4 text-[0.83rem] leading-relaxed text-muted">
+            Sent. The first step usually takes a few minutes to appear — this page will keep itself up
+            to date, and there is nothing you need to do while you wait.
+          </p>
+        ) : null}
+
         <ol className="mb-4 space-y-2">
           {(run.steps ?? []).map((step, i) => (
             <li key={`${step.label}-${i}`} className="flex gap-3">
