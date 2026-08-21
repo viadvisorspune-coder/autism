@@ -55,6 +55,48 @@ Deno.serve(
       run = data
     }
 
+    // The interface starts a run the moment a person presses send, so that the
+    // waiting is visible from the first second. Yoxa's agents then arrive
+    // without knowing that id and would otherwise open a second run for the
+    // same action — leaving the person watching a row that never moves while
+    // the real work happened somewhere they could not see.
+    //
+    // So: adopt the waiting run rather than opening another. Only one that is
+    // still sitting at the trigger, for this patient, from the last ten
+    // minutes — narrow enough that it cannot capture an unrelated run.
+    if (!run && patientId) {
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+      const { data: waiting } = await admin
+        .from('workflow_runs')
+        .select('*')
+        .eq('patient_id', patientId)
+        .eq('current_step', 'Trigger received')
+        .eq('waiting_for', 'Yoxa')
+        .gte('started_at', tenMinutesAgo)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (waiting) {
+        const { data: adopted } = await admin
+          .from('workflow_runs')
+          .update({
+            current_step: step ?? waiting.current_step,
+            waiting_for: waitingFor ?? null,
+            status: requestedStatus ?? 'In progress',
+            steps: [
+              { label: 'Trigger received', state: 'done', detail: 'Sent to the agent layer.' },
+              { label: step ?? 'Understanding the request', state: 'current', detail: note },
+            ],
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', waiting.id as string)
+          .select('*')
+          .single()
+        run = adopted
+      }
+    }
+
     if (!run) {
       const { data, error } = await admin
         .from('workflow_runs')
