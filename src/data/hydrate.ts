@@ -12,7 +12,7 @@
  * record stays. The interface then says so, on every screen, rather than
  * showing an empty page and letting someone assume their record is empty.
  */
-import { isSupabaseConfigured, supabase } from '../lib/supabase'
+import { isSupabaseConfigured, missingEnv, supabase } from '../lib/supabase'
 import * as db from './db'
 import type {
   Appointment,
@@ -68,7 +68,9 @@ export type RecordSourceState = 'live' | 'mock'
 
 /** Read once at boot; screens show it through the banner. */
 export let recordSource: RecordSourceState = 'mock'
-export let recordNote: string | null = 'No backend configured for this build.'
+export let recordNote: string | null = missingEnv.length
+  ? `Not set in this deployment: ${missingEnv.join(' and ')}.`
+  : 'No backend configured for this build.'
 
 /** Extras the prototype never had a place for, kept beside the record. */
 export let consentEvents: Row[] = []
@@ -92,6 +94,7 @@ const day = (v: unknown): string => (typeof v === 'string' ? v.slice(0, 10) : ''
 
 export async function hydrate(timeoutMs = 4000): Promise<RecordSourceState> {
   if (!isSupabaseConfigured) return 'mock'
+
 
   try {
     // A slow backend must not hold the interface hostage. Past the timeout the

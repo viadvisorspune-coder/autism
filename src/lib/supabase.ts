@@ -21,6 +21,19 @@ const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
  */
 export const isSupabaseConfigured = Boolean(url && publishableKey)
 
+/**
+ * Which variable names are absent, by name.
+ *
+ * "No backend configured" is true but useless when you are standing in a
+ * hosting dashboard wondering which of two things you typed wrong. Naming the
+ * missing variable turns a guessing game into one line of instruction — and
+ * these are public values, so naming them costs nothing.
+ */
+export const missingEnv: string[] = [
+  url ? null : 'VITE_SUPABASE_URL',
+  publishableKey ? null : 'VITE_SUPABASE_PUBLISHABLE_KEY',
+].filter((name): name is string => name !== null)
+
 if (!isSupabaseConfigured && import.meta.env.DEV) {
   console.info('[ORCA] No Supabase credentials found — running on mock data. See .env.example.')
 }
