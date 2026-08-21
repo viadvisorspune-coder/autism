@@ -367,16 +367,9 @@ export function RecordSource({ state, reason }: { state: ReadState; reason?: str
     )
   }
 
-  if (state === 'mock') {
-    return (
-      <div className="mb-5">
-        <Callout tone="wait" title="Demonstration data">
-          The live record could not be reached, so this screen is showing the prototype's own data. Nothing
-          here is a real reading of the database.
-        </Callout>
-      </div>
-    )
-  }
+  // The shell already says this once, at the top of every screen. Saying it
+  // again per section is the crowding this interface is trying to avoid.
+  if (state === 'mock') return null
 
   return (
     <p className="mb-4 text-[0.78rem] text-state-good">

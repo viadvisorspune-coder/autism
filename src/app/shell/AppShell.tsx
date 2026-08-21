@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useSession } from '../../state/session'
+import { useRecordStatus } from '../../data/RecordProvider'
 import { accentByExperience, navByRole } from '../nav'
 import { notificationsFor } from '../../data/db'
 import { DisplayPanel, EvidencePanel, NotificationPanel, SearchPanel, Toast } from './Panels'
@@ -191,6 +192,7 @@ export default function AppShell() {
 
         {/* ------------------------------------------------------- main content */}
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-8 sm:py-8">
+          <RecordBanner />
           <Outlet />
         </main>
       </div>
@@ -200,6 +202,36 @@ export default function AppShell() {
       {panel === 'display' ? <DisplayPanel onClose={close} /> : null}
       <EvidencePanel />
       <Toast />
+    </div>
+  )
+}
+
+
+/**
+ * Said once, at the top of every screen, rather than repeated per card.
+ *
+ * Only shown when the record is NOT live. A page that cannot tell you whether
+ * it holds your record or a demonstration of one is worse than a page that
+ * admits it, but a banner on every screen every time it is working correctly
+ * is noise, and noise is the thing this interface is trying to spend least of.
+ */
+function RecordBanner() {
+  const { status, note } = useRecordStatus()
+  if (status === 'live') return null
+
+  // While it is still loading, one quiet line rather than an alarm. The screen
+  // below is already usable; this only says it is not yet the real record.
+  if (status === 'loading') {
+    return <p className="mb-5 text-[0.79rem] text-muted">Loading your record. Showing example data meanwhile.</p>
+  }
+
+  return (
+    <div className="mb-6 rounded-[10px] border border-state-wait/25 bg-state-wait-tint px-4 py-3">
+      <p className="text-[0.85rem] font-semibold text-ink">Demonstration data</p>
+      <p className="mt-1 text-[0.83rem] leading-relaxed text-ink-2">
+        {note ?? 'The live record could not be reached.'} Everything below is the prototype's own example
+        record. It is not a reading of anyone's information.
+      </p>
     </div>
   )
 }

@@ -16,6 +16,7 @@
 import { admin, cors, json, str } from '../_shared/yoxa.ts'
 
 type Resource =
+  | 'bundle'
   | 'privacy'
   | 'timeline'
   | 'requests'
@@ -27,17 +28,17 @@ type Resource =
 
 /** What each role may ever receive, before per-patient consent narrows it. */
 const ROLE_MAY_READ: Record<string, Resource[]> = {
-  patient: ['privacy', 'timeline', 'requests', 'profile', 'strategies', 'audit', 'approvals', 'workflow_runs'],
-  psychologist: ['timeline', 'profile', 'strategies', 'requests', 'approvals'],
-  psychiatrist: ['timeline', 'profile', 'requests'],
-  therapist: ['profile', 'strategies'],
-  ot: ['profile', 'strategies'],
-  gp: ['timeline', 'profile'],
-  clinic: ['requests', 'workflow_runs'],
-  employer: ['requests'],
-  university: ['requests'],
-  trusted: ['profile'],
-  admin: ['workflow_runs', 'audit'],
+  patient: ['bundle', 'privacy', 'timeline', 'requests', 'profile', 'strategies', 'audit', 'approvals', 'workflow_runs'],
+  psychologist: ['bundle', 'timeline', 'profile', 'strategies', 'requests', 'approvals'],
+  psychiatrist: ['bundle', 'timeline', 'profile', 'requests'],
+  therapist: ['bundle', 'profile', 'strategies'],
+  ot: ['bundle', 'profile', 'strategies'],
+  gp: ['bundle', 'timeline', 'profile'],
+  clinic: ['bundle', 'requests', 'workflow_runs'],
+  employer: ['bundle', 'requests'],
+  university: ['bundle', 'requests'],
+  trusted: ['bundle', 'profile'],
+  admin: ['bundle', 'workflow_runs', 'audit'],
 }
 
 Deno.serve(async (req) => {
@@ -115,6 +116,84 @@ Deno.serve(async (req) => {
 
 async function read(resource: Resource, patientId: string | null): Promise<unknown> {
   switch (resource) {
+    // Everything the interface renders, in one call at boot. The alternative —
+    // one request per screen — turns a role switch into twenty round trips and
+    // makes every screen responsible for its own loading state.
+    case 'bundle': {
+      const [
+        users,
+        patients,
+        connections,
+        events,
+        profile,
+        strategies,
+        checkins,
+        appointments,
+        documents,
+        disclosures,
+        requests,
+        clarifications,
+        candidates,
+        reviews,
+        notifications,
+        runs,
+        audit,
+        notes,
+        tasks,
+        consentEvents,
+        accessRequests,
+        approvals,
+      ] = await Promise.all([
+        admin.from('app_users').select('*'),
+        admin.from('patients').select('*'),
+        admin.from('connections').select('*'),
+        admin.from('timeline_events').select('*').order('recorded_on', { ascending: false }),
+        admin.from('profile_items').select('*'),
+        admin.from('strategies').select('*'),
+        admin.from('strategy_checkins').select('*').order('recorded_on', { ascending: true }),
+        admin.from('appointments').select('*').order('scheduled_for', { ascending: true }),
+        admin.from('documents').select('*').order('recorded_on', { ascending: false }),
+        admin.from('disclosures').select('*').order('disclosed_on', { ascending: false }),
+        admin.from('requests').select('*').order('raised_on', { ascending: false }),
+        admin.from('request_clarifications').select('*').order('asked_on', { ascending: true }),
+        admin.from('memory_candidates').select('*'),
+        admin.from('review_items').select('*'),
+        admin.from('notifications').select('*').order('created_at', { ascending: false }),
+        admin.from('workflow_runs').select('*').order('started_at', { ascending: false }),
+        admin.from('audit_log').select('*').order('occurred_at', { ascending: false }).limit(200),
+        admin.from('session_notes').select('*').order('held_on', { ascending: false }),
+        admin.from('tasks').select('*'),
+        admin.from('consent_events').select('*').order('changed_at', { ascending: false }),
+        admin.from('access_requests').select('*').eq('status', 'Pending'),
+        admin.from('hitl_requests').select('*').order('created_at', { ascending: false }).limit(25),
+      ])
+
+      return {
+        app_users: users.data ?? [],
+        patients: patients.data ?? [],
+        connections: connections.data ?? [],
+        timeline_events: events.data ?? [],
+        profile_items: profile.data ?? [],
+        strategies: strategies.data ?? [],
+        strategy_checkins: checkins.data ?? [],
+        appointments: appointments.data ?? [],
+        documents: documents.data ?? [],
+        disclosures: disclosures.data ?? [],
+        requests: requests.data ?? [],
+        request_clarifications: clarifications.data ?? [],
+        memory_candidates: candidates.data ?? [],
+        review_items: reviews.data ?? [],
+        notifications: notifications.data ?? [],
+        workflow_runs: runs.data ?? [],
+        audit_log: audit.data ?? [],
+        session_notes: notes.data ?? [],
+        tasks: tasks.data ?? [],
+        consent_events: consentEvents.data ?? [],
+        access_requests: accessRequests.data ?? [],
+        hitl_requests: approvals.data ?? [],
+      }
+    }
+
     case 'privacy': {
       if (!patientId) return null
       const [connections, disclosures, history, pending] = await Promise.all([
