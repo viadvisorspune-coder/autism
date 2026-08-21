@@ -26,6 +26,12 @@ verify_jwt = false
 [functions.governance-ledger]
 verify_jwt = false
 
+# ORCA's own read path. verify_jwt is off only because the interface has no
+# sign-in yet; the function enforces role scope itself and says so in its own
+# header comment. Turn this on the moment Supabase Auth lands.
+[functions.app-read]
+verify_jwt = false
+
 # Yoxa posts signed HITL events here; the function verifies the signature
 # itself, so the gateway JWT check must be off.
 [functions.hitl-receiver]

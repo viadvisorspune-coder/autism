@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Button, Card, CardBody, CardHead, StatusPill, WorkflowSteps, formatDate } from './ui'
+import { Button, Callout, Card, CardBody, CardHead, StatusPill, WorkflowSteps, formatDate } from './ui'
+import type { ReadState } from '../lib/orca'
 import { useUI } from '../state/ui'
 import type { EvidenceBundle, MemoryCandidate, ReviewItem, WorkflowStep } from '../data/types'
 
@@ -340,5 +341,46 @@ export function WorkflowStatePanel({
         </p>
       </CardBody>
     </Card>
+  )
+}
+
+/* ------------------------------------------- Where the data on a screen came from */
+
+/**
+ * Says which record the screen is showing. A page that cannot tell you whether
+ * it holds a real record or a demonstration one is worse than a page that
+ * admits it — so this is never hidden, and it is never reassuring by default.
+ */
+export function RecordSource({ state, reason }: { state: ReadState; reason?: string | null }) {
+  if (state === 'loading') {
+    return <p className="mb-4 text-[0.78rem] text-muted">Reading the record…</p>
+  }
+
+  if (state === 'refused') {
+    return (
+      <div className="mb-5">
+        <Callout tone="alert" title="This is not yours to see">
+          {reason ?? 'Your role has no access to this part of the record.'} Nothing has been shown, and the
+          attempt has been recorded.
+        </Callout>
+      </div>
+    )
+  }
+
+  if (state === 'mock') {
+    return (
+      <div className="mb-5">
+        <Callout tone="wait" title="Demonstration data">
+          The live record could not be reached, so this screen is showing the prototype's own data. Nothing
+          here is a real reading of the database.
+        </Callout>
+      </div>
+    )
+  }
+
+  return (
+    <p className="mb-4 text-[0.78rem] text-state-good">
+      Live record · read through the permission layer, scoped to your role.
+    </p>
   )
 }
