@@ -218,15 +218,42 @@ export function followRun(
   }
 }
 
-/** Supabase puts a failed function's body on the error, in varying shapes. */
+/**
+ * The reason a function call failed, in words.
+ *
+ * supabase-js attaches the raw Response as `context`, so the body has to be
+ * read from it rather than picked off a property. Getting this wrong turned a
+ * precise "Yoxa returned 403" into a generic "could not be started" and hid
+ * the actual fault for an hour — the message a failure carries is the whole
+ * value of the failure.
+ */
 async function readErrorBody(error: unknown): Promise<string | null> {
-  const context = (error as { context?: { body?: unknown; json?: () => Promise<unknown> } }).context
+  const context = (error as { context?: unknown }).context
   if (!context) return null
   try {
-    let parsed: unknown = context.body
-    if (typeof parsed === 'string') parsed = JSON.parse(parsed)
+    let parsed: unknown = null
+
+    if (context instanceof Response) {
+      parsed = await context.clone().json()
+    } else {
+      const holder = context as { body?: unknown }
+      parsed = typeof holder.body === 'string' ? JSON.parse(holder.body) : holder.body
+    }
+
     const record = parsed as Record<string, unknown> | null
     if (!record) return null
+
+    // A rejection from Yoxa carries its own status and body; say both.
+    if (record.error === 'trigger_rejected') {
+      const status = record.status
+      return `Yoxa refused the request (HTTP ${status}). The deployment may be inactive, or the deployment secret may be wrong.`
+    }
+    if (record.error === 'yoxa_unreachable') {
+      return 'Yoxa could not be reached. Nothing was sent.'
+    }
+    if (record.error === 'not_permitted') {
+      return typeof record.reason === 'string' ? record.reason : 'You do not have access to this record.'
+    }
     if (typeof record.reason === 'string') return record.reason
     if (record.error === 'trigger_not_configured') {
       return 'The workflow is not connected yet: YOXA_TRIGGER_URL and YOXA_DEPLOYMENT_SECRET are not set.'

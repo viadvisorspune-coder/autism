@@ -14,7 +14,10 @@
 import { admin, cors, json, str } from '../_shared/yoxa.ts'
 import { actorFromRequest, forbidden, mayActOnPatient, unauthorised } from '../_shared/app.ts'
 
-const SECRET_HEADER = Deno.env.get('YOXA_SECRET_HEADER') ?? 'Authorization'
+// Yoxa's copied cURL names this header explicitly. It is NOT an Authorization
+// bearer — sending it that way returns 403 with a rejection that looks exactly
+// like an inactive deployment, which is how this cost an hour.
+const SECRET_HEADER = Deno.env.get('YOXA_SECRET_HEADER') ?? 'X-Yoxa-Deployment-Secret'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
