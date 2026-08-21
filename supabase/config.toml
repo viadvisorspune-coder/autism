@@ -37,11 +37,13 @@ verify_jwt = false
 [functions.hitl-receiver]
 verify_jwt = false
 
-# Called by ORCA's own frontend with the signed-in user's session. The gateway
-# check stays ON — an anonymous caller must not be able to start a workflow or
-# answer an approval.
+# Called by ORCA's own frontend. There is no sign-in yet, so the gateway check
+# is off and the function resolves the actor itself — from a real session when
+# one exists, or from an asserted actor_id when ORCA_DEMO_MODE is set. Scope is
+# enforced either way. Turn verify_jwt back on and unset ORCA_DEMO_MODE the day
+# Supabase Auth lands; neither function's logic changes.
 [functions.workflow-trigger]
-verify_jwt = true
+verify_jwt = false
 
 [functions.hitl-respond]
-verify_jwt = true
+verify_jwt = false

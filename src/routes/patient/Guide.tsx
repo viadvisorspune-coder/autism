@@ -5,6 +5,11 @@ import { AiProvenance, WhyButton } from '../../components/shared'
 import { guideConversation, guidePrompts } from '../../data/db'
 import type { GuideMessage } from '../../data/types'
 import { useUI } from '../../state/ui'
+import { useSession } from '../../state/session'
+import { isSupabaseConfigured } from '../../lib/supabase'
+import { followRun, startRun } from '../../lib/agent'
+import type { RunState } from '../../lib/agent'
+import { RunProgress } from '../../components/RunProgress'
 
 /**
  * 4.1 ORCA Guide.
@@ -15,22 +20,60 @@ import { useUI } from '../../state/ui'
 export default function PatientGuide() {
   const location = useLocation() as { state?: { message?: string } }
   const { say } = useUI()
+  const { option } = useSession()
   const [messages, setMessages] = useState<GuideMessage[]>(guideConversation)
   const [draft, setDraft] = useState('')
+  const [run, setRun] = useState<RunState | null>(null)
+  const [starting, setStarting] = useState(false)
+  const [runError, setRunError] = useState<string | null>(null)
   const seeded = useRef(false)
   const endRef = useRef<HTMLDivElement>(null)
+  const stopFollowing = useRef<(() => void) | null>(null)
+
+  useEffect(() => () => stopFollowing.current?.(), [])
 
   const send = (text: string) => {
-    if (!text.trim()) return
+    const trimmed = text.trim()
+    if (!trimmed || starting) return
+
     const user: GuideMessage = {
       id: `gm-u-${Date.now()}`,
       from: 'patient',
       time: 'Just now',
-      text: text.trim(),
+      text: trimmed,
     }
-    const reply = replyFor(text)
-    setMessages((m) => [...m, user, reply])
+    setMessages((m) => [...m, user])
     setDraft('')
+
+    // Without a backend there is nothing to send to, so the prototype's own
+    // replies stand in — and the panel below says which of the two it is.
+    if (!isSupabaseConfigured) {
+      setMessages((m) => [...m, replyFor(trimmed)])
+      return
+    }
+
+    setStarting(true)
+    setRunError(null)
+    setRun(null)
+    stopFollowing.current?.()
+
+    void startRun(trimmed, 'pt-ananya', option?.personId ?? 'u-ananya').then(({ runId, error }) => {
+      setStarting(false)
+      if (error || !runId) {
+        setRunError(error ?? 'The workflow could not be started.')
+        return
+      }
+      setMessages((m) => [
+        ...m,
+        {
+          id: `gm-o-${Date.now()}`,
+          from: 'orca',
+          time: 'Just now',
+          text: 'I have started working on this. You can watch what I am doing below — I will stop and ask you before anything leaves your record.',
+        },
+      ])
+      stopFollowing.current = followRun(runId, setRun)
+    })
   }
 
   useEffect(() => {
@@ -129,6 +172,12 @@ export default function PatientGuide() {
         <div ref={endRef} />
       </div>
 
+      {starting || run || runError ? (
+        <div className="mt-6">
+          <RunProgress starting={starting} state={run} error={runError} />
+        </div>
+      ) : null}
+
       {/* ------------------------------------------------------ composer */}
       <div className="sticky bottom-0 mt-6 border-t border-line bg-canvas pt-4 pb-6">
         <div className="mb-2 flex flex-wrap gap-2">
@@ -159,8 +208,8 @@ export default function PatientGuide() {
           <Button onClick={() => say('Attach a document — the file picker is not wired up in this prototype.')}>
             Attach
           </Button>
-          <Button type="submit" variant="primary">
-            Send
+          <Button type="submit" variant="primary" disabled={starting}>
+            {starting ? 'Sending…' : 'Send'}
           </Button>
         </form>
       </div>

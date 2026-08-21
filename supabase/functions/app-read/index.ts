@@ -17,6 +17,7 @@ import { admin, cors, json, str } from '../_shared/yoxa.ts'
 
 type Resource =
   | 'bundle'
+  | 'run'
   | 'privacy'
   | 'timeline'
   | 'requests'
@@ -28,17 +29,17 @@ type Resource =
 
 /** What each role may ever receive, before per-patient consent narrows it. */
 const ROLE_MAY_READ: Record<string, Resource[]> = {
-  patient: ['bundle', 'privacy', 'timeline', 'requests', 'profile', 'strategies', 'audit', 'approvals', 'workflow_runs'],
-  psychologist: ['bundle', 'timeline', 'profile', 'strategies', 'requests', 'approvals'],
-  psychiatrist: ['bundle', 'timeline', 'profile', 'requests'],
-  therapist: ['bundle', 'profile', 'strategies'],
-  ot: ['bundle', 'profile', 'strategies'],
-  gp: ['bundle', 'timeline', 'profile'],
-  clinic: ['bundle', 'requests', 'workflow_runs'],
-  employer: ['bundle', 'requests'],
-  university: ['bundle', 'requests'],
-  trusted: ['bundle', 'profile'],
-  admin: ['bundle', 'workflow_runs', 'audit'],
+  patient: ['bundle', 'run', 'privacy', 'timeline', 'requests', 'profile', 'strategies', 'audit', 'approvals', 'workflow_runs'],
+  psychologist: ['bundle', 'run', 'timeline', 'profile', 'strategies', 'requests', 'approvals'],
+  psychiatrist: ['bundle', 'run', 'timeline', 'profile', 'requests'],
+  therapist: ['bundle', 'run', 'profile', 'strategies'],
+  ot: ['bundle', 'run', 'profile', 'strategies'],
+  gp: ['bundle', 'run', 'timeline', 'profile'],
+  clinic: ['bundle', 'run', 'requests', 'workflow_runs'],
+  employer: ['bundle', 'run', 'requests'],
+  university: ['bundle', 'run', 'requests'],
+  trusted: ['bundle', 'run', 'profile'],
+  admin: ['bundle', 'run', 'workflow_runs', 'audit'],
 }
 
 Deno.serve(async (req) => {
@@ -56,6 +57,7 @@ Deno.serve(async (req) => {
   const role = str(body.role) ?? 'patient'
   const actorId = str(body.actor_id)
   const patientId = str(body.patient_id)
+  const runId = str(body.run_id)
 
   if (!resource) return json({ error: 'resource is required' }, 400)
 
@@ -106,7 +108,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const data = await read(resource, patientId)
+    const data = await read(resource, patientId, runId)
     return json({ resource, role, permitted: true, reason: null, data })
   } catch (error) {
     console.error(error)
@@ -114,8 +116,48 @@ Deno.serve(async (req) => {
   }
 })
 
-async function read(resource: Resource, patientId: string | null): Promise<unknown> {
+async function read(
+  resource: Resource,
+  patientId: string | null,
+  runId: string | null,
+): Promise<unknown> {
   switch (resource) {
+    // One run, with anything a person waiting on it would want to know: where
+    // it has got to, whether it is stuck on a human, and what it is asking.
+    case 'run': {
+      if (!runId) return null
+      const { data: run } = await admin
+        .from('workflow_runs')
+        .select('id, patient_id, type, status, current_step, waiting_for, steps, started_at, updated_at, closed_at, closure_reason')
+        .eq('id', runId)
+        .maybeSingle()
+      if (!run) return null
+
+      const [approvals, reviews, entries] = await Promise.all([
+        admin
+          .from('hitl_requests')
+          .select('request_id, title, description, options, status, created_at')
+          .eq('local_run_id', runId),
+        admin
+          .from('review_items')
+          .select('id, title, reason, understanding, uncertainty, proposed_action, decision_required, status')
+          .eq('workflow_run_id', runId),
+        admin
+          .from('audit_log')
+          .select('id, occurred_at, actor_label, action, record, result, why')
+          .eq('workflow_run_id', runId)
+          .order('occurred_at', { ascending: true })
+          .limit(50),
+      ])
+
+      return {
+        run,
+        approvals: approvals.data ?? [],
+        reviews: reviews.data ?? [],
+        activity: entries.data ?? [],
+      }
+    }
+
     // Everything the interface renders, in one call at boot. The alternative —
     // one request per screen — turns a role switch into twenty round trips and
     // makes every screen responsible for its own loading state.

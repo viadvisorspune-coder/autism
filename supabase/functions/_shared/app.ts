@@ -13,6 +13,36 @@ export interface AppActor {
   role: string
 }
 
+/**
+ * The actor, from a real session where there is one.
+ *
+ * DEMO BOUNDARY: ORCA has no sign-in yet, so when ORCA_DEMO_MODE is set the
+ * caller may name the actor instead of proving it. Scope is still enforced —
+ * mayActOnPatient runs either way — but identity is asserted, not verified.
+ * The flag is deliberately opt-in per project: forget to set it in production
+ * and the asserted path simply does not exist.
+ */
+export async function actorFromRequest(
+  req: Request,
+  body: Record<string, unknown>,
+): Promise<AppActor | null> {
+  const real = await currentActor(req)
+  if (real) return real
+
+  if (Deno.env.get('ORCA_DEMO_MODE') !== 'true') return null
+
+  const claimed = typeof body.actor_id === 'string' ? body.actor_id : null
+  if (!claimed) return null
+
+  const { data } = await admin
+    .from('app_users')
+    .select('id, name, role')
+    .eq('id', claimed)
+    .maybeSingle()
+
+  return data ?? null
+}
+
 /** Resolve the signed-in user from the Authorization header, or null. */
 export async function currentActor(req: Request): Promise<AppActor | null> {
   const token = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim()

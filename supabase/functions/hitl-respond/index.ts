@@ -7,14 +7,11 @@
  * posting to Yoxa directly.
  */
 import { admin, cors, json, str } from '../_shared/yoxa.ts'
-import { currentActor, forbidden, mayActOnPatient, unauthorised, yoxaOrigin } from '../_shared/app.ts'
+import { actorFromRequest, forbidden, mayActOnPatient, unauthorised, yoxaOrigin } from '../_shared/app.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
-
-  const actor = await currentActor(req)
-  if (!actor) return unauthorised()
 
   let body: Record<string, unknown>
   try {
@@ -22,6 +19,9 @@ Deno.serve(async (req) => {
   } catch {
     return json({ error: 'invalid_json' }, 400)
   }
+
+  const actor = await actorFromRequest(req, body)
+  if (!actor) return unauthorised()
 
   const requestId = str(body.request_id)
   const selectedOptionId = str(body.selected_option_id)

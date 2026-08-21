@@ -12,7 +12,7 @@
  * change SECRET_HEADER to match it exactly rather than adapting the caller.
  */
 import { admin, cors, json, str } from '../_shared/yoxa.ts'
-import { currentActor, forbidden, mayActOnPatient, unauthorised } from '../_shared/app.ts'
+import { actorFromRequest, forbidden, mayActOnPatient, unauthorised } from '../_shared/app.ts'
 
 const SECRET_HEADER = Deno.env.get('YOXA_SECRET_HEADER') ?? 'Authorization'
 
@@ -20,15 +20,15 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
 
-  const actor = await currentActor(req)
-  if (!actor) return unauthorised()
-
   let body: Record<string, unknown>
   try {
     body = (await req.json()) as Record<string, unknown>
   } catch {
     return json({ error: 'invalid_json' }, 400)
   }
+
+  const actor = await actorFromRequest(req, body)
+  if (!actor) return unauthorised()
 
   const triggerText = str(body.trigger_text)
   const patientId = str(body.patient_id)
