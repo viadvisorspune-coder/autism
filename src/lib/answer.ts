@@ -1,8 +1,10 @@
 import {
   TODAY,
   appointmentsFor,
+  connections,
   documentsFor,
   eventsFor,
+  people,
   personName,
   profileItems,
   requestsFor,
@@ -43,10 +45,19 @@ export interface LocalSource {
 export interface LocalAnswer {
   text: string
   sources: LocalSource[]
+  /** False when nothing in the record matched, so callers can stop explaining. */
+  matched?: boolean
 }
 
 const DAY = 86_400_000
 const daysFromToday = (iso: string) => Math.round((Date.parse(iso) - Date.parse(TODAY)) / DAY)
+
+/** "25 August 2026", not "2026-08-25". Nobody says the second one. */
+function say(iso: string): string {
+  const date = new Date(`${iso.slice(0, 10)}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return iso
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+}
 
 function has(question: string, ...words: string[]): boolean {
   const q = question.toLowerCase()
@@ -70,6 +81,64 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
 
   const sources: LocalSource[] = []
   const lines: string[] = []
+
+  /* --------------------------------------------------- who is this person */
+  // Asked before anything else, because a question that names somebody is
+  // almost always about them and not about the topic words around them.
+  // "Who is Kavita again?" is the commonest thing anyone asks a record, and
+  // until now it fell through to a generic summary — which reads as an answer
+  // and is not one.
+  const named = personIn(question)
+  if (named) {
+    const link = connections.find((c) => c.patientId === patientId && c.personId === named.id)
+    const bits: string[] = [
+      `${named.name}${named.title ? ` — ${named.title}` : ''}${named.organisation ? `, ${named.organisation}` : ''}.`,
+    ]
+
+    if (link) {
+      bits.push(
+        `They are your ${link.relationship.toLowerCase()}. You gave them access on ${say(link.consentGiven)} for one reason: ${link.purpose.toLowerCase()}.`,
+      )
+      bits.push(
+        `They can see ${link.accessScope.join(', ').toLowerCase()} — and nothing else. That is ${link.consentStatus === 'Active' ? 'still active' : link.consentStatus.toLowerCase()}, and comes up for review on ${say(link.reviewDue)}.`,
+      )
+      if (link.lastInteraction) bits.push(`They last looked at your record on ${say(link.lastInteraction)}.`)
+
+      const next = appointmentsFor(patientId).find(
+        (a) => a.professionalId === named.id && a.status !== 'Completed',
+      )
+      if (next) bits.push(`You are seeing them on ${say(next.datetime)} for ${next.purpose.toLowerCase()}.`)
+
+      sources.push({
+        label: `What ${named.name.split(' ').slice(-1)[0]} can see`,
+        detail: link.relationship,
+        to: '/patient/privacy',
+      })
+    } else {
+      bits.push('They are not connected to your record, so they cannot see any of it.')
+      sources.push({ label: 'Who can see your record', detail: 'Connections', to: '/patient/connections' })
+    }
+
+    return { text: bits.join('\n\n'), sources: dedupe(sources) }
+  }
+
+  /* ------------------------------------------------- who can see my record */
+  if (has(question, 'who can see', 'who has access', 'access to my', 'sharing', 'shared with')) {
+    connections
+      .filter((c) => c.patientId === patientId && c.consentStatus === 'Active')
+      .forEach((c) => {
+        lines.push(
+          `${personName(c.personId)} — ${c.relationship.toLowerCase()}. Can see ${c.accessScope.join(', ').toLowerCase()}. Review due ${say(c.reviewDue)}.`,
+        )
+      })
+    if (lines.length) {
+      sources.push({ label: 'Who can see your record', detail: 'All connections', to: '/patient/privacy' })
+      return {
+        text: `${lines.length} ${lines.length === 1 ? 'person has' : 'people have'} access, each to a named part of your record and nothing more.\n\n${lines.join('\n\n')}`,
+        sources: dedupe(sources),
+      }
+    }
+  }
 
   /* ------------------------------------------------- what has been tried */
   if (has(question, 'tried', 'strategy', 'strategies', 'worked', 'helping', 'helped', 'working')) {
@@ -95,7 +164,7 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
       .forEach((r) => {
         const unanswered = r.clarifications.filter((c) => !c.answer)
         lines.push(
-          `${r.title} — with ${r.currentOwner} since ${r.raised}.` +
+          `${r.title} — with ${r.currentOwner} since ${say(r.raised)}.` +
             (unanswered.length ? ` They asked: “${unanswered[0].question}” and nobody has answered.` : ''),
         )
         sources.push({
@@ -109,7 +178,7 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
   /* --------------------------------------------------------- what changed */
   if (has(question, 'changed', 'change', 'recent', 'lately', 'happened', 'since')) {
     events.slice(0, 4).forEach((e) => {
-      lines.push(`${e.date} — ${e.title}. ${e.summary}`)
+      lines.push(`${say(e.date)} — ${e.title}. ${e.summary}`)
       sources.push({ label: e.title, detail: `${e.category} · ${e.evidence}`, to: `/patient/story/${e.id}` })
     })
   }
@@ -119,7 +188,7 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
     appointments.forEach((a) => {
       const away = daysFromToday(a.datetime.slice(0, 10))
       lines.push(
-        `${a.purpose} with ${personName(a.professionalId)}, ${a.datetime.slice(0, 10)}` +
+        `${a.purpose} with ${personName(a.professionalId)}, ${say(a.datetime)}` +
           (away >= 0 ? ` — ${away === 0 ? 'today' : `in ${away} days`}` : '') +
           `. The brief is ${a.preparationStatus.toLowerCase()}.`,
       )
@@ -134,7 +203,7 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
   /* ---------------------------------------------------------- documents */
   if (has(question, 'document', 'letter', 'report', 'upload', 'evidence', 'handbook')) {
     documents.slice(0, 3).forEach((d) => {
-      lines.push(`${d.title} — ${d.category}, ${d.status.toLowerCase()}, added ${d.date}.`)
+      lines.push(`${d.title} — ${d.category}, ${d.status.toLowerCase()}, added ${say(d.date)}.`)
       sources.push({ label: d.title, detail: d.category, to: `/patient/documents/${d.id}` })
     })
   }
@@ -142,52 +211,77 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
   /* -------------------------------------------- what is recorded about me */
   if (has(question, 'about me', 'know about', 'understand', 'profile', 'remember', 'pattern')) {
     profileItems.slice(0, 4).forEach((p) => {
-      lines.push(`${p.text} (${p.section}, ${p.evidence.toLowerCase()}, ${p.date})`)
+      lines.push(`${p.text} (${p.section}, ${p.evidence.toLowerCase()}, ${say(p.date)})`)
       sources.push({ label: p.text.slice(0, 48), detail: p.section, to: '/patient/profile' })
     })
   }
 
   /* ------------------------------------------------------------ fallback */
+  // Nothing matched. Say so.
+  //
+  // The previous version answered anyway, with a summary of everything open.
+  // That reads as an answer, which makes it worse than silence: someone who
+  // asked a specific question and received a confident paragraph about
+  // something else has been misled, not helped. Without the agent this is a
+  // lookup over a known set of things, and the honest move is to say what
+  // that set is and let the person pick.
   if (!lines.length) {
-    // Nothing in the question matched a topic. Rather than guess at what was
-    // meant, say what is currently open — which is what somebody who has not
-    // asked anything precise almost always wants to know.
     const openRequests = requests.filter((r) => r.status !== 'Completed' && r.status !== 'Cancelled')
     const active = strategies.filter((s) => s.status === 'Active')
 
-    if (active.length) {
-      lines.push(
-        `You are currently trying ${active.map((s) => s.title.toLowerCase()).join(' and ')}.`,
-      )
-      active.forEach((s) =>
-        sources.push({ label: s.title, detail: s.phase, to: `/patient/support/${s.id}` }),
-      )
+    return {
+      text: [
+        'I could not match that to anything in your record, and I would rather say so than answer a different question.',
+        'Working like this I can look things up, not think about them. What I can find:',
+        [
+          active.length ? `· what you have tried and what the check-ins said (${active.length} running)` : null,
+          openRequests.length ? `· what is still open and who it is with (${openRequests.length})` : null,
+          appointments.length ? '· your appointments and what they are for' : null,
+          '· who can see your record, and exactly which parts',
+          '· anyone connected to you — ask "who is …?"',
+          '· what has changed recently',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        'Or ask a person instead. Nothing you have written here has gone anywhere.',
+      ].join('\n\n'),
+      sources: [],
+      matched: false,
     }
-    if (openRequests.length) {
-      lines.push(
-        `${openRequests.length} request${openRequests.length === 1 ? ' is' : 's are'} still open: ${openRequests
-          .map((r) => `${r.title}, with ${r.currentOwner}`)
-          .join('; ')}.`,
-      )
-      openRequests.forEach((r) =>
-        sources.push({ label: r.title, detail: r.status, to: `/patient/requests/${r.id}` }),
-      )
-    }
-    if (appointments.length) {
-      const next = appointments[0]
-      lines.push(
-        `Your next appointment is ${next.purpose.toLowerCase()} with ${personName(next.professionalId)} on ${next.datetime.slice(0, 10)}.`,
-      )
-    }
-    if (!lines.length) lines.push('There is nothing open in your record at the moment.')
   }
 
-  return {
-    text: lines.join('\n\n'),
-    // Dedupe: the same strategy can match two clauses of one question, and
-    // citing it twice makes the answer look better sourced than it is.
-    sources: sources.filter((s, i, all) => all.findIndex((o) => o.to === s.to) === i).slice(0, 5),
-  }
+  return { text: lines.join('\n\n'), sources: dedupe(sources) }
+}
+
+/**
+ * Somebody this record knows, mentioned by name.
+ *
+ * Matches on surname and on first name, because people say "Kavita" and
+ * "Dr Nair" for the same person and neither is the full string in the record.
+ * Short tokens are excluded so that "Rao" — shared by three people here —
+ * cannot resolve to a confident wrong answer.
+ */
+function personIn(question: string) {
+  const q = question.toLowerCase()
+  const asking = /\bwho(?:'s| is| are)?\b|\bwhat does\b|\btell me about\b|\bremind me\b/.test(q)
+
+  const hits = people.filter((person) =>
+    person.name
+      .toLowerCase()
+      .replace(/^dr\.? /, '')
+      .split(/\s+/)
+      .filter((token) => token.length > 3)
+      .some((token) => q.includes(token)),
+  )
+
+  // Exactly one person, and either a question word or nothing else to go on.
+  if (hits.length === 1 && (asking || q.split(/\s+/).length <= 6)) return hits[0]
+  return null
+}
+
+/** Citing one source twice makes an answer look better sourced than it is. */
+function dedupe(sources: LocalSource[]): LocalSource[] {
+  return sources.filter((s, i, all) => all.findIndex((o) => o.to === s.to) === i).slice(0, 5)
 }
 
 /**
@@ -269,6 +363,16 @@ export function offlineReply(
   }
 
   const answer = answerFromRecord(question, patientId)
+
+  // A miss already explains itself. Prefacing it with "here is what follows"
+  // and then saying "I found nothing" is the interface talking to itself.
+  if (answer.matched === false) {
+    return {
+      text: `I could not reach the part of me that works things through, so nothing has been started and nobody has been contacted.\n\n${answer.text}`,
+      sources: answer.sources,
+    }
+  }
+
   return {
     text: [
       'I cannot reach the part of me that works things through right now, so nothing has been started and nobody has been contacted.',
