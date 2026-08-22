@@ -102,16 +102,30 @@ export function Copilot({
   const endRef = useRef<HTMLDivElement>(null)
   const stopFollowing = useRef<(() => void) | null>(null)
 
+  // Same as the patient Guide: load once, then merge. A workflow writing an
+  // answer server-side has to be able to reach a panel that is already open.
   useEffect(() => {
-    if (loaded || !stored.data?.messages?.length) return
-    setLoaded(true)
-    setThread(
-      stored.data.messages.map((m) => ({
-        id: m.id,
-        from: m.author === 'orca' ? 'orca' : 'you',
-        text: m.text,
-      })),
-    )
+    const incoming = stored.data?.messages
+    if (!incoming?.length) return
+
+    const asMessage = (m: { id: string; author: string; text: string }) => ({
+      id: m.id,
+      from: (m.author === 'orca' ? 'orca' : 'you') as 'orca' | 'you',
+      text: m.text,
+    })
+
+    if (!loaded) {
+      setLoaded(true)
+      setThread(incoming.map(asMessage))
+      return
+    }
+
+    setThread((current) => {
+      const ids = new Set(current.map((m) => m.id))
+      const texts = new Set(current.map((m) => m.text.trim()))
+      const fresh = incoming.filter((m) => !ids.has(m.id) && !texts.has(m.text.trim()))
+      return fresh.length ? [...current, ...fresh.map(asMessage)] : current
+    })
   }, [stored.data, loaded])
 
   useEffect(() => {

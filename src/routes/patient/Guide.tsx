@@ -44,18 +44,31 @@ export default function PatientGuide() {
   // this page. Polls too, so a reply written on another device turns up here.
   const stored = useLive<ConversationData>('conversation', 'pt-ananya', 8000)
 
+  // First poll replaces the thread with the real one. Every poll after that
+  // merges in anything new — which is how a message written by a workflow, on
+  // the server, minutes after the question was asked, arrives here without a
+  // reload. Before this the history was read once and then frozen, so an agent
+  // could answer into a conversation nobody was watching any more.
   useEffect(() => {
-    if (loadedHistory || !stored.data?.messages?.length) return
-    setLoadedHistory(true)
-    setHistoryCount(stored.data.messages.length)
-    setMessages(
-      stored.data.messages.map((m) => ({
-        id: m.id,
-        from: m.author === 'orca' ? 'orca' : 'patient',
-        time: relativeDay(m.created_at),
-        text: m.text,
-      })),
-    )
+    const incoming = stored.data?.messages
+    if (!incoming?.length) return
+
+    if (!loadedHistory) {
+      setLoadedHistory(true)
+      setHistoryCount(incoming.length)
+      setMessages(incoming.map(asGuideMessage))
+      return
+    }
+
+    setMessages((current) => {
+      const ids = new Set(current.map((m) => m.id))
+      // Also matched on text: a message this browser sent is written to the
+      // server without its id coming back, so it returns from the next poll
+      // looking like a new one.
+      const texts = new Set(current.map((m) => m.text.trim()))
+      const fresh = incoming.filter((m) => !ids.has(m.id) && !texts.has(m.text.trim()))
+      return fresh.length ? [...current, ...fresh.map(asGuideMessage)] : current
+    })
   }, [stored.data, loadedHistory])
 
   // Leaving stamps the visit, so the next arrival can say what changed.
@@ -376,6 +389,16 @@ export default function PatientGuide() {
       </div>
     </div>
   )
+}
+
+/** One stored row as the conversation renders it. */
+function asGuideMessage(m: { id: string; author: string; text: string; created_at: string }): GuideMessage {
+  return {
+    id: m.id,
+    from: m.author === 'orca' ? 'orca' : 'patient',
+    time: relativeDay(m.created_at),
+    text: m.text,
+  }
 }
 
 /**

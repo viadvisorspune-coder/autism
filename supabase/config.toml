@@ -20,6 +20,11 @@ verify_jwt = false
 [functions.stakeholder-communication]
 verify_jwt = false
 
+# The agent answering in words. Bearer-guarded like every other connector;
+# verify_jwt stays off because Yoxa presents the connector token, not a JWT.
+[functions.conversation-reply]
+verify_jwt = false
+
 [functions.output-artifact]
 verify_jwt = false
 
