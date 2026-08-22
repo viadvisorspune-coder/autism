@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '../../state/session'
+import { Copilot } from '../../components/Copilot'
 import { useRecordStatus } from '../../data/RecordProvider'
 import { accentByExperience, navByRole } from '../nav'
 import { notificationsFor } from '../../data/db'
@@ -24,6 +25,9 @@ export default function AppShell() {
   const { role, option, personName, organisation, experience, signOut } = useSession()
   const navigate = useNavigate()
   const [panel, setPanel] = useState<'none' | 'notifications' | 'search' | 'display' | 'profile'>('none')
+  // Professionals get a rail rather than a page: an answer beside the thing it
+  // is about, not on another screen.
+  const [copilot, setCopilot] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
 
   if (!role || !option) return null
@@ -53,9 +57,23 @@ export default function AppShell() {
             {organisation || 'Personal account'}
           </span>
 
+          {role !== 'patient' ? (
+            <button
+              onClick={() => setCopilot((c) => !c)}
+              aria-pressed={copilot}
+              className={`ml-auto flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[0.82rem] font-medium ${
+                copilot
+                  ? 'border-clinical bg-clinical text-white'
+                  : 'border-line-strong bg-surface text-ink hover:bg-surface-2'
+              }`}
+            >
+              <span aria-hidden>✦</span> ORCA
+            </button>
+          ) : null}
+
           <button
             onClick={() => setPanel('search')}
-            className="ml-auto hidden w-64 items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-left text-[0.82rem] text-muted hover:border-line-strong md:flex"
+            className={`hidden w-64 items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-left text-[0.82rem] text-muted hover:border-line-strong md:flex ${role === 'patient' ? 'ml-auto' : 'ml-3'}`}
           >
             Search
           </button>
@@ -189,7 +207,31 @@ export default function AppShell() {
           <RecordBanner />
           <Outlet />
         </main>
+
+        {/* A rail, not an overlay: the record stays readable beside the answer,
+            which is the whole reason a clinician would use it mid-conversation. */}
+        {copilot && role !== 'patient' ? (
+          <div className="hidden w-[24rem] shrink-0 xl:block">
+            <div className="sticky top-14 h-[calc(100vh-3.5rem)]">
+              <Copilot onClose={() => setCopilot(false)} />
+            </div>
+          </div>
+        ) : null}
       </div>
+
+      {/* Below xl there is no room beside the record, so it becomes a panel. */}
+      {copilot && role !== 'patient' ? (
+        <div className="fixed inset-0 z-40 flex justify-end xl:hidden">
+          <button
+            aria-label="Close copilot"
+            onClick={() => setCopilot(false)}
+            className="flex-1 bg-ink/20"
+          />
+          <div className="h-full w-[24rem] max-w-full">
+            <Copilot onClose={() => setCopilot(false)} />
+          </div>
+        </div>
+      ) : null}
 
       {role === 'patient' ? <AskOrcaButton /> : null}
 

@@ -265,7 +265,8 @@ export function Table({
   columns,
   rows,
 }: {
-  columns: string[]
+  // Headers may be interactive — a sortable column is still a column.
+  columns: ReactNode[]
   rows: { key: string; cells: ReactNode[]; to?: string }[]
 }) {
   return (
@@ -273,9 +274,9 @@ export function Table({
       <table className="w-full min-w-[42rem] border-collapse text-left">
         <thead>
           <tr className="border-b border-line">
-            {columns.map((c) => (
+            {columns.map((c, i) => (
               <th
-                key={c}
+                key={i}
                 scope="col"
                 className="px-5 py-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.07em] text-muted"
               >
@@ -541,5 +542,73 @@ export function Section({
         {children}
       </div>
     </section>
+  )
+}
+
+/** A labelled dropdown. Quieter than a row of chips once there are more than
+ *  four options, and it does not reflow the page as the list changes. */
+export function Select({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (value: string) => void
+}) {
+  const id = useId()
+  return (
+    <label className="flex items-center gap-2" htmlFor={id}>
+      <span className="text-[0.8rem] text-muted">{label}</span>
+      <span className="relative">
+        <select
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="appearance-none rounded-lg border border-line-strong bg-surface py-2 pl-3 pr-8 text-[0.85rem] text-ink outline-none hover:border-line-strong"
+        >
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <span
+          aria-hidden
+          className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[0.65rem] text-muted"
+        >
+          ▼
+        </span>
+      </span>
+    </label>
+  )
+}
+
+/** A column header that sorts, and says which way it is sorting. */
+export function SortHeader({
+  label,
+  active,
+  direction,
+  onClick,
+}: {
+  label: string
+  active: boolean
+  direction: 'asc' | 'desc'
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className="inline-flex items-center gap-1 text-left uppercase tracking-[0.06em] hover:text-ink"
+    >
+      {label}
+      <span aria-hidden className={`text-[0.6rem] ${active ? 'text-ink' : 'text-line-strong'}`}>
+        {active && direction === 'desc' ? '▼' : '▲'}
+      </span>
+    </button>
   )
 }

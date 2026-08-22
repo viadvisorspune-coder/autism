@@ -12,6 +12,8 @@ import {
   SectionTitle,
   StatusPill,
   Callout,
+  Select,
+  SortHeader,
   Table,
   Tag,
   formatDate,
@@ -290,6 +292,9 @@ export function AdminUsers() {
   const { data, refresh } = useLive<{ app_users: LiveUser[] }>('bundle', null, 10000)
   const [query, setQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState('All')
+  const [statusFilter, setStatusFilter] = useState('All')
+  const [sortBy, setSortBy] = useState<'name' | 'role' | 'organisation'>('name')
+  const [direction, setDirection] = useState<'asc' | 'desc'>('asc')
   const [adding, setAdding] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -308,12 +313,29 @@ export function AdminUsers() {
 
   const roles = ['All', ...Array.from(new Set(all.map((u) => u.role))).sort()]
 
-  const shown = all.filter((u) => {
-    if (roleFilter !== 'All' && u.role !== roleFilter) return false
-    if (!query.trim()) return true
-    const hay = `${u.name} ${u.role} ${u.title ?? ''} ${u.organisation ?? ''} ${u.email ?? ''}`
-    return hay.toLowerCase().includes(query.trim().toLowerCase())
-  })
+  const shown = all
+    .filter((u) => {
+      if (roleFilter !== 'All' && u.role !== roleFilter) return false
+      if (statusFilter === 'Active' && u.active === false) return false
+      if (statusFilter === 'Closed' && u.active !== false) return false
+      if (!query.trim()) return true
+      const hay = `${u.name} ${u.role} ${u.title ?? ''} ${u.organisation ?? ''} ${u.email ?? ''}`
+      return hay.toLowerCase().includes(query.trim().toLowerCase())
+    })
+    .sort((a, b) => {
+      const key = (u: LiveUser) =>
+        (sortBy === 'name' ? u.name : sortBy === 'role' ? u.role : (u.organisation ?? '')).toLowerCase()
+      const order = key(a).localeCompare(key(b))
+      return direction === 'asc' ? order : -order
+    })
+
+  const sort = (column: 'name' | 'role' | 'organisation') => {
+    if (sortBy === column) setDirection((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortBy(column)
+      setDirection('asc')
+    }
+  }
 
   async function setActive(user: LiveUser, active: boolean) {
     setBusy(user.id)
@@ -356,20 +378,22 @@ export function AdminUsers() {
           placeholder="Search by name, role, organisation or email"
           className="min-w-[16rem] flex-1 rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
         />
-        <div className="flex flex-wrap gap-1.5">
-          {roles.map((r) => (
-            <button
-              key={r}
-              onClick={() => setRoleFilter(r)}
-              aria-pressed={roleFilter === r}
-              className={`rounded-full border px-3 py-1.5 text-[0.79rem] ${
-                roleFilter === r ? 'border-admin bg-admin-tint text-ink' : 'border-line text-ink-2'
-              }`}
-            >
-              {r}
-            </button>
-          ))}
-        </div>
+        <Select
+          label="Role"
+          value={roleFilter}
+          onChange={setRoleFilter}
+          options={roles.map((r) => ({ value: r, label: r === 'All' ? 'All roles' : r }))}
+        />
+        <Select
+          label="Status"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { value: 'All', label: 'All' },
+            { value: 'Active', label: 'Open' },
+            { value: 'Closed', label: 'Closed' },
+          ]}
+        />
       </div>
 
       <p className="mb-3 text-[0.82rem] text-muted">
@@ -379,7 +403,14 @@ export function AdminUsers() {
 
       <Card>
         <Table
-          columns={['Name', 'Role', 'Title', 'Organisation', 'Record access', '']}
+          columns={[
+            <SortHeader key="n" label="Name" active={sortBy === 'name'} direction={direction} onClick={() => sort('name')} />,
+            <SortHeader key="r" label="Role" active={sortBy === 'role'} direction={direction} onClick={() => sort('role')} />,
+            'Title',
+            <SortHeader key="o" label="Organisation" active={sortBy === 'organisation'} direction={direction} onClick={() => sort('organisation')} />,
+            'Record access',
+            '',
+          ]}
           rows={shown.map((u) => ({
             key: u.id,
             cells: [
