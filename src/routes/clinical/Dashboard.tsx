@@ -11,6 +11,7 @@ import {
   formatDateTime,
 } from '../../components/ui'
 import { AiProvenance, ReviewRequiredCard, WhyButton } from '../../components/shared'
+import { Inbox, RaiseDecision } from '../../components/Inbox'
 import {
   appointments,
   memoryCandidates,
@@ -80,6 +81,12 @@ export default function ClinicalDashboard() {
           </>
         }
       />
+
+      {/* The other side of the same conversation the patient is having. */}
+      <div className="mb-6 space-y-6">
+        <Inbox />
+        <RaiseDecision />
+      </div>
 
       <p className="mb-6 text-[0.85rem] text-muted">
         Signed in as {personName} · {option.label}

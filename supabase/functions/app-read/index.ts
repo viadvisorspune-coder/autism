@@ -18,6 +18,7 @@ import { admin, cors, json, str } from '../_shared/yoxa.ts'
 type Resource =
   | 'bundle'
   | 'run'
+  | 'inbox'
   | 'privacy'
   | 'timeline'
   | 'requests'
@@ -29,17 +30,17 @@ type Resource =
 
 /** What each role may ever receive, before per-patient consent narrows it. */
 const ROLE_MAY_READ: Record<string, Resource[]> = {
-  patient: ['bundle', 'run', 'privacy', 'timeline', 'requests', 'profile', 'strategies', 'audit', 'approvals', 'workflow_runs'],
-  psychologist: ['bundle', 'run', 'timeline', 'profile', 'strategies', 'requests', 'approvals'],
-  psychiatrist: ['bundle', 'run', 'timeline', 'profile', 'requests'],
-  therapist: ['bundle', 'run', 'profile', 'strategies'],
-  ot: ['bundle', 'run', 'profile', 'strategies'],
-  gp: ['bundle', 'run', 'timeline', 'profile'],
-  clinic: ['bundle', 'run', 'requests', 'workflow_runs'],
-  employer: ['bundle', 'run', 'requests'],
-  university: ['bundle', 'run', 'requests'],
-  trusted: ['bundle', 'run', 'profile'],
-  admin: ['bundle', 'run', 'workflow_runs', 'audit'],
+  patient: ['bundle', 'run', 'inbox', 'privacy', 'timeline', 'requests', 'profile', 'strategies', 'audit', 'approvals', 'workflow_runs'],
+  psychologist: ['bundle', 'run', 'inbox', 'timeline', 'profile', 'strategies', 'requests', 'approvals'],
+  psychiatrist: ['bundle', 'run', 'inbox', 'timeline', 'profile', 'requests'],
+  therapist: ['bundle', 'run', 'inbox', 'profile', 'strategies'],
+  ot: ['bundle', 'run', 'inbox', 'profile', 'strategies'],
+  gp: ['bundle', 'run', 'inbox', 'timeline', 'profile'],
+  clinic: ['bundle', 'run', 'inbox', 'requests', 'workflow_runs'],
+  employer: ['bundle', 'run', 'inbox', 'requests'],
+  university: ['bundle', 'run', 'inbox', 'requests'],
+  trusted: ['bundle', 'run', 'inbox', 'profile'],
+  admin: ['bundle', 'run', 'inbox', 'workflow_runs', 'audit'],
 }
 
 Deno.serve(async (req) => {
@@ -124,6 +125,52 @@ async function read(
   switch (resource) {
     // One run, with anything a person waiting on it would want to know: where
     // it has got to, whether it is stuck on a human, and what it is asking.
+    // Everything one role is currently being asked to decide, plus what they
+    // raised and are still waiting on. Both halves matter: a person needs to
+    // see the decision they owe somebody as clearly as the one they are owed.
+    case 'inbox': {
+      if (!patientId) return null
+      const [reviews, access, approvals, notes] = await Promise.all([
+        admin
+          .from('review_items')
+          .select('*')
+          .eq('patient_id', patientId)
+          .order('raised_on', { ascending: false })
+          .limit(50),
+        admin
+          .from('access_requests')
+          .select('*')
+          .eq('patient_id', patientId)
+          .order('created_at', { ascending: false })
+          .limit(20),
+        admin
+          .from('hitl_requests')
+          .select('request_id, title, description, options, status, created_at')
+          .eq('patient_id', patientId)
+          .order('created_at', { ascending: false })
+          .limit(20),
+        admin
+          .from('notifications')
+          .select('*')
+          .eq('patient_id', patientId)
+          .order('created_at', { ascending: false })
+          .limit(30),
+      ])
+
+      const people = await peopleById([
+        ...(reviews.data ?? []).map((r) => String(r.decided_by ?? '')),
+        ...(access.data ?? []).map((r) => String(r.requested_by ?? '')),
+      ])
+
+      return {
+        reviews: reviews.data ?? [],
+        access_requests: access.data ?? [],
+        approvals: approvals.data ?? [],
+        notifications: notes.data ?? [],
+        people,
+      }
+    }
+
     case 'run': {
       if (!runId) return null
       const { data: run } = await admin

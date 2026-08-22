@@ -13,6 +13,7 @@ import {
 } from '../../components/ui'
 import { ClarificationCard, RecordSource, ReviewRequiredCard, WorkflowStatePanel } from '../../components/shared'
 import { ApprovalPanel } from '../../components/ApprovalPanel'
+import { Inbox, RaiseDecision } from '../../components/Inbox'
 import type { PendingApproval } from '../../components/ApprovalPanel'
 import { requests, requestsFor, reviewItems } from '../../data/db'
 import { useOrcaRead } from '../../lib/orca'
@@ -49,6 +50,11 @@ export function PatientRequests() {
       />
 
       <RecordSource state={approvals.state} reason={approvals.reason} />
+
+      <div className="mb-6 space-y-6">
+        <Inbox />
+        <RaiseDecision />
+      </div>
 
       {waiting.length > 0 ? (
         <div className="mb-6">
