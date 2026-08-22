@@ -199,3 +199,45 @@ html[data-density='calm'] .backdrop-blur-\[1px\] {
 .disclosure-summary::-webkit-details-marker {
   display: none;
 }
+
+
+/*
+ * Touch.
+ *
+ * A pointer is precise to a pixel; a fingertip is a blunt oval about nine
+ * millimetres across. Controls sized for the first are a source of quiet,
+ * repeated failure for anyone using the second — and disproportionately so for
+ * people whose hands shake, who are reading on a bus, or who are doing this on
+ * a bad day, which is most of the times this interface gets opened.
+ *
+ * 44 points is the floor Apple and WCAG 2.5.8 both land on. Applied by pointer
+ * type rather than by width, so a touchscreen laptop gets it and a narrow
+ * desktop window does not grow its buttons for no reason.
+ *
+ * Deliberately not applied to links inside prose: a sentence with three
+ * references in it should not become three inches tall.
+ */
+@media (pointer: coarse) {
+  button,
+  [role='button'],
+  select,
+  summary,
+  a[class*='rounded'] {
+    min-height: 2.75rem;
+  }
+
+  /* Comfortable to hit and to read without zooming. iOS zooms any field
+     under 16px on focus, which then leaves the page scrolled sideways. */
+  input,
+  textarea,
+  select {
+    font-size: max(1rem, 0.95em);
+  }
+}
+
+/* Nothing should ever slide sideways. A horizontal scrollbar on a phone is
+   always a bug, and usually one nobody notices until a demo. */
+html,
+body {
+  overflow-x: clip;
+}

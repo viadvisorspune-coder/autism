@@ -5,7 +5,8 @@ import {
   CardHead,
   Grid,
   LinkButton,
-  SectionTitle,
+  Section,
+
   StatusPill,
   formatDate,
 } from '../../components/ui'
@@ -107,7 +108,15 @@ export default function PatientHome() {
 
       {/* ---------------------------------------------- current activity */}
       <div className="mt-8">
-        <SectionTitle>Happening now</SectionTitle>
+        <Section
+          title="Happening now"
+          count={(active ? 1 : 0) + (recent.length ? 1 : 0)}
+          summary={
+            active
+              ? `Currently trying ${active.title.toLowerCase()}. ${recent.length} recent changes.`
+              : `${recent.length} recent changes.`
+          }
+        >
         <Grid cols={2}>
           {active ? (
             <Card>
@@ -151,11 +160,12 @@ export default function PatientHome() {
             </CardBody>
           </Card>
         </Grid>
+        </Section>
       </div>
 
       {/* --------------------------------------------------- follow-ups */}
       <div className="mt-8">
-        <SectionTitle>Follow-ups</SectionTitle>
+        <Section title="Follow-ups" count={3} summary="Nothing here is overdue.">
         <Card>
           <CardBody className="space-y-3">
             <FollowUp
@@ -175,6 +185,7 @@ export default function PatientHome() {
             />
           </CardBody>
         </Card>
+        </Section>
       </div>
     </div>
   )

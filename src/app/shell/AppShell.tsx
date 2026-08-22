@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useSession } from '../../state/session'
 import { useMaturity } from '../../state/maturity'
 import { onAskOrca } from '../../lib/ask'
+import { MobileTabs } from './MobileTabs'
 import { ArrivalAlert } from '../../components/ArrivalAlert'
 import { Copilot } from '../../components/Copilot'
 import { useRecordStatus } from '../../data/RecordProvider'
@@ -53,8 +54,11 @@ export default function AppShell() {
       {/* ---------------------------------------------------------- top bar */}
       <header className="frost sticky top-0 z-30">
         <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
+          {/* The drawer is reachable from the tab bar on a phone, so this
+              button only earns its place on a tablet, where there is no tab
+              bar and the sidebar is still hidden. */}
           <button
-            className="rounded-2xl  border-line px-2 py-1 text-[0.8rem] text-ink-2 lg:hidden"
+            className="hidden min-h-[2.75rem] rounded-2xl bg-surface-2 px-3 py-1 text-[0.8rem] text-ink-2 md:block lg:hidden"
             onClick={() => setNavOpen((v) => !v)}
             aria-expanded={navOpen}
           >
@@ -67,10 +71,11 @@ export default function AppShell() {
             {organisation || 'Personal account'}
           </span>
 
+          {/* On a phone this is the middle tab instead. */}
           <button
               onClick={() => setCopilot((c) => !c)}
               aria-pressed={copilot}
-              className={`ml-auto flex items-center gap-1.5 rounded-2xl  px-3 py-1.5 text-[0.82rem] font-medium ${
+              className={`ml-auto hidden items-center gap-1.5 rounded-2xl px-3 py-1.5 text-[0.82rem] font-medium md:flex ${
                 copilot
                   ? `${accent.border} ${accent.bg} text-white`
                   : 'bg-surface-2 text-ink hover:bg-surface-2'
@@ -87,17 +92,14 @@ export default function AppShell() {
           </button>
 
           <div className="ml-auto flex items-center gap-1 md:ml-0">
-            <button
-              onClick={() => setPanel('search')}
-              className="rounded-2xl px-2.5 py-1.5 text-[0.82rem] text-ink-2 hover:bg-canvas md:hidden"
-            >
-              Search
-            </button>
+
             <button
               onClick={() => setPanel('notifications')}
               className="relative rounded-2xl px-2.5 py-1.5 text-[0.82rem] text-ink-2 hover:bg-canvas"
             >
-              Notifications
+              <span className="hidden sm:inline">Notifications</span>
+              <span aria-hidden className="sm:hidden">🔔</span>
+              <span className="sr-only sm:hidden">Notifications</span>
               {unread > 0 ? (
                 <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-state-alert px-1 text-[0.66rem] font-semibold text-white">
                   {unread}
@@ -106,7 +108,7 @@ export default function AppShell() {
             </button>
             <button
               onClick={() => setPanel('display')}
-              className="rounded-2xl px-2.5 py-1.5 text-[0.82rem] text-ink-2 hover:bg-canvas"
+              className="hidden rounded-2xl px-2.5 py-1.5 text-[0.82rem] text-ink-2 hover:bg-canvas sm:block"
             >
               Help
             </button>
@@ -158,11 +160,23 @@ export default function AppShell() {
 
       <div className="mx-auto flex w-full max-w-[100rem]">
         {/* ------------------------------------------------ primary navigation */}
+        {/* Below lg this is a sheet over the page, not a block that shoves the
+            page sideways. Tapping the greyed area closes it, which is what
+            everyone tries first. */}
+        {navOpen ? (
+          <button
+            aria-label="Close menu"
+            onClick={() => setNavOpen(false)}
+            className="fixed inset-0 top-14 z-30 bg-ink/25 lg:hidden"
+          />
+        ) : null}
         <nav
           aria-label="Primary"
           className={`${
-            navOpen ? 'block' : 'hidden'
-          } frost w-full shrink-0 px-3 py-4 lg:sticky lg:top-14 lg:block lg:h-[calc(100vh-3.5rem)] lg:w-60 lg:overflow-y-auto`}
+            navOpen
+              ? 'fixed inset-y-14 left-0 z-40 w-[17rem] max-w-[85vw] overflow-y-auto pb-24'
+              : 'hidden'
+          } frost shrink-0 px-3 py-4 lg:sticky lg:inset-auto lg:top-14 lg:z-auto lg:block lg:h-[calc(100vh-3.5rem)] lg:w-60 lg:max-w-none lg:overflow-y-auto lg:pb-4`}
         >
           <p className="mb-2 px-3 text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted">
             {option.label}
@@ -181,7 +195,7 @@ export default function AppShell() {
                       end={item.end}
                       onClick={() => setNavOpen(false)}
                       className={({ isActive }) =>
-                        `block rounded-2xl px-3 py-2 text-[0.86rem] ${
+                        `block min-h-[2.75rem] rounded-2xl px-3 py-2.5 text-[0.86rem] ${
                           isActive
                             ? `${accent.tint} ${accent.text} font-medium`
                             : 'text-ink-2 hover:bg-canvas hover:text-ink'
@@ -219,7 +233,8 @@ export default function AppShell() {
         </nav>
 
         {/* ------------------------------------------------------- main content */}
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-8 sm:py-8">
+        {/* pb-28 on a phone so the last card is not sitting under the tabs. */}
+        <main className="min-w-0 flex-1 px-4 pb-28 pt-6 sm:px-8 sm:py-8 md:pb-8">
           <RecordBanner />
           <VisitRecorder />
           <Outlet />
@@ -258,7 +273,12 @@ export default function AppShell() {
         </div>
       ) : null}
 
+      {/* The floating pill sat on top of the text it was meant to help with,
+          at exactly the width where there is least room to spare. Above the
+          tab bar it is redundant; below it, it was in the way. */}
       {!copilot ? <AskOrcaButton onOpen={() => setCopilot(true)} /> : null}
+
+      {role === 'patient' ? <MobileTabs onOpenMore={() => setNavOpen(true)} /> : null}
 
       {/* Something arriving for you mid-task is worth showing wherever you are,
           so it lives in the shell rather than on any one screen. */}
@@ -327,7 +347,10 @@ function AskOrcaButton({ onOpen }: { onOpen: () => void }) {
   return (
     <button
       onClick={onOpen}
-      className={`fixed bottom-5 right-5 z-30 flex items-center gap-2.5 rounded-full ${tone.bg} px-5 py-3.5 text-white shadow-lg`}
+      // Hidden below md: the tab bar has a centre button that does this, and
+      // two ways to reach the same place, one of them sitting on top of the
+      // other, is worse than either alone.
+      className={`fixed bottom-5 right-5 z-30 hidden items-center gap-2.5 rounded-full ${tone.bg} px-5 py-3.5 text-white shadow-lg md:flex`}
     >
       <span aria-hidden className="text-[1.05rem]">💬</span>
       <span className="text-[0.9rem] font-semibold">Ask ORCA</span>

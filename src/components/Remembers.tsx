@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Card, CardBody, formatDate } from './ui'
+import { Card, CardBody, Section, formatDate } from './ui'
 import { useSession } from '../state/session'
 import { memoryCandidates, profileItems } from '../data/db'
 
@@ -37,17 +37,25 @@ export function WhatOrcaRemembers({ patientId = 'pt-ananya' }: { patientId?: str
   const isPatient = role === 'patient'
   const profileHref = isPatient ? '/patient/profile' : `/${role}/patients/${patientId}`
 
+  // Reference rather than work: worth being able to reach, not worth two
+  // screens of scrolling past on a phone before the thing you came for.
   return (
-    <Card className="mb-8">
+    <Section
+      title={isPatient ? 'What ORCA remembers about you' : 'What ORCA holds on this person'}
+      count={held.length + proposed.length}
+      summary={
+        proposed.length
+          ? `${held.length} things recorded, and ${proposed.length} waiting to be confirmed.`
+          : `${held.length} things recorded, each with a source.`
+      }
+      action={
+        <Link to={profileHref} className="text-[0.82rem] font-medium text-brand hover:underline">
+          {isPatient ? 'Edit or remove any of this' : 'Open the profile'}
+        </Link>
+      }
+    >
+    <Card className="mb-2">
       <CardBody>
-        <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-[0.95rem] font-semibold text-ink">
-            {isPatient ? 'What ORCA remembers about you' : 'What ORCA holds on this person'}
-          </h2>
-          <Link to={profileHref} className="text-[0.82rem] font-medium text-brand hover:underline">
-            {isPatient ? 'Edit or remove any of this' : 'Open the profile'}
-          </Link>
-        </div>
         <p className="mb-4 text-[0.84rem] leading-relaxed text-muted">
           {isPatient
             ? 'Nothing here was written without something to point at, and none of it is fixed.'
@@ -98,5 +106,6 @@ export function WhatOrcaRemembers({ patientId = 'pt-ananya' }: { patientId?: str
         </div>
       </CardBody>
     </Card>
+    </Section>
   )
 }
