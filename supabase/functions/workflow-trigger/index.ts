@@ -194,22 +194,49 @@ Deno.serve(async (req) => {
  */
 const RETRY_DELAYS_MS = [1200, 3000]
 
+/**
+ * A breaker, because "retryable" turned out not to mean recoverable.
+ *
+ * Yoxa marks an exhausted account's failure `retryable: true` — the quota check
+ * throws somewhere their handler has no case for, so a permanent condition
+ * arrives wearing a transient one's label. Taking that at face value means
+ * every message pays four seconds of deliberate waiting to discover something
+ * the previous message already established.
+ *
+ * So the first interruption is retried honestly, and then remembered. For the
+ * next few minutes, an interruption fails immediately and the caller gets on
+ * with reading the record instead. If the condition really was transient, the
+ * window lapses and the next message tries properly again.
+ *
+ * Module scope: Deno keeps an isolate warm between invocations, so this
+ * usually survives. When it does not, the cost is one slow request — which is
+ * exactly the cost of not having it at all. Deliberately not persisted: a
+ * cache of someone else's outage is not something to write to a patient's
+ * database.
+ */
+const BREAKER_MS = 5 * 60 * 1000
+let interruptedAt = 0
+
 async function send(
   url: string,
   headers: Record<string, string>,
   body: string,
 ): Promise<{ response: Response; body: string }> {
+  const breakerOpen = Date.now() - interruptedAt < BREAKER_MS
   let attempt = 0
 
   for (;;) {
     const response = await fetch(url, { method: 'POST', headers, body })
     const text = await response.text()
+    const worthRepeating = isRetryable(response, text)
 
-    if (response.ok || attempt >= RETRY_DELAYS_MS.length || !isRetryable(response, text)) {
-      if (attempt > 0) {
-        console.log(
-          `trigger attempt ${attempt + 1} finished with ${response.status}`,
-        )
+    if (!response.ok && worthRepeating) interruptedAt = Date.now()
+
+    if (response.ok || !worthRepeating || breakerOpen || attempt >= RETRY_DELAYS_MS.length) {
+      if (breakerOpen && !response.ok) {
+        console.log('trigger interrupted again within the breaker window; not retrying')
+      } else if (attempt > 0) {
+        console.log(`trigger attempt ${attempt + 1} finished with ${response.status}`)
       }
       return { response, body: text }
     }

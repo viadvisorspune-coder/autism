@@ -294,9 +294,12 @@ async function readErrorBody(error: unknown): Promise<string | null> {
         // is a more useful thing to read than "HTTP 500", and it is their
         // wording rather than an inference from a status code.
         const said = messageIn(record.detail)
+        // No claim about retrying: the breaker means it sometimes did and
+        // sometimes did not, and a sentence that is true half the time is
+        // worse than one that says less.
         return (
           `The workflow service could not start this. ${said ?? `It failed on its side (HTTP ${status}).`} ` +
-          `Nothing is wrong with your record or your request — this is theirs to fix, and it was retried before giving up.${ref}`
+          `Nothing is wrong with your record or your request — this is theirs to fix.${ref}`
         )
       }
       if (status === 403 || status === 401) {
