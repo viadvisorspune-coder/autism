@@ -7,12 +7,11 @@ import {
   Grid,
   PageHeader,
   SectionTitle,
-  StatusPill,
   formatDateTime,
 } from '../../components/ui'
-import { AiProvenance, ReviewRequiredCard, WhyButton } from '../../components/shared'
-import { Inbox, RaiseDecision } from '../../components/Inbox'
-import { PriorityStack } from '../../components/Priority'
+import { AiProvenance, WhyButton } from '../../components/shared'
+import { RaiseDecision } from '../../components/Inbox'
+import { WorkStream } from '../../components/Priority'
 import { StatRow } from '../../components/ui'
 import {
   appointments,
@@ -21,7 +20,6 @@ import {
   patients,
   requests,
   reviewItems,
-  tasks,
 } from '../../data/db'
 import { useSession } from '../../state/session'
 import { useUI } from '../../state/ui'
@@ -59,7 +57,6 @@ export default function ClinicalDashboard() {
   const base = option.home
   const intro = INTRO[role] ?? { title: 'Dashboard', description: '' }
   const today = appointments.filter((a) => a.datetime.startsWith('2026-08-19'))
-  const mine = tasks.filter((t) => t.forRoles.includes(role))
   const memory = memoryCandidates.filter((m) => m.raisedFor.includes(role))
   const escalations = requests.filter((r) => r.clarifications.some((c) => !c.answer))
   const reviews = reviewItems.filter((r) => r.assignedTo.includes(role))
@@ -107,11 +104,9 @@ export default function ClinicalDashboard() {
         ]}
       />
 
-      <PriorityStack />
+      <WorkStream />
 
-      {/* The other side of the same conversation the patient is having. */}
-      <div className="mb-6 space-y-6">
-        <Inbox />
+      <div className="mb-6">
         <RaiseDecision />
       </div>
 
@@ -144,36 +139,6 @@ export default function ClinicalDashboard() {
           </CardBody>
         </Card>
 
-        <Card>
-          <CardHead title="Needs attention" meta={`${mine.length + memory.length} items`} />
-          <CardBody>
-            <ul className="space-y-3">
-              {mine.map((t) => (
-                <li key={t.id} className="flex items-start justify-between gap-3">
-                  <span>
-                    <span className="block text-[0.87rem] text-ink">{t.title}</span>
-                    <span className="block text-[0.78rem] text-muted">
-                      {t.patientId ? `${patientName(t.patientId)} · ` : ''}due {t.due.slice(8)}{' '}
-                      {t.due.slice(5, 7) === '08' ? 'August' : ''}
-                    </span>
-                  </span>
-                  <StatusPill status={t.status} />
-                </li>
-              ))}
-              {memory.length ? (
-                <li>
-                  <Link to={`${base}/memory`} className="text-[0.87rem] text-ink hover:underline">
-                    {memory.length} proposed longitudinal update
-                    {memory.length === 1 ? '' : 's'} awaiting review
-                  </Link>
-                  <span className="block text-[0.78rem] text-muted">
-                    Nothing enters the record until a person accepts it.
-                  </span>
-                </li>
-              ) : null}
-            </ul>
-          </CardBody>
-        </Card>
 
         <Card>
           <CardHead
@@ -224,17 +189,6 @@ export default function ClinicalDashboard() {
           </CardBody>
         </Card>
       </Grid>
-
-      {reviews.length ? (
-        <div className="mt-8">
-          <SectionTitle>Waiting for a human decision</SectionTitle>
-          <div className="space-y-3">
-            {reviews.map((item) => (
-              <ReviewRequiredCard key={item.id} item={item} audience="professional" />
-            ))}
-          </div>
-        </div>
-      ) : null}
 
       <div className="mt-8">
         <SectionTitle>

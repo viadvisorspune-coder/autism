@@ -22,6 +22,40 @@ import { documentsFor, eventsFor, strategiesFor } from '../data/db'
  * unsourced confident sentence is a liability rather than a feature.
  */
 
+/** Every class written out, so the build can find them. */
+const COPILOT_TONE = {
+  patient: {
+    badge: 'bg-brand',
+    bubble: 'border-brand/15 bg-brand-tint',
+    label: 'text-brand',
+    rule: 'border-brand/15',
+  },
+  trusted: {
+    badge: 'bg-brand',
+    bubble: 'border-brand/15 bg-brand-tint',
+    label: 'text-brand',
+    rule: 'border-brand/15',
+  },
+  clinical: {
+    badge: 'bg-clinical',
+    bubble: 'border-clinical/15 bg-clinical-tint',
+    label: 'text-clinical',
+    rule: 'border-clinical/15',
+  },
+  organisation: {
+    badge: 'bg-org',
+    bubble: 'border-org/15 bg-org-tint',
+    label: 'text-org',
+    rule: 'border-org/15',
+  },
+  admin: {
+    badge: 'bg-admin',
+    bubble: 'border-admin/15 bg-admin-tint',
+    label: 'text-admin',
+    rule: 'border-admin/15',
+  },
+} as const
+
 interface Source {
   label: string
   detail: string
@@ -29,7 +63,11 @@ interface Source {
 }
 
 export function Copilot({ onClose }: { onClose: () => void }) {
-  const { role, option } = useSession()
+  const { role, option, experience } = useSession()
+  // Written out rather than composed, because Tailwind can only see class
+  // names that appear literally in the source — a template string produces
+  // classes that exist at runtime and were never generated.
+  const tone = COPILOT_TONE[experience] ?? COPILOT_TONE.clinical
   const patientId = 'pt-ananya'
 
   const stored = useLive<ConversationData>('conversation', patientId, 8000)
@@ -110,11 +148,11 @@ export function Copilot({ onClose }: { onClose: () => void }) {
         <div className="flex items-center gap-2">
           <span
             aria-hidden
-            className="flex h-6 w-6 items-center justify-center rounded-md bg-clinical text-[0.7rem] font-bold text-white"
+            className={`flex h-6 w-6 items-center justify-center rounded-md ${tone.badge} text-[0.7rem] font-bold text-white`}
           >
             O
           </span>
-          <span className="text-[0.9rem] font-semibold text-ink">ORCA copilot</span>
+          <span className="text-[0.9rem] font-semibold text-ink">{role === 'patient' ? 'Talk to ORCA' : 'ORCA copilot'}</span>
         </div>
         <button
           onClick={onClose}
@@ -129,8 +167,9 @@ export function Copilot({ onClose }: { onClose: () => void }) {
         {thread.length === 0 ? (
           <div className="rounded-[10px] border border-line bg-canvas px-4 py-3">
             <p className="text-[0.86rem] leading-relaxed text-ink-2">
-              Ask about this person&rsquo;s record and I will answer from what is in it, with the
-              sources I used. I will tell you what I could not see as readily as what I could.
+              {role === 'patient'
+                ? 'Tell me what is going on, in your own words. I will use what you have already told me, show you where anything I say comes from, and stop to ask before anything is shared.'
+                : 'Ask about this person’s record and I will answer from what is in it, with the sources I used. I will tell you what I could not see as readily as what I could.'}
             </p>
           </div>
         ) : null}
@@ -145,14 +184,14 @@ export function Copilot({ onClose }: { onClose: () => void }) {
                 <p className="text-[0.88rem] leading-relaxed text-ink">{m.text}</p>
               </div>
             ) : (
-              <div key={m.id} className="rounded-[10px] border border-clinical/15 bg-clinical-tint px-4 py-3">
-                <p className="mb-1 text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-clinical">
+              <div key={m.id} className={`rounded-[10px] border px-4 py-3 ${tone.bubble}`}>
+                <p className={`mb-1 text-[0.72rem] font-semibold uppercase tracking-[0.06em] ${tone.label}`}>
                   ORCA
                 </p>
                 <p className="text-[0.88rem] leading-relaxed text-ink">{m.text}</p>
 
                 {m.sources?.length ? (
-                  <div className="mt-3 border-t border-clinical/15 pt-2.5">
+                  <div className={`mt-3 border-t pt-2.5 ${tone.rule}`}>
                     <p className="mb-1.5 text-[0.75rem] text-muted">
                       {m.sources.length} {m.sources.length === 1 ? 'source' : 'sources'} used
                     </p>
@@ -208,7 +247,7 @@ export function Copilot({ onClose }: { onClose: () => void }) {
           <button
             type="submit"
             disabled={busy || !draft.trim()}
-            className="rounded-lg bg-clinical px-3.5 py-2 text-[0.84rem] font-medium text-white disabled:opacity-50"
+            className={`rounded-lg px-3.5 py-2 text-[0.84rem] font-medium text-white disabled:opacity-50 ${tone.badge}`}
           >
             {busy ? '…' : 'Ask'}
           </button>
@@ -260,6 +299,9 @@ function sourcesFor(question: string, patientId: string): Source[] {
 
 /** What each role tends to need, in their own words rather than the system's. */
 function promptsFor(role: string): string[] {
+  if (role === 'patient') {
+    return ['Something has been difficult recently', 'Prepare for an appointment', 'Understand a pattern']
+  }
   if (role === 'employer' || role === 'university') {
     return ['What am I allowed to see?', 'What has been requested?', 'What do I need to decide?']
   }

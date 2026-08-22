@@ -57,23 +57,21 @@ export default function AppShell() {
             {organisation || 'Personal account'}
           </span>
 
-          {role !== 'patient' ? (
-            <button
+          <button
               onClick={() => setCopilot((c) => !c)}
               aria-pressed={copilot}
               className={`ml-auto flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[0.82rem] font-medium ${
                 copilot
-                  ? 'border-clinical bg-clinical text-white'
+                  ? `${accent.border} ${accent.bg} text-white`
                   : 'border-line-strong bg-surface text-ink hover:bg-surface-2'
               }`}
             >
               <span aria-hidden>✦</span> ORCA
-            </button>
-          ) : null}
+          </button>
 
           <button
             onClick={() => setPanel('search')}
-            className={`hidden w-64 items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-left text-[0.82rem] text-muted hover:border-line-strong md:flex ${role === 'patient' ? 'ml-auto' : 'ml-3'}`}
+            className="ml-3 hidden w-64 items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-left text-[0.82rem] text-muted hover:border-line-strong md:flex"
           >
             Search
           </button>
@@ -217,7 +215,7 @@ export default function AppShell() {
 
         {/* A rail, not an overlay: the record stays readable beside the answer,
             which is the whole reason a clinician would use it mid-conversation. */}
-        {copilot && role !== 'patient' ? (
+        {copilot ? (
           <div className="hidden w-[24rem] shrink-0 xl:block">
             <div className="sticky top-14 h-[calc(100vh-3.5rem)]">
               <Copilot onClose={() => setCopilot(false)} />
@@ -227,7 +225,7 @@ export default function AppShell() {
       </div>
 
       {/* Below xl there is no room beside the record, so it becomes a panel. */}
-      {copilot && role !== 'patient' ? (
+      {copilot ? (
         <div className="fixed inset-0 z-40 flex justify-end xl:hidden">
           <button
             aria-label="Close copilot"
@@ -240,7 +238,7 @@ export default function AppShell() {
         </div>
       ) : null}
 
-      {role === 'patient' ? <AskOrcaButton /> : null}
+      {!copilot ? <AskOrcaButton onOpen={() => setCopilot(true)} /> : null}
 
       {panel === 'notifications' ? <NotificationPanel onClose={close} /> : null}
       {panel === 'search' ? <SearchPanel onClose={close} /> : null}
@@ -294,17 +292,21 @@ function RecordBanner() {
  * It hides itself on the Guide, where it would only be a button leading to the
  * page you are already on.
  */
-function AskOrcaButton() {
+function AskOrcaButton({ onOpen }: { onOpen: () => void }) {
   const location = useLocation()
-  if (location.pathname.startsWith('/patient/guide')) return null
+  const { experience } = useSession()
+  // On the Guide itself it would only open a second copy of the same thing.
+  if (location.pathname.endsWith('/guide')) return null
+
+  const tone = accentByExperience[experience]
 
   return (
-    <Link
-      to="/patient/guide"
-      className="fixed bottom-5 right-5 z-30 flex items-center gap-2.5 rounded-full bg-brand px-5 py-3.5 text-white shadow-lg hover:bg-brand-ink"
+    <button
+      onClick={onOpen}
+      className={`fixed bottom-5 right-5 z-30 flex items-center gap-2.5 rounded-full ${tone.bg} px-5 py-3.5 text-white shadow-lg`}
     >
       <span aria-hidden className="text-[1.05rem]">💬</span>
       <span className="text-[0.9rem] font-semibold">Ask ORCA</span>
-    </Link>
+    </button>
   )
 }
