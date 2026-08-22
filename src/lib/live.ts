@@ -146,3 +146,47 @@ async function refusal(error: unknown): Promise<string | null> {
     return null
   }
 }
+
+/* ------------------------------------------------------------ conversation */
+
+export interface StoredMessage {
+  id: string
+  author: 'person' | 'orca'
+  text: string
+  created_at: string
+  workflow_run_id: string | null
+}
+
+export interface SinceLastVisit {
+  events: { id: string; title: string; recorded_on: string; category: string }[]
+  decisions: { id: string; title: string; decision: string | null; decided_at: string }[]
+  runs: { id: string; type: string; status: string; current_step: string; updated_at: string }[]
+}
+
+export interface ConversationData {
+  conversation: { id: string; started_at: string; last_message_at: string } | null
+  messages: StoredMessage[]
+  last_seen_at: string | null
+  since_last_visit: SinceLastVisit
+}
+
+/**
+ * Says something into the record, rather than into a variable.
+ *
+ * Fire-and-forget on purpose: a message that failed to save should not stop
+ * the conversation the person is having. The next read reconciles.
+ */
+export function persistMessage(
+  patientId: string,
+  actorId: string,
+  text: string,
+  author: 'person' | 'orca',
+  workflowRunId?: string | null,
+): void {
+  void actOnRecord('say', patientId, actorId, { text, author, workflow_run_id: workflowRunId ?? null })
+}
+
+/** Stamped on leaving, so the next arrival can say what changed. */
+export function markSeen(patientId: string, actorId: string): void {
+  void actOnRecord('mark_seen', patientId, actorId)
+}

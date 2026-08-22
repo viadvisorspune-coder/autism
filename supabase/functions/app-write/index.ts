@@ -14,7 +14,13 @@
 import { admin, cors, json, list, recordAudit, str } from '../_shared/yoxa.ts'
 import { actorFromRequest, forbidden, mayActOnPatient, unauthorised } from '../_shared/app.ts'
 
-type Action = 'raise_review' | 'decide_review' | 'decide_access_request' | 'withdraw_review'
+type Action =
+  | 'raise_review'
+  | 'decide_review'
+  | 'decide_access_request'
+  | 'withdraw_review'
+  | 'say'
+  | 'mark_seen'
 
 /** Only these roles may be asked to decide something clinical. */
 const DECIDING_ROLES = new Set([
@@ -300,6 +306,68 @@ Deno.serve(async (req) => {
       })
 
       return json({ access_request: data, already_decided: false })
+    }
+
+    /* ------------------------------------------------ the conversation */
+
+    // Everything said to ORCA and everything it says back, kept. An assistant
+    // that greets someone identically every time has not been listening; it
+    // has been performing listening.
+    case 'say': {
+      const text = str(body.text)
+      const author = str(body.author) === 'orca' ? 'orca' : 'person'
+      if (!text) return json({ error: 'text is required' }, 400)
+
+      const { data: existing } = await admin
+        .from('conversations')
+        .select('id')
+        .eq('patient_id', patientId)
+        .eq('actor_id', actor.id)
+        .maybeSingle()
+
+      let conversationId = existing?.id as string | undefined
+      if (!conversationId) {
+        const { data: created, error } = await admin
+          .from('conversations')
+          .insert({ patient_id: patientId, actor_id: actor.id })
+          .select('id')
+          .single()
+        if (error) return json({ error: error.message }, 400)
+        conversationId = created.id as string
+      }
+
+      const { data, error } = await admin
+        .from('conversation_messages')
+        .insert({
+          conversation_id: conversationId,
+          author,
+          author_id: author === 'person' ? actor.id : null,
+          text,
+          workflow_run_id: str(body.workflow_run_id),
+        })
+        .select('*')
+        .single()
+      if (error) return json({ error: error.message }, 400)
+
+      await admin
+        .from('conversations')
+        .update({ last_message_at: new Date().toISOString() })
+        .eq('id', conversationId)
+
+      return json({ message: data, conversation_id: conversationId })
+    }
+
+    // Stamped when someone leaves, so next time ORCA can say what changed
+    // rather than making them re-read a page they have already read.
+    case 'mark_seen': {
+      const { error } = await admin
+        .from('user_visits')
+        .upsert(
+          { user_id: actor.id, patient_id: patientId, last_seen_at: new Date().toISOString() },
+          { onConflict: 'user_id,patient_id' },
+        )
+      if (error) return json({ error: error.message }, 400)
+      return json({ seen: true })
     }
 
     default:

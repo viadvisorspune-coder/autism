@@ -8,6 +8,8 @@ import { useUI } from '../../state/ui'
 import { useSession } from '../../state/session'
 import { isSupabaseConfigured } from '../../lib/supabase'
 import { followRun, isWaitingOnAPerson, startRun } from '../../lib/agent'
+import { markSeen, persistMessage, useLive } from '../../lib/live'
+import type { ConversationData } from '../../lib/live'
 import type { RunState } from '../../lib/agent'
 import { RunProgress } from '../../components/RunProgress'
 
@@ -22,6 +24,31 @@ export default function PatientGuide() {
   const { say } = useUI()
   const { option } = useSession()
   const [messages, setMessages] = useState<GuideMessage[]>(guideConversation)
+  const [loadedHistory, setLoadedHistory] = useState(false)
+
+  // The thread as it actually is, not as it was the first time anyone opened
+  // this page. Polls too, so a reply written on another device turns up here.
+  const stored = useLive<ConversationData>('conversation', 'pt-ananya', 8000)
+
+  useEffect(() => {
+    if (loadedHistory || !stored.data?.messages?.length) return
+    setLoadedHistory(true)
+    setMessages(
+      stored.data.messages.map((m) => ({
+        id: m.id,
+        from: m.author === 'orca' ? 'orca' : 'patient',
+        time: relativeDay(m.created_at),
+        text: m.text,
+      })),
+    )
+  }, [stored.data, loadedHistory])
+
+  // Leaving stamps the visit, so the next arrival can say what changed.
+  useEffect(() => {
+    return () => {
+      if (option?.personId) markSeen('pt-ananya', option.personId)
+    }
+  }, [option?.personId])
   const [draft, setDraft] = useState('')
   const [run, setRun] = useState<RunState | null>(null)
   const [starting, setStarting] = useState(false)
@@ -32,11 +59,13 @@ export default function PatientGuide() {
 
   useEffect(() => () => stopFollowing.current?.(), [])
 
-  const say2 = (text: string) =>
+  const say2 = (text: string) => {
     setMessages((m) => [
       ...m,
       { id: `gm-o-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, from: 'orca', time: 'Just now', text },
     ])
+    persistMessage('pt-ananya', option?.personId ?? 'u-ananya', text, 'orca')
+  }
 
   const send = (text: string) => {
     const trimmed = text.trim()
@@ -50,6 +79,7 @@ export default function PatientGuide() {
     }
     setMessages((m) => [...m, user])
     setDraft('')
+    persistMessage('pt-ananya', option?.personId ?? 'u-ananya', trimmed, 'person')
 
     // Without a backend there is nothing to send to, so the prototype's own
     // replies stand in — and the panel below says which of the two it is.
@@ -125,6 +155,8 @@ export default function PatientGuide() {
         description="Tell me what is happening. I will use what you have already told ORCA, and I will show you where every suggestion comes from."
         breadcrumbs={[{ label: 'Home', to: '/patient' }, { label: 'ORCA Guide' }]}
       />
+
+      {stored.data?.since_last_visit ? <SinceYouWereHere data={stored.data} /> : null}
 
       <div className="space-y-4">
         {messages.map((message) =>
@@ -342,4 +374,57 @@ function replyFor(input: string): GuideMessage {
       { label: 'Prepare for my appointment', href: '/patient/care/appointments/ap-1/prepare' },
     ],
   }
+}
+
+
+/* ------------------------------------------------- what changed while away */
+
+/**
+ * "Since you were last here" only earns its place if everything in it is
+ * genuinely new. One that repeats what somebody has already read teaches them
+ * to skip it, and then it is worse than nothing.
+ */
+function SinceYouWereHere({ data }: { data: ConversationData }) {
+  const { events, decisions, runs } = data.since_last_visit
+  const total = events.length + decisions.length + runs.length
+  if (!data.last_seen_at || total === 0) return null
+
+  return (
+    <div className="mb-6">
+      <Card>
+        <CardBody>
+          <p className="text-[0.88rem] font-medium text-ink">
+            While you were away{total > 1 ? ` — ${total} things` : ''}
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            {decisions.map((d) => (
+              <li key={d.id} className="text-[0.85rem] leading-relaxed text-ink-2">
+                {d.title} — {d.decision ?? 'decided'}
+              </li>
+            ))}
+            {runs.map((r) => (
+              <li key={r.id} className="text-[0.85rem] leading-relaxed text-ink-2">
+                {r.type} moved to {r.current_step.toLowerCase()}
+              </li>
+            ))}
+            {events.map((e) => (
+              <li key={e.id} className="text-[0.85rem] leading-relaxed text-ink-2">
+                {e.title} was added to your record
+              </li>
+            ))}
+          </ul>
+        </CardBody>
+      </Card>
+    </div>
+  )
+}
+
+/** Yesterday and "3 days ago" read better than a timestamp in a chat. */
+function relativeDay(iso: string): string {
+  const then = new Date(iso)
+  const days = Math.floor((Date.now() - then.getTime()) / 86_400_000)
+  if (days <= 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return `${days} days ago`
+  return then.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })
 }

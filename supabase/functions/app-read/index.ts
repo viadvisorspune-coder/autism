@@ -19,6 +19,7 @@ type Resource =
   | 'bundle'
   | 'run'
   | 'inbox'
+  | 'conversation'
   | 'privacy'
   | 'timeline'
   | 'requests'
@@ -30,17 +31,17 @@ type Resource =
 
 /** What each role may ever receive, before per-patient consent narrows it. */
 const ROLE_MAY_READ: Record<string, Resource[]> = {
-  patient: ['bundle', 'run', 'inbox', 'privacy', 'timeline', 'requests', 'profile', 'strategies', 'audit', 'approvals', 'workflow_runs'],
-  psychologist: ['bundle', 'run', 'inbox', 'timeline', 'profile', 'strategies', 'requests', 'approvals'],
-  psychiatrist: ['bundle', 'run', 'inbox', 'timeline', 'profile', 'requests'],
-  therapist: ['bundle', 'run', 'inbox', 'profile', 'strategies'],
-  ot: ['bundle', 'run', 'inbox', 'profile', 'strategies'],
-  gp: ['bundle', 'run', 'inbox', 'timeline', 'profile'],
-  clinic: ['bundle', 'run', 'inbox', 'requests', 'workflow_runs'],
-  employer: ['bundle', 'run', 'inbox', 'requests'],
-  university: ['bundle', 'run', 'inbox', 'requests'],
-  trusted: ['bundle', 'run', 'inbox', 'profile'],
-  admin: ['bundle', 'run', 'inbox', 'workflow_runs', 'audit'],
+  patient: ['bundle', 'run', 'inbox', 'conversation', 'privacy', 'timeline', 'requests', 'profile', 'strategies', 'audit', 'approvals', 'workflow_runs'],
+  psychologist: ['bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'strategies', 'requests', 'approvals'],
+  psychiatrist: ['bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'requests'],
+  therapist: ['bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies'],
+  ot: ['bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies'],
+  gp: ['bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile'],
+  clinic: ['bundle', 'run', 'inbox', 'conversation', 'requests', 'workflow_runs'],
+  employer: ['bundle', 'run', 'inbox', 'conversation', 'requests'],
+  university: ['bundle', 'run', 'inbox', 'conversation', 'requests'],
+  trusted: ['bundle', 'run', 'inbox', 'conversation', 'profile'],
+  admin: ['bundle', 'run', 'inbox', 'conversation', 'workflow_runs', 'audit'],
 }
 
 Deno.serve(async (req) => {
@@ -59,6 +60,7 @@ Deno.serve(async (req) => {
   const actorId = str(body.actor_id)
   const patientId = str(body.patient_id)
   const runId = str(body.run_id)
+  const conversationActor = str(body.actor_id)
 
   if (!resource) return json({ error: 'resource is required' }, 400)
 
@@ -109,7 +111,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const data = await read(resource, patientId, runId)
+    const data = await read(resource, patientId, runId, conversationActor)
     return json({ resource, role, permitted: true, reason: null, data })
   } catch (error) {
     console.error(error)
@@ -121,8 +123,77 @@ async function read(
   resource: Resource,
   patientId: string | null,
   runId: string | null,
+  actorId: string | null,
 ): Promise<unknown> {
   switch (resource) {
+    // The thread, plus what changed while this person was away. Both together,
+    // because "welcome back" and "here is what happened" are the same moment.
+    case 'conversation': {
+      if (!patientId || !actorId) return null
+
+      const { data: conversation } = await admin
+        .from('conversations')
+        .select('id, started_at, last_message_at')
+        .eq('patient_id', patientId)
+        .eq('actor_id', actorId)
+        .maybeSingle()
+
+      const { data: messages } = conversation
+        ? await admin
+            .from('conversation_messages')
+            .select('id, author, text, created_at, workflow_run_id')
+            .eq('conversation_id', conversation.id)
+            .order('created_at', { ascending: true })
+            .limit(200)
+        : { data: [] }
+
+      const { data: visit } = await admin
+        .from('user_visits')
+        .select('last_seen_at')
+        .eq('user_id', actorId)
+        .eq('patient_id', patientId)
+        .maybeSingle()
+
+      const since = (visit?.last_seen_at as string) ?? null
+
+      // Only genuinely new things. A "since you were last here" that lists
+      // what someone has already read teaches them to ignore it.
+      const [events, decided, runs] = since
+        ? await Promise.all([
+            admin
+              .from('timeline_events')
+              .select('id, title, recorded_on, category')
+              .eq('patient_id', patientId)
+              .gt('created_at', since)
+              .limit(10),
+            admin
+              .from('review_items')
+              .select('id, title, decision, decided_at')
+              .eq('patient_id', patientId)
+              .not('decided_at', 'is', null)
+              .gt('decided_at', since)
+              .limit(10),
+            admin
+              .from('workflow_runs')
+              .select('id, type, status, current_step, updated_at')
+              .eq('patient_id', patientId)
+              .gt('updated_at', since)
+              .limit(10),
+          ])
+        : [{ data: [] }, { data: [] }, { data: [] }]
+
+      return {
+        conversation,
+        messages: messages ?? [],
+        last_seen_at: since,
+        since_last_visit: {
+          events: events.data ?? [],
+          decisions: decided.data ?? [],
+          runs: runs.data ?? [],
+        },
+      }
+    }
+
     // One run, with anything a person waiting on it would want to know: where
     // it has got to, whether it is stuck on a human, and what it is asking.
     // Everything one role is currently being asked to decide, plus what they
