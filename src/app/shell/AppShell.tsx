@@ -106,17 +106,8 @@ export default function AppShell() {
           <div className="absolute right-4 top-14 z-40 w-64 rounded-[10px] border border-line bg-surface p-2 shadow-lg">
             <p className="px-3 py-2 text-[0.8rem] text-muted">
               Signed in as <span className="text-ink">{personName}</span>
-              <span className="mt-0.5 block">Role: {option.label}</span>
+              <span className="mt-0.5 block">{option.title}</span>
             </p>
-            <button
-              onClick={() => {
-                close()
-                navigate('/role')
-              }}
-              className="w-full rounded-md px-3 py-2 text-left text-[0.85rem] text-ink hover:bg-canvas"
-            >
-              Switch role
-            </button>
             <button
               onClick={() => {
                 close()

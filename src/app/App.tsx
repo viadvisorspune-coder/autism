@@ -2,7 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import AppShell from './shell/AppShell'
 import { useSession } from '../state/session'
-import { FirstRun, Login, RoleSelect } from '../routes/auth/Auth'
+import { FirstRun, Login } from '../routes/auth/Auth'
 
 import PatientHome from '../routes/patient/Home'
 import PatientGuide from '../routes/patient/Guide'
@@ -92,8 +92,9 @@ import {
 /** Authentication is a backend concern; the frontend only reflects it. */
 function RequireSession({ children }: { children: ReactNode }) {
   const { signedIn, role } = useSession()
-  if (!signedIn) return <Navigate to="/" replace />
-  if (!role) return <Navigate to="/role" replace />
+  // Signing in resolves the person and their role together, so there is no
+  // in-between state to land on any more.
+  if (!signedIn || !role) return <Navigate to="/" replace />
   return <>{children}</>
 }
 
@@ -126,8 +127,13 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/" element={signedIn ? <Navigate to="/role" replace /> : <Login />} />
-      <Route path="/role" element={signedIn ? <RoleSelect /> : <Navigate to="/" replace />} />
+      <Route
+        path="/"
+        element={signedIn && option ? <Navigate to={option.home} replace /> : <Login />}
+      />
+      {/* Kept as a redirect rather than removed: an old bookmark or a
+          half-remembered URL should land somewhere sensible, not on a dead end. */}
+      <Route path="/role" element={<Navigate to="/" replace />} />
       <Route path="/setup" element={signedIn ? <FirstRun /> : <Navigate to="/" replace />} />
 
       <Route

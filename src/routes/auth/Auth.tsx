@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { roleOptions, useSession } from '../../state/session'
+import { accountFor, roleOptions, useSession } from '../../state/session'
 import { Button, Card, CardBody } from '../../components/ui'
 
 function AuthFrame({
@@ -39,89 +39,122 @@ function AuthFrame({
 export function Login() {
   const { signIn } = useSession()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('ananya.rao@example.in')
-  const [password, setPassword] = useState('demo-password')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const fill = (option: (typeof roleOptions)[number]) => {
+    setEmail(option.email)
+    setPassword('demo-password')
+    setError(null)
+  }
+
+  const submit = () => {
+    const account = accountFor(email)
+    if (!account) {
+      setError('No account with that email. Pick one of the people below to fill it in.')
+      return
+    }
+    signIn(account)
+    navigate(account.home)
+  }
 
   return (
     <AuthFrame
       title="Sign in to ORCA"
-      intro="One account, one record. What you see next depends on the role you are using."
-    >
-      <Card>
-        <CardBody>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              signIn()
-              navigate('/role')
-            }}
-            className="space-y-4"
-          >
-            <label className="block">
-              <span className="mb-1 block text-[0.82rem] text-ink-2">Email or phone</span>
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-lg border border-line-strong px-3 py-2.5 text-[0.9rem] outline-none"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-[0.82rem] text-ink-2">Password</span>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-line-strong px-3 py-2.5 text-[0.9rem] outline-none"
-              />
-            </label>
-            <Button type="submit" variant="primary" className="w-full">
-              Sign in
-            </Button>
-          </form>
-          <div className="mt-4 flex flex-wrap gap-4 text-[0.82rem] text-muted">
-            <button className="hover:text-ink hover:underline">Forgot password</button>
-            <button className="hover:text-ink hover:underline">Privacy</button>
-            <button className="hover:text-ink hover:underline">Help</button>
-          </div>
-        </CardBody>
-      </Card>
-      <p className="mt-4 text-[0.8rem] leading-relaxed text-muted">
-        This is a prototype. No real credentials are checked and no real data is stored.
-      </p>
-    </AuthFrame>
-  )
-}
-
-/* ------------------------------------------------------- 1.2 — Role selection */
-
-export function RoleSelect() {
-  const { chooseRole, setupComplete } = useSession()
-  const navigate = useNavigate()
-
-  return (
-    <AuthFrame
-      title="How are you accessing ORCA today?"
-      intro="This account has more than one permitted role. Each role sees a different part of the same record — nothing more than its purpose requires."
+      intro="Everyone has their own account. What you see is what that person is allowed to see — never more."
       wide
     >
-      <ul className="grid gap-3 sm:grid-cols-2">
-        {roleOptions.map((option) => (
-          <li key={option.role}>
-            <button
-              onClick={() => {
-                chooseRole(option.role)
-                navigate(setupComplete ? option.home : '/setup')
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
+        <Card>
+          <CardBody>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                submit()
               }}
-              className="h-full w-full rounded-[10px] border border-line bg-surface px-4 py-4 text-left hover:border-line-strong hover:bg-surface-2"
+              className="space-y-4"
             >
-              <span className="block text-[0.95rem] font-semibold text-ink">{option.label}</span>
-              <span className="mt-1 block text-[0.82rem] leading-relaxed text-muted">
-                {option.description}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
+              <label className="block">
+                <span className="mb-1 block text-[0.82rem] text-ink-2">Email</span>
+                <input
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    setError(null)
+                  }}
+                  placeholder="name@example.in"
+                  autoComplete="username"
+                  className="w-full rounded-lg border border-line-strong px-3 py-2.5 text-[0.9rem] outline-none placeholder:text-muted"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[0.82rem] text-ink-2">Password</span>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  className="w-full rounded-lg border border-line-strong px-3 py-2.5 text-[0.9rem] outline-none"
+                />
+              </label>
+
+              {error ? (
+                <p className="text-[0.83rem] leading-relaxed text-state-alert">{error}</p>
+              ) : null}
+
+              <Button type="submit" variant="primary" className="w-full">
+                Sign in
+              </Button>
+            </form>
+            <div className="mt-4 flex flex-wrap gap-4 text-[0.82rem] text-muted">
+              <button className="hover:text-ink hover:underline">Forgot password</button>
+              <button className="hover:text-ink hover:underline">Privacy</button>
+              <button className="hover:text-ink hover:underline">Help</button>
+            </div>
+          </CardBody>
+        </Card>
+
+        {/* Not a role picker. These are the people in one person's record, and
+            choosing one fills in that person's sign-in so you can see the same
+            situation from where they stand. */}
+        <div>
+          <h2 className="mb-1 text-[0.78rem] font-semibold uppercase tracking-[0.07em] text-muted">
+            Sign in as someone in this record
+          </h2>
+          <p className="mb-3 text-[0.83rem] leading-relaxed text-muted">
+            This prototype ships with the people around one person&rsquo;s care. Choosing one fills in
+            their details; press Sign in to open their account.
+          </p>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {roleOptions.map((option) => (
+              <li key={option.role}>
+                <button
+                  type="button"
+                  onClick={() => fill(option)}
+                  aria-pressed={email === option.email}
+                  className={`h-full w-full rounded-[10px] border px-4 py-3 text-left transition-colors ${
+                    email === option.email
+                      ? 'border-brand bg-brand-tint'
+                      : 'border-line bg-surface hover:border-line-strong hover:bg-surface-2'
+                  }`}
+                >
+                  <span className="block text-[0.89rem] font-medium text-ink">{option.name}</span>
+                  <span className="mt-0.5 block text-[0.8rem] leading-relaxed text-muted">
+                    {option.title}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <p className="mt-6 text-[0.8rem] leading-relaxed text-muted">
+        This is a prototype. Every person here is invented, no real credentials are checked, and no
+        real record is stored. Open two browsers side by side to watch a decision move between two of
+        them.
+      </p>
     </AuthFrame>
   )
 }

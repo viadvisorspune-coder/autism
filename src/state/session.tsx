@@ -10,11 +10,25 @@ export interface RoleOption {
   experience: Experience
   home: string
   personId: string
+  /** The account this person signs in with. Fictional, like everything else. */
+  email: string
+  /** Their own name and job, not the name of a permission level. */
+  name: string
+  title: string
 }
 
 /**
- * The roles this demo account is permitted to use. In the real system this
- * comes from the backend identity layer — the frontend never decides it.
+ * The people who use ORCA, one account each.
+ *
+ * An earlier version had a single account that then asked which role you
+ * wanted, which is not how any of these people experience it: Ananya is not
+ * choosing to be a patient today, and her psychologist is not picking a
+ * permission level. They are different people with different sign-ins who
+ * happen to share one record between them.
+ *
+ * In the real system this list comes from the identity layer and a person sees
+ * only their own account. Here it is on the sign-in page on purpose, so anyone
+ * can step into any of them and see what that person sees.
  */
 export const roleOptions: RoleOption[] = [
   {
@@ -24,6 +38,9 @@ export const roleOptions: RoleOption[] = [
     experience: 'patient',
     home: '/patient',
     personId: 'u-ananya',
+    email: 'ananya.rao@example.in',
+    name: 'Ananya Rao',
+    title: 'Living with an autism diagnosis',
   },
   {
     role: 'psychologist',
@@ -32,6 +49,9 @@ export const roleOptions: RoleOption[] = [
     experience: 'clinical',
     home: '/psychologist',
     personId: 'u-kavita',
+    email: 'k.nair@sahyadri.example',
+    name: 'Dr Kavita Nair',
+    title: 'Clinical Psychologist',
   },
   {
     role: 'psychiatrist',
@@ -40,6 +60,9 @@ export const roleOptions: RoleOption[] = [
     experience: 'clinical',
     home: '/psychiatrist',
     personId: 'u-arun',
+    email: 'a.deshpande@sahyadri.example',
+    name: 'Dr Arun Deshpande',
+    title: 'Consultant Psychiatrist',
   },
   {
     role: 'therapist',
@@ -48,6 +71,9 @@ export const roleOptions: RoleOption[] = [
     experience: 'clinical',
     home: '/therapist',
     personId: 'u-meera',
+    email: 'm.joshi@sahyadri.example',
+    name: 'Meera Joshi',
+    title: 'Speech & Communication Therapist',
   },
   {
     role: 'ot',
@@ -56,6 +82,9 @@ export const roleOptions: RoleOption[] = [
     experience: 'clinical',
     home: '/ot',
     personId: 'u-sana',
+    email: 's.kulkarni@sahyadri.example',
+    name: 'Sana Kulkarni',
+    title: 'Occupational Therapist',
   },
   {
     role: 'gp',
@@ -64,6 +93,9 @@ export const roleOptions: RoleOption[] = [
     experience: 'clinical',
     home: '/gp',
     personId: 'u-vikram',
+    email: 'v.rao@kothrudfamily.example',
+    name: 'Dr Vikram Rao',
+    title: 'General Practitioner',
   },
   {
     role: 'clinic',
@@ -72,6 +104,9 @@ export const roleOptions: RoleOption[] = [
     experience: 'organisation',
     home: '/clinic',
     personId: 'u-priya',
+    email: 'p.salvi@sahyadri.example',
+    name: 'Priya Salvi',
+    title: 'Care Coordinator',
   },
   {
     role: 'employer',
@@ -80,6 +115,9 @@ export const roleOptions: RoleOption[] = [
     experience: 'organisation',
     home: '/employer',
     personId: 'u-anil',
+    email: 'a.fernandes@northline.example',
+    name: 'Anil Fernandes',
+    title: 'HR Business Partner',
   },
   {
     role: 'university',
@@ -88,6 +126,9 @@ export const roleOptions: RoleOption[] = [
     experience: 'organisation',
     home: '/university',
     personId: 'u-ruth',
+    email: 'r.menon@pid.example',
+    name: 'Ruth Menon',
+    title: 'Accessibility Adviser',
   },
   {
     role: 'trusted',
@@ -96,6 +137,9 @@ export const roleOptions: RoleOption[] = [
     experience: 'trusted',
     home: '/trusted',
     personId: 'u-divya',
+    email: 'divya.rao@example.in',
+    name: 'Divya Rao',
+    title: 'Ananya’s sister',
   },
   {
     role: 'admin',
@@ -104,6 +148,9 @@ export const roleOptions: RoleOption[] = [
     experience: 'admin',
     home: '/admin',
     personId: 'u-tejas',
+    email: 't.bhatt@orca.example',
+    name: 'Tejas Bhatt',
+    title: 'Platform Administrator',
   },
 ]
 
@@ -115,7 +162,7 @@ interface SessionValue {
   personName: string
   organisation: string
   setupComplete: boolean
-  signIn: () => void
+  signIn: (option: RoleOption) => void
   signOut: () => void
   chooseRole: (role: Role) => void
   completeSetup: () => void
@@ -156,7 +203,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, [signedIn, role, setupComplete])
 
-  const signIn = useCallback(() => setSignedIn(true), [])
+  // Signing in as a person, not signing in and then choosing what to be.
+  const signIn = useCallback((option: RoleOption) => {
+    setRole(option.role)
+    setSignedIn(true)
+    setSetupComplete(true)
+  }, [])
   const signOut = useCallback(() => {
     setSignedIn(false)
     setRole(null)
@@ -184,6 +236,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [signedIn, role, setupComplete, signIn, signOut, chooseRole, completeSetup])
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
+}
+
+/** The account matching an email, however it was typed. */
+export function accountFor(email: string): RoleOption | null {
+  const wanted = email.trim().toLowerCase()
+  return roleOptions.find((o) => o.email.toLowerCase() === wanted) ?? null
 }
 
 export function useSession() {
