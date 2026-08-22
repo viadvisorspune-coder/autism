@@ -42,8 +42,20 @@ export interface LocalSource {
   to: string
 }
 
+export interface LocalAction {
+  label: string
+  /** Where it goes, or what to ask ORCA next. One or the other, never both. */
+  to?: string
+  ask?: string
+}
+
 export interface LocalAnswer {
+  /** The answer itself. One or two sentences. Nothing else goes here. */
   text: string
+  /** Everything a person might want next, behind one press. Never shown first. */
+  detail?: string
+  /** What to do about it, if there is anything. */
+  actions?: LocalAction[]
   sources: LocalSource[]
   /** False when nothing in the record matched, so callers can stop explaining. */
   matched?: boolean
@@ -73,15 +85,6 @@ function has(question: string, ...words: string[]): boolean {
  * — and is still every bit as sourced.
  */
 export function answerFromRecord(question: string, patientId: string): LocalAnswer {
-  const strategies = strategiesFor(patientId)
-  const requests = requestsFor(patientId)
-  const appointments = appointmentsFor(patientId).filter((a) => a.status !== 'Completed')
-  const documents = documentsFor(patientId)
-  const events = eventsFor(patientId)
-
-  const sources: LocalSource[] = []
-  const lines: string[] = []
-
   /* --------------------------------------------------- who is this person */
   // Asked before anything else, because a question that names somebody is
   // almost always about them and not about the topic words around them.
@@ -91,129 +94,181 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
   const named = personIn(question)
   if (named) {
     const link = connections.find((c) => c.patientId === patientId && c.personId === named.id)
-    const bits: string[] = [
-      `${named.name}${named.title ? ` — ${named.title}` : ''}${named.organisation ? `, ${named.organisation}` : ''}.`,
-    ]
+    const who = `${named.name} — ${named.title ?? named.role}${named.organisation ? `, ${named.organisation}` : ''}.`
 
-    if (link) {
-      bits.push(
-        `They are your ${link.relationship.toLowerCase()}. You gave them access on ${say(link.consentGiven)} for one reason: ${link.purpose.toLowerCase()}.`,
-      )
-      bits.push(
-        `They can see ${link.accessScope.join(', ').toLowerCase()} — and nothing else. That is ${link.consentStatus === 'Active' ? 'still active' : link.consentStatus.toLowerCase()}, and comes up for review on ${say(link.reviewDue)}.`,
-      )
-      if (link.lastInteraction) bits.push(`They last looked at your record on ${say(link.lastInteraction)}.`)
-
-      const next = appointmentsFor(patientId).find(
-        (a) => a.professionalId === named.id && a.status !== 'Completed',
-      )
-      if (next) bits.push(`You are seeing them on ${say(next.datetime)} for ${next.purpose.toLowerCase()}.`)
-
-      sources.push({
-        label: `What ${named.name.split(' ').slice(-1)[0]} can see`,
-        detail: link.relationship,
-        to: '/patient/privacy',
-      })
-    } else {
-      bits.push('They are not connected to your record, so they cannot see any of it.')
-      sources.push({ label: 'Who can see your record', detail: 'Connections', to: '/patient/connections' })
+    if (!link) {
+      return {
+        text: `${who} They are not connected to your record, so they cannot see any of it.`,
+        actions: [{ label: 'See who can', to: '/patient/privacy' }],
+        sources: [],
+      }
     }
 
-    return { text: bits.join('\n\n'), sources: dedupe(sources) }
+    const detail = [
+      `You gave them access on ${say(link.consentGiven)}, for one reason: ${link.purpose.toLowerCase()}.`,
+      `They can see ${link.accessScope.join(', ').toLowerCase()} — and nothing else.`,
+      `That is ${link.consentStatus === 'Active' ? 'still active' : link.consentStatus.toLowerCase()} and comes up for review on ${say(link.reviewDue)}.`,
+      link.lastInteraction ? `They last looked at your record on ${say(link.lastInteraction)}.` : null,
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+
+    const next = appointmentsFor(patientId).find(
+      (a) => a.professionalId === named.id && a.status !== 'Completed',
+    )
+
+    return {
+      text: `${who} Your ${link.relationship.toLowerCase()}${next ? `, seeing you on ${say(next.datetime)}` : ''}.`,
+      detail,
+      actions: [
+        { label: 'What they can see', to: '/patient/privacy' },
+        next ? { label: 'Open the appointment', to: `/patient/care/appointments/${next.id}` } : null,
+      ].filter(Boolean) as LocalAction[],
+      sources: [
+        { label: `What ${named.name.split(' ').slice(-1)[0]} can see`, detail: link.relationship, to: '/patient/privacy' },
+      ],
+    }
   }
 
   /* ------------------------------------------------- who can see my record */
   if (has(question, 'who can see', 'who has access', 'access to my', 'sharing', 'shared with')) {
-    connections
-      .filter((c) => c.patientId === patientId && c.consentStatus === 'Active')
-      .forEach((c) => {
-        lines.push(
-          `${personName(c.personId)} — ${c.relationship.toLowerCase()}. Can see ${c.accessScope.join(', ').toLowerCase()}. Review due ${say(c.reviewDue)}.`,
-        )
-      })
-    if (lines.length) {
-      sources.push({ label: 'Who can see your record', detail: 'All connections', to: '/patient/privacy' })
+    const active = connections.filter((c) => c.patientId === patientId && c.consentStatus === 'Active')
+    if (active.length) {
       return {
-        text: `${lines.length} ${lines.length === 1 ? 'person has' : 'people have'} access, each to a named part of your record and nothing more.\n\n${lines.join('\n\n')}`,
-        sources: dedupe(sources),
+        text: `${active.length} people can see part of your record. Each one has a named part and nothing more.`,
+        detail: active
+          .map(
+            (c) =>
+              `${personName(c.personId)} — ${c.relationship.toLowerCase()}.\nCan see ${c.accessScope.join(', ').toLowerCase()}. Review due ${say(c.reviewDue)}.`,
+          )
+          .join('\n\n'),
+        actions: [{ label: 'Change who can see what', to: '/patient/privacy' }],
+        sources: [{ label: 'Who can see your record', detail: 'All connections', to: '/patient/privacy' }],
       }
     }
   }
 
   /* ------------------------------------------------- what has been tried */
   if (has(question, 'tried', 'strategy', 'strategies', 'worked', 'helping', 'helped', 'working')) {
-    strategies.forEach((s) => {
-      const last = [...s.checkIns].sort((a, b) => a.date.localeCompare(b.date)).pop()
-      lines.push(
-        `${s.title} — ${s.status.toLowerCase()}, ${s.phase.toLowerCase()}, ${s.checkIns.length} check-in${s.checkIns.length === 1 ? '' : 's'}.` +
-          (last ? ` The most recent said it ${last.helpfulness.toLowerCase()}: ${last.note}` : '') +
-          (s.outcome ? ` Outcome recorded: ${s.outcome.summary}` : ''),
-      )
-      sources.push({
-        label: s.title,
-        detail: `${s.status} · ${s.phase}`,
-        to: `/patient/support/${s.id}`,
-      })
-    })
+    const all = strategiesFor(patientId)
+    if (all.length) {
+      const helped = all.filter((x) => x.outcome?.effectiveness === 'Helped').length
+      const partly = all.filter((x) => x.outcome?.effectiveness === 'Partly helped').length
+      const didnt = all.filter((x) => x.outcome?.effectiveness === 'Did not help').length
+      const running = all.filter((x) => x.status === 'Active')
+
+      return {
+        text:
+          `You have tried ${all.length} things. ` +
+          [helped ? `${helped} helped` : null, partly ? `${partly} partly helped` : null, didnt ? `${didnt} did not` : null]
+            .filter(Boolean)
+            .join(', ') +
+          (running.length ? `, and ${running.length} ${running.length === 1 ? 'is' : 'are'} still running.` : '.'),
+        detail: all
+          .map((x) => {
+            const last = [...x.checkIns].sort((a, b) => a.date.localeCompare(b.date)).pop()
+            return [
+              `${x.title} — ${x.status.toLowerCase()}, ${x.checkIns.length} check-in${x.checkIns.length === 1 ? '' : 's'}.`,
+              last ? `Last, ${say(last.date)}: it ${last.helpfulness.toLowerCase()}. ${last.note}` : null,
+              x.outcome ? `Outcome: ${x.outcome.summary}` : null,
+            ]
+              .filter(Boolean)
+              .join('\n')
+          })
+          .join('\n\n'),
+        actions: [
+          { label: 'Open my support', to: '/patient/support' },
+          running.length ? { label: 'Add how it is going', to: `/patient/support/${running[0].id}` } : null,
+        ].filter(Boolean) as LocalAction[],
+        sources: all.slice(0, 3).map((x) => ({ label: x.title, detail: x.status, to: `/patient/support/${x.id}` })),
+      }
+    }
   }
 
   /* ------------------------------------------------------ what is open */
   if (has(question, 'unresolved', 'waiting', 'open', 'stuck', 'heard back', 'request', 'employer', 'university', 'work')) {
-    requests
-      .filter((r) => r.status !== 'Completed' && r.status !== 'Cancelled')
-      .forEach((r) => {
-        const unanswered = r.clarifications.filter((c) => !c.answer)
-        lines.push(
-          `${r.title} — with ${r.currentOwner} since ${say(r.raised)}.` +
-            (unanswered.length ? ` They asked: “${unanswered[0].question}” and nobody has answered.` : ''),
-        )
-        sources.push({
-          label: r.title,
-          detail: `${r.status} · ${r.destination}`,
-          to: `/patient/requests/${r.id}`,
-        })
-      })
+    const open = requestsFor(patientId).filter((r) => r.status !== 'Completed' && r.status !== 'Cancelled')
+    if (open.length) {
+      const yours = open.filter((r) => r.clarifications.some((c) => !c.answer))
+      return {
+        text: yours.length
+          ? `${open.length} ${open.length === 1 ? 'request is' : 'requests are'} open, and ${yours.length} ${yours.length === 1 ? 'is' : 'are'} waiting on you.`
+          : `${open.length} ${open.length === 1 ? 'request is' : 'requests are'} open. None of them need you right now.`,
+        detail: open
+          .map((r) => {
+            const unanswered = r.clarifications.filter((c) => !c.answer)
+            return [
+              `${r.title} — with ${r.currentOwner} since ${say(r.raised)}.`,
+              unanswered.length ? `They asked: “${unanswered[0].question}”` : null,
+            ]
+              .filter(Boolean)
+              .join('\n')
+          })
+          .join('\n\n'),
+        actions: [{ label: 'Open requests', to: '/patient/requests' }],
+        sources: open.map((r) => ({ label: r.title, detail: r.status, to: `/patient/requests/${r.id}` })),
+      }
+    }
   }
 
   /* --------------------------------------------------------- what changed */
   if (has(question, 'changed', 'change', 'recent', 'lately', 'happened', 'since')) {
-    events.slice(0, 4).forEach((e) => {
-      lines.push(`${say(e.date)} — ${e.title}. ${e.summary}`)
-      sources.push({ label: e.title, detail: `${e.category} · ${e.evidence}`, to: `/patient/story/${e.id}` })
-    })
+    const recent = eventsFor(patientId).slice(0, 5)
+    if (recent.length) {
+      return {
+        text: `${recent.length} things have gone into your record recently. The most recent: ${recent[0].title}, on ${say(recent[0].date)}.`,
+        detail: recent.map((e) => `${say(e.date)} — ${e.title}\n${e.summary}`).join('\n\n'),
+        actions: [{ label: 'Open my story', to: '/patient/story' }],
+        sources: recent.slice(0, 3).map((e) => ({ label: e.title, detail: e.category, to: `/patient/story/${e.id}` })),
+      }
+    }
   }
 
   /* ------------------------------------------------------- appointments */
-  if (has(question, 'appointment', 'session', 'prepare', 'seeing', 'meeting with')) {
-    appointments.forEach((a) => {
-      const away = daysFromToday(a.datetime.slice(0, 10))
-      lines.push(
-        `${a.purpose} with ${personName(a.professionalId)}, ${say(a.datetime)}` +
-          (away >= 0 ? ` — ${away === 0 ? 'today' : `in ${away} days`}` : '') +
-          `. The brief is ${a.preparationStatus.toLowerCase()}.`,
-      )
-      sources.push({
-        label: a.purpose,
-        detail: personName(a.professionalId),
-        to: `/patient/care/appointments/${a.id}`,
-      })
-    })
+  if (has(question, 'appointment', 'session', 'prepare', 'seeing', 'meeting with', 'when is', 'next')) {
+    const soon = appointmentsFor(patientId).filter((a) => a.status !== 'Completed')
+    if (soon.length) {
+      const next = soon[0]
+      const away = daysFromToday(next.datetime.slice(0, 10))
+      return {
+        text: `${personName(next.professionalId)}, ${say(next.datetime)}${away >= 0 ? ` — ${away === 0 ? 'today' : `in ${away} days`}` : ''}. ${next.purpose}.`,
+        detail: soon
+          .map((a) => `${say(a.datetime)} — ${a.purpose} with ${personName(a.professionalId)}.\n${a.location}. Brief is ${a.preparationStatus.toLowerCase()}.`)
+          .join('\n\n'),
+        actions: [
+          { label: 'Get ready for it', to: `/patient/care/appointments/${next.id}/prepare` },
+          { label: 'Open it', to: `/patient/care/appointments/${next.id}` },
+        ],
+        sources: [{ label: next.purpose, detail: personName(next.professionalId), to: `/patient/care/appointments/${next.id}` }],
+      }
+    }
   }
 
   /* ---------------------------------------------------------- documents */
   if (has(question, 'document', 'letter', 'report', 'upload', 'evidence', 'handbook')) {
-    documents.slice(0, 3).forEach((d) => {
-      lines.push(`${d.title} — ${d.category}, ${d.status.toLowerCase()}, added ${say(d.date)}.`)
-      sources.push({ label: d.title, detail: d.category, to: `/patient/documents/${d.id}` })
-    })
+    const docs = documentsFor(patientId)
+    if (docs.length) {
+      const waiting = docs.filter((d) => d.status === 'Awaiting review')
+      return {
+        text: `You have ${docs.length} documents saved${waiting.length ? `, and ${waiting.length} still ${waiting.length === 1 ? 'needs' : 'need'} you to check what was read out of ${waiting.length === 1 ? 'it' : 'them'}` : ''}.`,
+        detail: docs.map((d) => `${d.title} — ${d.category}, ${d.status.toLowerCase()}, added ${say(d.date)}.`).join('\n\n'),
+        actions: [{ label: 'Open documents', to: '/patient/documents' }],
+        sources: docs.slice(0, 3).map((d) => ({ label: d.title, detail: d.category, to: `/patient/documents/${d.id}` })),
+      }
+    }
   }
 
   /* -------------------------------------------- what is recorded about me */
   if (has(question, 'about me', 'know about', 'understand', 'profile', 'remember', 'pattern')) {
-    profileItems.slice(0, 4).forEach((p) => {
-      lines.push(`${p.text} (${p.section}, ${p.evidence.toLowerCase()}, ${say(p.date)})`)
-      sources.push({ label: p.text.slice(0, 48), detail: p.section, to: '/patient/profile' })
-    })
+    const held = profileItems.slice(0, 6)
+    if (held.length) {
+      return {
+        text: `${held.length} things are recorded about you, each with a source and a date. None of it is fixed.`,
+        detail: held.map((x) => `${x.text}\n${x.section} · ${x.evidence.toLowerCase()} · ${say(x.date)}`).join('\n\n'),
+        actions: [{ label: 'Edit or remove any of it', to: '/patient/profile' }],
+        sources: [{ label: 'My profile', detail: 'Everything recorded about you', to: '/patient/profile' }],
+      }
+    }
   }
 
   /* ------------------------------------------------------------ fallback */
@@ -222,35 +277,18 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
   // The previous version answered anyway, with a summary of everything open.
   // That reads as an answer, which makes it worse than silence: someone who
   // asked a specific question and received a confident paragraph about
-  // something else has been misled, not helped. Without the agent this is a
-  // lookup over a known set of things, and the honest move is to say what
-  // that set is and let the person pick.
-  if (!lines.length) {
-    const openRequests = requests.filter((r) => r.status !== 'Completed' && r.status !== 'Cancelled')
-    const active = strategies.filter((s) => s.status === 'Active')
-
-    return {
-      text: [
-        'I could not match that to anything in your record, and I would rather say so than answer a different question.',
-        'Working like this I can look things up, not think about them. What I can find:',
-        [
-          active.length ? `· what you have tried and what the check-ins said (${active.length} running)` : null,
-          openRequests.length ? `· what is still open and who it is with (${openRequests.length})` : null,
-          appointments.length ? '· your appointments and what they are for' : null,
-          '· who can see your record, and exactly which parts',
-          '· anyone connected to you — ask "who is …?"',
-          '· what has changed recently',
-        ]
-          .filter(Boolean)
-          .join('\n'),
-        'Or ask a person instead. Nothing you have written here has gone anywhere.',
-      ].join('\n\n'),
-      sources: [],
-      matched: false,
-    }
+  // something else has been misled, not helped.
+  return {
+    text: 'I could not match that to anything in your record — and I would rather say so than answer a different question.',
+    actions: [
+      { label: 'What have I tried?', ask: 'What have I tried and did any of it work?' },
+      { label: 'Who can see my record?', ask: 'Who can see my record?' },
+      { label: 'When is my next appointment?', ask: 'When is my next appointment?' },
+      { label: 'What has changed?', ask: 'What has changed recently?' },
+    ],
+    sources: [],
+    matched: false,
   }
-
-  return { text: lines.join('\n\n'), sources: dedupe(sources) }
 }
 
 /**
@@ -277,11 +315,6 @@ function personIn(question: string) {
   // Exactly one person, and either a question word or nothing else to go on.
   if (hits.length === 1 && (asking || q.split(/\s+/).length <= 6)) return hits[0]
   return null
-}
-
-/** Citing one source twice makes an answer look better sourced than it is. */
-function dedupe(sources: LocalSource[]): LocalSource[] {
-  return sources.filter((s, i, all) => all.findIndex((o) => o.to === s.to) === i).slice(0, 5)
 }
 
 /**
@@ -327,59 +360,74 @@ export function looksLikeFeeling(text: string): boolean {
  *   · Lead with the record. When somebody says they feel unhappy, what is in
  *     their file comes second, offered rather than delivered.
  */
+/**
+ * Whether this conversation has already been told the agent is unavailable.
+ *
+ * Said once. Repeating it on every message buries the answer under forty words
+ * of apology the person read the first time and now has to scroll past — which
+ * is how "who is Tejas?" ended up with its two-line answer at the bottom of a
+ * paragraph about ORCA's internal architecture. Nobody needs to be told twice
+ * that a service is down; they need to be told once and then answered.
+ */
+let toldThisSession = false
+
+export function resetOfflineNotice() {
+  toldThisSession = false
+}
+
 export function offlineReply(
   question: string,
   patientId: string,
   role: string | null,
 ): LocalAnswer {
   const forPatient = role === 'patient' || role === 'trusted'
+  const first = !toldThisSession
+  toldThisSession = true
 
   if (!forPatient) {
     const answer = answerFromRecord(question, patientId)
     return {
-      text: `I could not reach the workflow service, so nothing was started. Reading the record directly instead — this is a lookup, not analysis.\n\n${answer.text}`,
-      sources: answer.sources,
+      ...answer,
+      text: first ? `Workflow service unreachable — reading the record directly.\n\n${answer.text}` : answer.text,
     }
   }
 
   if (looksLikeFeeling(question)) {
     const clinician = careContact(patientId)
     const waiting = whatIsWaiting(patientId)
-
     return {
-      text: [
-        'Thank you for telling me. I am not going to try to interpret that — you know how you feel better than I do, and it is not mine to explain.',
-        'I also cannot reach the part of me that works things through at the moment, so I have not started anything and I have not told anyone.',
-        waiting.line
-          ? `If it helps, here is what is currently unfinished, in case one of these is the thing sitting on you: ${waiting.line}`
-          : 'There is nothing unfinished in your record at the moment that I can point to.',
+      text: 'Thank you for telling me. I am not going to try to interpret that — you know how you feel better than I do.',
+      detail: [
+        first
+          ? 'I also cannot reach the part of me that works things through at the moment, so I have not started anything and I have not told anyone.'
+          : null,
+        waiting.line ? `In case one of these is the thing sitting on you: ${waiting.line}` : null,
         clinician
-          ? `If you would rather talk to a person than to me, ${clinician.name} is connected to your record and you can message them from your care team page.`
-          : 'If you would rather talk to a person than to me, you can add someone to your care team.',
+          ? `${clinician.name} is connected to your record, if you would rather talk to a person than to me.`
+          : null,
         'You do not have to do anything with any of this today.',
-      ].join('\n\n'),
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+      actions: [
+        { label: 'Message someone', to: '/patient/care/team' },
+        { label: 'What is unfinished?', ask: 'What is still open and waiting on someone?' },
+      ],
       sources: waiting.sources,
     }
   }
 
   const answer = answerFromRecord(question, patientId)
 
-  // A miss already explains itself. Prefacing it with "here is what follows"
-  // and then saying "I found nothing" is the interface talking to itself.
-  if (answer.matched === false) {
-    return {
-      text: `I could not reach the part of me that works things through, so nothing has been started and nobody has been contacted.\n\n${answer.text}`,
-      sources: answer.sources,
-    }
-  }
+  // The notice becomes a short line before the answer, and only the first
+  // time. After that the answer stands on its own, which is the whole point.
+  if (!first) return answer
 
   return {
-    text: [
-      'I cannot reach the part of me that works things through right now, so nothing has been started and nobody has been contacted.',
-      'I can still read your record, which is what follows — a straight lookup rather than me thinking about it.',
-      answer.text,
-    ].join('\n\n'),
-    sources: answer.sources,
+    ...answer,
+    text: answer.matched === false
+      ? `I am working without the part of me that reasons, so I can look things up but not think about them.\n\n${answer.text}`
+      : `${answer.text}\n\nRead straight from your record — I could not reach the part of me that works things through, so nothing was started and nobody was contacted.`,
   }
 }
 

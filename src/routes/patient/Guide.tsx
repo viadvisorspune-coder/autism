@@ -88,11 +88,19 @@ export default function PatientGuide() {
   // request should be built out of.
   const lastSaid = [...messages].reverse().find((m) => m.from === 'patient')?.text ?? ''
 
-  const say2 = (text: string) => {
+  const say2 = (text: string, extra?: Partial<GuideMessage>) => {
     setMessages((m) => [
       ...m,
-      { id: `gm-o-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, from: 'orca', time: 'Just now', text },
+      {
+        id: `gm-o-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        from: 'orca',
+        time: 'Just now',
+        text,
+        ...extra,
+      },
     ])
+    // Only the answer is kept. The detail and the buttons are rebuilt from the
+    // record whenever it is read, so storing them would be storing a stale copy.
     persistMessage('pt-ananya', option?.personId ?? 'u-ananya', text, 'orca')
   }
 
@@ -133,7 +141,11 @@ export default function PatientGuide() {
         // the panel below, which is where someone debugging this would look.
         // ORCA itself says one thing, in its own voice.
         setRunError(error ?? 'The workflow could not be started.')
-        say2(offlineReply(trimmed, 'pt-ananya', 'patient').text)
+        const reply = offlineReply(trimmed, 'pt-ananya', 'patient')
+        say2(reply.text, {
+          detail: reply.detail,
+          actions: reply.actions?.map((a) => ({ label: a.label, href: a.to, ask: a.ask })),
+        })
         return
       }
       say2(
@@ -274,17 +286,29 @@ export default function PatientGuide() {
                   </div>
                 ) : null}
 
+                {message.detail ? <MoreDetail text={message.detail} /> : null}
+
                 {message.actions?.length ? (
                   <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
-                    {message.actions.map((action) => (
-                      <Link
-                        key={action.label}
-                        to={action.href}
-                        className="rounded-2xl  border-line-strong px-3 py-2 text-[0.84rem] text-ink hover:bg-surface-2"
-                      >
-                        {action.label}
-                      </Link>
-                    ))}
+                    {message.actions.map((action) =>
+                      action.href ? (
+                        <Link
+                          key={action.label}
+                          to={action.href}
+                          className="rounded-2xl bg-surface-2 px-3 py-2 text-[0.84rem] text-ink hover:bg-brand-tint"
+                        >
+                          {action.label}
+                        </Link>
+                      ) : (
+                        <button
+                          key={action.label}
+                          onClick={() => action.ask && send(action.ask)}
+                          className="rounded-2xl bg-surface-2 px-3 py-2 text-[0.84rem] text-ink hover:bg-brand-tint"
+                        >
+                          {action.label}
+                        </button>
+                      ),
+                    )}
                     <button
                       onClick={() => say('A message has been sent to Dr Kavita Nair.')}
                       className="rounded-2xl  border-line-strong px-3 py-2 text-[0.84rem] text-ink hover:bg-surface-2"
@@ -536,6 +560,42 @@ function ContinueAsRequest({ lastSaid }: { lastSaid: string }) {
       >
         Start a request from this
       </Button>
+    </div>
+  )
+}
+
+
+/**
+ * The rest of it, behind one press.
+ *
+ * The answer is the answer. Everything a person might want next — the dates,
+ * the scopes, the check-in notes — is real and worth keeping, but putting it
+ * in front of the answer is how a two-line reply became a paragraph nobody
+ * finished reading. Closed by default; the label says roughly how much is
+ * inside so nobody has to press it to find out whether it was worth pressing.
+ */
+function MoreDetail({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  const blocks = text.split('\n\n').filter(Boolean)
+
+  return (
+    <div className="mt-3">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="text-[0.84rem] font-medium text-brand underline-offset-2 hover:underline"
+      >
+        {open ? 'Show less' : `More detail (${blocks.length})`}
+      </button>
+      {open ? (
+        <div className="mt-2 space-y-2.5 rounded-[20px] bg-canvas px-4 py-3">
+          {blocks.map((block) => (
+            <p key={block} className="whitespace-pre-line text-[0.86rem] leading-relaxed text-ink-2">
+              {block}
+            </p>
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }

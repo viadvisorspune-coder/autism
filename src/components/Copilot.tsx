@@ -84,7 +84,16 @@ export function Copilot({
   const patientId = 'pt-ananya'
 
   const stored = useLive<ConversationData>('conversation', patientId, 8000)
-  const [thread, setThread] = useState<{ id: string; from: 'you' | 'orca'; text: string; sources?: Source[] }[]>([])
+  const [thread, setThread] = useState<
+    {
+      id: string
+      from: 'you' | 'orca'
+      text: string
+      sources?: Source[]
+      detail?: string
+      actions?: { label: string; to?: string; ask?: string }[]
+    }[]
+  >([])
   const [loaded, setLoaded] = useState(false)
   const { value: draft, setValue: setDraft, clear: clearDraft, restored } = useDraft(
     `copilot.${option?.personId ?? 'anon'}`,
@@ -127,8 +136,15 @@ export function Copilot({
     }
   }, [option?.personId])
 
-  const orca = (text: string, sources?: Source[]) => {
-    setThread((t) => [...t, { id: `o-${Date.now()}-${Math.random()}`, from: 'orca', text, sources }])
+  const orca = (
+    text: string,
+    sources?: Source[],
+    extra?: { detail?: string; actions?: { label: string; to?: string; ask?: string }[] },
+  ) => {
+    setThread((t) => [
+      ...t,
+      { id: `o-${Date.now()}-${Math.random()}`, from: 'orca', text, sources, ...extra },
+    ])
     persistMessage(patientId, option?.personId ?? '', text, 'orca')
   }
 
@@ -150,7 +166,7 @@ export function Copilot({
       // a patient the first of those three should never have been said aloud.
       if (error) console.warn('workflow trigger failed:', error)
       const reply = offlineReply(trimmed, patientId, role ?? null)
-      orca(reply.text, reply.sources)
+      orca(reply.text, reply.sources, { detail: reply.detail, actions: reply.actions })
       return
     }
 
@@ -224,7 +240,33 @@ export function Copilot({
                 <p className={`mb-1 text-[0.72rem] font-semibold uppercase tracking-[0.06em] ${tone.label}`}>
                   ORCA
                 </p>
-                <p className="text-[0.88rem] leading-relaxed text-ink">{m.text}</p>
+                <p className="whitespace-pre-line text-[0.88rem] leading-relaxed text-ink">{m.text}</p>
+
+                {m.detail ? <Expandable text={m.detail} /> : null}
+
+                {m.actions?.length ? (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {m.actions.map((a) =>
+                      a.to ? (
+                        <Link
+                          key={a.label}
+                          to={a.to}
+                          className="rounded-full bg-surface px-2.5 py-1 text-[0.78rem] text-ink hover:bg-canvas"
+                        >
+                          {a.label}
+                        </Link>
+                      ) : (
+                        <button
+                          key={a.label}
+                          onClick={() => a.ask && void send(a.ask)}
+                          className="rounded-full bg-surface px-2.5 py-1 text-[0.78rem] text-ink hover:bg-canvas"
+                        >
+                          {a.label}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                ) : null}
 
                 {m.sources?.length ? (
                   <div className={`mt-3 border-t pt-2.5 ${tone.rule}`}>
@@ -353,4 +395,31 @@ function promptsFor(role: string): string[] {
     return ['What has she chosen to share?', 'How can I help right now?']
   }
   return ['What changed since I last saw them?', 'Is the current strategy working?', 'What am I missing?']
+}
+
+
+/** The rest of an answer, one press away. Same rule as the patient Guide. */
+function Expandable({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  const blocks = text.split('\n\n').filter(Boolean)
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="text-[0.79rem] font-medium text-ink-2 underline-offset-2 hover:underline"
+      >
+        {open ? 'Show less' : `More detail (${blocks.length})`}
+      </button>
+      {open ? (
+        <div className="mt-1.5 space-y-2 rounded-[16px] bg-surface px-3 py-2.5">
+          {blocks.map((b) => (
+            <p key={b} className="whitespace-pre-line text-[0.82rem] leading-relaxed text-ink-2">
+              {b}
+            </p>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
 }

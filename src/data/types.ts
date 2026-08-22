@@ -306,7 +306,10 @@ export interface GuideMessage {
   time: string
   evidence?: EvidenceBundle
   options?: { label: string; detail: string }[]
-  actions?: { label: string; href: string }[]
+  /** Everything a person might want next, behind one press. Never shown first. */
+  detail?: string
+  /** `href` navigates; `ask` sends a follow-up question to ORCA. */
+  actions?: { label: string; href?: string; ask?: string }[]
 }
 
 export interface SessionNote {
