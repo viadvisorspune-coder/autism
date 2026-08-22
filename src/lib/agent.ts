@@ -251,6 +251,18 @@ function referenceIn(detail: unknown): string {
   }
 }
 
+/** Their own sentence about what went wrong, when they provide one. */
+function messageIn(detail: unknown): string | null {
+  if (typeof detail !== 'string') return null
+  try {
+    const parsed = JSON.parse(detail) as { error?: { message?: unknown } }
+    const message = parsed.error?.message
+    return typeof message === 'string' && message ? message : null
+  } catch {
+    return null
+  }
+}
+
 async function readErrorBody(error: unknown): Promise<string | null> {
   const context = (error as { context?: unknown }).context
   if (!context) return null
@@ -278,7 +290,14 @@ async function readErrorBody(error: unknown): Promise<string | null> {
       // reference is the only part their support can act on, so it survives.
       const ref = referenceIn(record.detail)
       if (status >= 500) {
-        return `The workflow service failed on its side (HTTP ${status}). Nothing is wrong with your record or your request — this is theirs to fix.${ref}`
+        // Their body names the failure. "The trigger start was interrupted"
+        // is a more useful thing to read than "HTTP 500", and it is their
+        // wording rather than an inference from a status code.
+        const said = messageIn(record.detail)
+        return (
+          `The workflow service could not start this. ${said ?? `It failed on its side (HTTP ${status}).`} ` +
+          `Nothing is wrong with your record or your request — this is theirs to fix, and it was retried before giving up.${ref}`
+        )
       }
       if (status === 403 || status === 401) {
         return 'The workflow service refused the request. Either the deployment is not active, or the deployment secret here does not match the one in Yoxa.'

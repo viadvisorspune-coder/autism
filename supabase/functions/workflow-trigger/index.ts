@@ -95,23 +95,20 @@ Deno.serve(async (req) => {
     ? `Bearer ${secret}`
     : secret
 
+  const payload = JSON.stringify({
+    trigger_text: triggerText,
+    metadata: {
+      patient_id: patientId,
+      actor_id: actor.id,
+      actor_role: actor.role,
+      local_workflow_run_id: run.id,
+    },
+  })
+
   let upstream: Response
   let upstreamBody = ''
   try {
-    upstream = await fetch(triggerUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        trigger_text: triggerText,
-        metadata: {
-          patient_id: patientId,
-          actor_id: actor.id,
-          actor_role: actor.role,
-          local_workflow_run_id: run.id,
-        },
-      }),
-    })
-    upstreamBody = await upstream.text()
+    ;({ response: upstream, body: upstreamBody } = await send(triggerUrl, headers, payload))
   } catch (error) {
     console.error('trigger failed', String(error))
     await admin
@@ -163,3 +160,74 @@ Deno.serve(async (req) => {
     note: 'Sent. Nothing is shared with anyone outside ORCA unless you approve it later.',
   })
 })
+
+/**
+ * Send the trigger, honouring Yoxa's own retry contract.
+ *
+ * Yoxa answers a failed run creation with a machine-readable verdict:
+ *
+ *   { "error": { "code": "public_trigger_start_interrupted",
+ *                "phase": "workflow_start",
+ *                "message": "The trigger start was interrupted. Retry the same request.",
+ *                "retryable": true } }
+ *
+ * That is an instruction, and until now this function ignored it and surfaced
+ * the first failure as final. If the interruption is transient — a worker lost
+ * mid-start, a queue hiccup — the run this person asked for was thrown away for
+ * no reason other than that nobody tried twice.
+ *
+ * THE SAME Idempotency-Key on every attempt, deliberately. This is a retry of
+ * one action with an identical payload, which is the only case where reusing a
+ * key is correct: it lets Yoxa recognise the repeat and replay the accepted
+ * result rather than starting a second run. A fresh key here would risk
+ * duplicating work that had in fact started.
+ *
+ * Only `retryable` failures are repeated. A 403 is a wrong secret and will be
+ * wrong again in two seconds; a 400 is a malformed request. Retrying either
+ * would just be a slower way to fail, and would hold up someone who is waiting
+ * for an answer.
+ *
+ * The delays are short on purpose. The browser gives this call twenty seconds
+ * before it stops waiting, so the whole sequence has to fit inside that with
+ * room for the requests themselves. Better to fail honestly at eight seconds
+ * than to time out at twenty with nothing to show.
+ */
+const RETRY_DELAYS_MS = [1200, 3000]
+
+async function send(
+  url: string,
+  headers: Record<string, string>,
+  body: string,
+): Promise<{ response: Response; body: string }> {
+  let attempt = 0
+
+  for (;;) {
+    const response = await fetch(url, { method: 'POST', headers, body })
+    const text = await response.text()
+
+    if (response.ok || attempt >= RETRY_DELAYS_MS.length || !isRetryable(response, text)) {
+      if (attempt > 0) {
+        console.log(
+          `trigger attempt ${attempt + 1} finished with ${response.status}`,
+        )
+      }
+      return { response, body: text }
+    }
+
+    console.log(`trigger interrupted (${response.status}), retrying the same request`)
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt]))
+    attempt += 1
+  }
+}
+
+/** Yoxa's own word for it, not our guess from the status code. */
+function isRetryable(response: Response, body: string): boolean {
+  if (response.status < 500) return false
+  try {
+    const parsed = JSON.parse(body) as { error?: { retryable?: unknown } }
+    // Absent means unstated, and an unstated 5xx is worth one more go.
+    return parsed.error?.retryable !== false
+  } catch {
+    return true
+  }
+}
