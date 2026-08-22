@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useSession } from '../state/session'
 import { useMaturity } from '../state/maturity'
 import { useDraft } from '../lib/draft'
+import { answerFromRecord, fallbackPreamble } from '../lib/answer'
 import { followRun, startRun } from '../lib/agent'
 import type { RunState } from '../lib/agent'
 import { markSeen, persistMessage, useLive } from '../lib/live'
@@ -145,6 +146,9 @@ export function Copilot({
 
     if (error || !runId) {
       orca(error ?? 'I could not start that. Nothing has been sent.')
+      const direct = answerFromRecord(trimmed, patientId)
+      orca(fallbackPreamble())
+      orca(direct.text, direct.sources)
       return
     }
 

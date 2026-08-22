@@ -13,6 +13,7 @@ import type { ConversationData } from '../../lib/live'
 import type { RunState } from '../../lib/agent'
 import { RunProgress } from '../../components/RunProgress'
 import { useDraft } from '../../lib/draft'
+import { answerFromRecord, fallbackPreamble } from '../../lib/answer'
 import { useMaturity } from '../../state/maturity'
 import {
   ContextBanner,
@@ -129,6 +130,11 @@ export default function PatientGuide() {
       setStarting(false)
       if (error || !runId) {
         setRunError(error ?? 'The workflow could not be started.')
+        // The reasoning service being down is not a reason to have nothing to
+        // say. The record is right here; read it directly and be plain that
+        // that is what happened.
+        say2(fallbackPreamble())
+        say2(answerFromRecord(trimmed, 'pt-ananya').text)
         return
       }
       say2(
