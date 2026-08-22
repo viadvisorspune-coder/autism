@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '../../state/session'
+import { ArrivalAlert } from '../../components/ArrivalAlert'
 import { Copilot } from '../../components/Copilot'
 import { useRecordStatus } from '../../data/RecordProvider'
 import { accentByExperience, navByRole } from '../nav'
@@ -239,6 +240,10 @@ export default function AppShell() {
       ) : null}
 
       {!copilot ? <AskOrcaButton onOpen={() => setCopilot(true)} /> : null}
+
+      {/* Something arriving for you mid-task is worth showing wherever you are,
+          so it lives in the shell rather than on any one screen. */}
+      <ArrivalAlert />
 
       {panel === 'notifications' ? <NotificationPanel onClose={close} /> : null}
       {panel === 'search' ? <SearchPanel onClose={close} /> : null}
