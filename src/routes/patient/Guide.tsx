@@ -7,7 +7,7 @@ import type { GuideMessage } from '../../data/types'
 import { useUI } from '../../state/ui'
 import { useSession } from '../../state/session'
 import { isSupabaseConfigured } from '../../lib/supabase'
-import { followRun, startRun } from '../../lib/agent'
+import { followRun, isWaitingOnAPerson, startRun } from '../../lib/agent'
 import type { RunState } from '../../lib/agent'
 import { RunProgress } from '../../components/RunProgress'
 
@@ -31,6 +31,12 @@ export default function PatientGuide() {
   const stopFollowing = useRef<(() => void) | null>(null)
 
   useEffect(() => () => stopFollowing.current?.(), [])
+
+  const say2 = (text: string) =>
+    setMessages((m) => [
+      ...m,
+      { id: `gm-o-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, from: 'orca', time: 'Just now', text },
+    ])
 
   const send = (text: string) => {
     const trimmed = text.trim()
@@ -63,16 +69,41 @@ export default function PatientGuide() {
         setRunError(error ?? 'The workflow could not be started.')
         return
       }
-      setMessages((m) => [
-        ...m,
-        {
-          id: `gm-o-${Date.now()}`,
-          from: 'orca',
-          time: 'Just now',
-          text: 'I have started working on this. You can watch what I am doing below — I will stop and ask you before anything leaves your record.',
-        },
-      ])
-      stopFollowing.current = followRun(runId, setRun)
+      say2('Let me look at your record. This usually takes a few minutes — you do not need to wait here.')
+
+      // Every change in the run becomes something ORCA says, so the
+      // conversation is where the work appears rather than a panel beside it.
+      const spoken = new Set<string>()
+      stopFollowing.current = followRun(runId, (state) => {
+        setRun(state)
+
+        state.activity
+          .filter((a) => a.result === 'Denied')
+          .forEach((a) => {
+            if (spoken.has(a.id)) return
+            spoken.add(a.id)
+            say2(`I did not do this: ${a.action}.${a.why ? ` ${a.why}` : ''}`)
+          })
+
+        const step = state.run.current_step
+        if (step && step !== 'Trigger received' && !spoken.has(`step:${step}`)) {
+          spoken.add(`step:${step}`)
+          say2(narrate(step))
+        }
+
+        state.approvals.forEach((a) => {
+          if (spoken.has(`ap:${a.request_id}`)) return
+          spoken.add(`ap:${a.request_id}`)
+          say2(`I have stopped, because this needs you rather than me. ${a.title}`)
+        })
+
+        if (isWaitingOnAPerson(state.run.status) && !spoken.has('stopped')) {
+          spoken.add('stopped')
+          say2(
+            `I have gone as far as I can on my own. This is now waiting for ${state.run.waiting_for ?? 'a person'}, and nothing will move until they decide.`,
+          )
+        }
+      })
     })
   }
 
@@ -215,6 +246,28 @@ export default function PatientGuide() {
       </div>
     </div>
   )
+}
+
+/**
+ * A step name is a label for the agent that produced it, not a sentence for the
+ * person waiting on it. This says what each one means to them.
+ */
+function narrate(step: string): string {
+  const map: Record<string, string> = {
+    'Access, Purpose and Data Scope':
+      'I am checking what can be shared here, and with whom. This is the part that decides what I am allowed to say.',
+    'Longitudinal Context Retrieval':
+      'I am reading back through your record — what you have told me, what your clinicians have documented, and what you have already tried.',
+    'Evidence, Provenance and Uncertainty Analysis':
+      'I am working out how solid each piece of this is, and where I am not certain.',
+    'Current Need and Goal Formulation':
+      'I am trying to state clearly what you actually need here, so the rest follows from that rather than from my guess.',
+    'Clarification and Information Gap Resolution':
+      'There is something I do not know yet, and I would rather ask than assume.',
+    'Consequence and Authority Decision':
+      'I am checking who has the authority to decide this. It may not be me, and it may not be them.',
+  }
+  return map[step] ?? `Working on: ${step.toLowerCase()}.`
 }
 
 /* -------------------------------------------------------------- canned replies */

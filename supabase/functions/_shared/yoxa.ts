@@ -7,10 +7,22 @@
  */
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
+/**
+ * CORS for the browser, not only for curl.
+ *
+ * supabase-js sends `apikey` and `x-client-info` on every call. Allowing only
+ * `authorization, content-type` meant the preflight refused them, so every
+ * request from a real browser failed before it was sent — while curl, which
+ * does no preflight at all, passed every test. That gap is why this went
+ * unnoticed: the tests that were run could not reproduce the only case that
+ * mattered.
+ */
 export const cors = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type, x-supabase-api-version',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 }
 
 export function json(body: unknown, status = 200): Response {
