@@ -13,7 +13,7 @@ import type { ConversationData } from '../../lib/live'
 import type { RunState } from '../../lib/agent'
 import { RunProgress } from '../../components/RunProgress'
 import { useDraft } from '../../lib/draft'
-import { answerFromRecord, fallbackPreamble } from '../../lib/answer'
+import { offlineReply } from '../../lib/answer'
 import { useMaturity } from '../../state/maturity'
 import {
   ContextBanner,
@@ -129,12 +129,11 @@ export default function PatientGuide() {
     void startRun(outbound, 'pt-ananya', option?.personId ?? 'u-ananya').then(({ runId, error }) => {
       setStarting(false)
       if (error || !runId) {
+        // The technical wording — status codes, the support reference — goes to
+        // the panel below, which is where someone debugging this would look.
+        // ORCA itself says one thing, in its own voice.
         setRunError(error ?? 'The workflow could not be started.')
-        // The reasoning service being down is not a reason to have nothing to
-        // say. The record is right here; read it directly and be plain that
-        // that is what happened.
-        say2(fallbackPreamble())
-        say2(answerFromRecord(trimmed, 'pt-ananya').text)
+        say2(offlineReply(trimmed, 'pt-ananya', 'patient').text)
         return
       }
       say2(

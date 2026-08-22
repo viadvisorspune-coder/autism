@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useSession } from '../state/session'
 import { useMaturity } from '../state/maturity'
 import { useDraft } from '../lib/draft'
-import { answerFromRecord, fallbackPreamble } from '../lib/answer'
+import { offlineReply } from '../lib/answer'
 import { followRun, startRun } from '../lib/agent'
 import type { RunState } from '../lib/agent'
 import { markSeen, persistMessage, useLive } from '../lib/live'
@@ -145,10 +145,12 @@ export function Copilot({
     setBusy(false)
 
     if (error || !runId) {
-      orca(error ?? 'I could not start that. Nothing has been sent.')
-      const direct = answerFromRecord(trimmed, patientId)
-      orca(fallbackPreamble())
-      orca(direct.text, direct.sources)
+      // One reply, not three. A technical line, a meta-explanation and a data
+      // dump in sequence is not how a person would answer a person — and for
+      // a patient the first of those three should never have been said aloud.
+      if (error) console.warn('workflow trigger failed:', error)
+      const reply = offlineReply(trimmed, patientId, role ?? null)
+      orca(reply.text, reply.sources)
       return
     }
 

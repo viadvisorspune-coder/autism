@@ -191,6 +191,125 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
 }
 
 /**
+ * Not everything typed into a chat box is a question.
+ *
+ * "I feel unhappy" is not a request for a list of open requests. Treating it
+ * as one — which is what a keyword matcher does by default — produces the
+ * single worst response this product could give: someone discloses distress
+ * and receives an inventory.
+ *
+ * The test is deliberately narrow. It looks for first-person statements about
+ * how someone is, not for sad-sounding words anywhere in a sentence, because
+ * "the meeting was awful" is a report about a meeting and should be answered
+ * as one. When it is unsure it says no, and the ordinary path handles it.
+ */
+const FEELING = [
+  /\bi (?:feel|am feeling|felt)\b/i,
+  /\bi(?:'m| am)\s+(?:so\s+|really\s+|very\s+)?(?:sad|unhappy|low|tired|exhausted|anxious|scared|angry|lonely|overwhelmed|numb|done|struggling|not ok|not okay)\b/i,
+  /\b(?:everything|it all|things)\s+(?:is|are|feels?)\s+(?:too much|awful|hard|a lot)\b/i,
+  /\bcan'?t cope\b|\bcannot cope\b|\bhad enough\b/i,
+]
+
+export function looksLikeFeeling(text: string): boolean {
+  return FEELING.some((pattern) => pattern.test(text))
+}
+
+/**
+ * One reply, in ORCA's voice, when the reasoning service is unavailable.
+ *
+ * Replaces three separate bubbles — a technical error, a meta-explanation, and
+ * a data dump — with a single message, because three consecutive machine
+ * noises is not how anyone would answer a person.
+ *
+ * What it will not do:
+ *
+ *   · Show a support reference to a patient. That number exists for whoever
+ *     maintains this software. Ananya does not have a support desk, and a
+ *     hexadecimal string in a conversation about a bad week is noise at
+ *     precisely the wrong moment. It stays in the diagnostic panel.
+ *   · Interpret a feeling. It acknowledges, states what it cannot do, and
+ *     offers a person — which is the same rule the agent follows when it is
+ *     working: where something belongs to a human, stop and say so.
+ *   · Lead with the record. When somebody says they feel unhappy, what is in
+ *     their file comes second, offered rather than delivered.
+ */
+export function offlineReply(
+  question: string,
+  patientId: string,
+  role: string | null,
+): LocalAnswer {
+  const forPatient = role === 'patient' || role === 'trusted'
+
+  if (!forPatient) {
+    const answer = answerFromRecord(question, patientId)
+    return {
+      text: `I could not reach the workflow service, so nothing was started. Reading the record directly instead — this is a lookup, not analysis.\n\n${answer.text}`,
+      sources: answer.sources,
+    }
+  }
+
+  if (looksLikeFeeling(question)) {
+    const clinician = careContact(patientId)
+    const waiting = whatIsWaiting(patientId)
+
+    return {
+      text: [
+        'Thank you for telling me. I am not going to try to interpret that — you know how you feel better than I do, and it is not mine to explain.',
+        'I also cannot reach the part of me that works things through at the moment, so I have not started anything and I have not told anyone.',
+        waiting.line
+          ? `If it helps, here is what is currently unfinished, in case one of these is the thing sitting on you: ${waiting.line}`
+          : 'There is nothing unfinished in your record at the moment that I can point to.',
+        clinician
+          ? `If you would rather talk to a person than to me, ${clinician.name} is connected to your record and you can message them from your care team page.`
+          : 'If you would rather talk to a person than to me, you can add someone to your care team.',
+        'You do not have to do anything with any of this today.',
+      ].join('\n\n'),
+      sources: waiting.sources,
+    }
+  }
+
+  const answer = answerFromRecord(question, patientId)
+  return {
+    text: [
+      'I cannot reach the part of me that works things through right now, so nothing has been started and nobody has been contacted.',
+      'I can still read your record, which is what follows — a straight lookup rather than me thinking about it.',
+      answer.text,
+    ].join('\n\n'),
+    sources: answer.sources,
+  }
+}
+
+/** Open things, phrased as one sentence rather than an inventory. */
+function whatIsWaiting(patientId: string): { line: string | null; sources: LocalSource[] } {
+  const sources: LocalSource[] = []
+  const parts: string[] = []
+
+  requestsFor(patientId)
+    .filter((r) => r.status !== 'Completed' && r.status !== 'Cancelled')
+    .forEach((r) => {
+      parts.push(`${r.title.toLowerCase()}, still with ${r.currentOwner}`)
+      sources.push({ label: r.title, detail: r.status, to: `/patient/requests/${r.id}` })
+    })
+
+  strategiesFor(patientId)
+    .filter((s) => s.status === 'Active')
+    .forEach((s) => {
+      parts.push(`${s.title.toLowerCase()}, which you are still trying`)
+      sources.push({ label: s.title, detail: s.phase, to: `/patient/support/${s.id}` })
+    })
+
+  if (!parts.length) return { line: null, sources }
+  return { line: `${parts.join('; ')}.`, sources: sources.slice(0, 4) }
+}
+
+/** Somebody real, already connected, who could be asked instead of ORCA. */
+function careContact(patientId: string): { name: string } | null {
+  const next = appointmentsFor(patientId).filter((a) => a.status !== 'Completed')[0]
+  if (next) return { name: personName(next.professionalId) }
+  return null
+}
+
+/**
  * What ORCA says before a direct read, so nobody mistakes it for the agent.
  *
  * It names the failure without making the person carry it, and it is explicit
