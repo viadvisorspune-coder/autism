@@ -12,6 +12,12 @@ import { markSeen, persistMessage, useLive } from '../../lib/live'
 import type { ConversationData } from '../../lib/live'
 import type { RunState } from '../../lib/agent'
 import { RunProgress } from '../../components/RunProgress'
+import {
+  ContextBanner,
+  ContextChoice,
+  recapFor,
+  useContextMode,
+} from '../../components/ContextChoice'
 
 /**
  * 4.1 ORCA Guide.
@@ -25,6 +31,11 @@ export default function PatientGuide() {
   const { option } = useSession()
   const [messages, setMessages] = useState<GuideMessage[]>(guideConversation)
   const [loadedHistory, setLoadedHistory] = useState(false)
+  // Whether this conversation is carrying the record in with it. Asked once,
+  // and the answer changes what is sent, not just what is drawn.
+  const { mode, choose } = useContextMode('pt-ananya')
+  const [showEarlier, setShowEarlier] = useState(false)
+  const [historyCount, setHistoryCount] = useState(0)
 
   // The thread as it actually is, not as it was the first time anyone opened
   // this page. Polls too, so a reply written on another device turns up here.
@@ -33,6 +44,7 @@ export default function PatientGuide() {
   useEffect(() => {
     if (loadedHistory || !stored.data?.messages?.length) return
     setLoadedHistory(true)
+    setHistoryCount(stored.data.messages.length)
     setMessages(
       stored.data.messages.map((m) => ({
         id: m.id,
@@ -58,6 +70,14 @@ export default function PatientGuide() {
   const stopFollowing = useRef<(() => void) | null>(null)
 
   useEffect(() => () => stopFollowing.current?.(), [])
+
+  // What "my previous context" means concretely, today, in this record.
+  const recap = recapFor(
+    'pt-ananya',
+    (stored.data?.messages ?? []).filter((m) => m.author === 'person').map((m) => m.text),
+  )
+  const storedCount = stored.data?.messages?.length ?? 0
+  const visible = mode === 'fresh' && !showEarlier ? messages.slice(historyCount) : messages
 
   const say2 = (text: string) => {
     setMessages((m) => [
@@ -93,7 +113,11 @@ export default function PatientGuide() {
     setRun(null)
     stopFollowing.current?.()
 
-    void startRun(trimmed, 'pt-ananya', option?.personId ?? 'u-ananya').then(({ runId, error }) => {
+    // The recap goes to the workflow, never into the thread as if the person
+    // had typed it. What it contains is on screen above, verbatim.
+    const outbound = mode === 'previous' && recap.preamble ? `${recap.preamble}${trimmed}` : trimmed
+
+    void startRun(outbound, 'pt-ananya', option?.personId ?? 'u-ananya').then(({ runId, error }) => {
       setStarting(false)
       if (error || !runId) {
         setRunError(error ?? 'The workflow could not be started.')
@@ -158,8 +182,34 @@ export default function PatientGuide() {
 
       {stored.data?.since_last_visit ? <SinceYouWereHere data={stored.data} /> : null}
 
+      {storedCount > 0 ? (
+        mode === null ? (
+          <ContextChoice
+            patientId="pt-ananya"
+            recentMessages={(stored.data?.messages ?? [])
+              .filter((m) => m.author === 'person')
+              .map((m) => m.text)}
+            onChoose={choose}
+          />
+        ) : (
+          <ContextBanner mode={mode} count={recap.lines.length} onChange={() => choose(mode === 'previous' ? 'fresh' : 'previous')} />
+        )
+      ) : null}
+
+      {/* Starting fresh folds the old thread away rather than deleting it. It
+          is still one click back, because "I do not want to talk about that
+          today" is not the same as "I never said it". */}
+      {mode === 'fresh' && historyCount > 0 && !showEarlier ? (
+        <button
+          onClick={() => setShowEarlier(true)}
+          className="mb-4 text-[0.83rem] text-muted underline-offset-2 hover:text-ink-2 hover:underline"
+        >
+          Show earlier conversation ({historyCount} message{historyCount === 1 ? '' : 's'})
+        </button>
+      ) : null}
+
       <div className="space-y-4">
-        {messages.map((message) =>
+        {visible.map((message) =>
           message.from === 'patient' ? (
             <div key={message.id} className="flex justify-end">
               <div className="max-w-[85%] rounded-[10px] rounded-br-sm bg-brand px-4 py-3 text-[0.92rem] leading-relaxed text-white">

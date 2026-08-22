@@ -232,6 +232,25 @@ export function followRun(
  * the actual fault for an hour — the message a failure carries is the whole
  * value of the failure.
  */
+/**
+ * The one thing in an upstream failure body that is worth repeating.
+ *
+ * Not the whole payload: a person who asked for help with their week should
+ * not be shown a stack of JSON. But a trace id is what the other side's
+ * support desk asks for first, and having to go digging in function logs to
+ * find it is a tax on the person least able to pay it.
+ */
+function referenceIn(detail: unknown): string {
+  if (typeof detail !== 'string') return ''
+  try {
+    const parsed = JSON.parse(detail) as Record<string, unknown>
+    const id = parsed.trace_id ?? parsed.traceId ?? parsed.request_id ?? parsed.id
+    return typeof id === 'string' && id ? ` Reference for their support: ${id}` : ''
+  } catch {
+    return ''
+  }
+}
+
 async function readErrorBody(error: unknown): Promise<string | null> {
   const context = (error as { context?: unknown }).context
   if (!context) return null
@@ -254,8 +273,12 @@ async function readErrorBody(error: unknown): Promise<string | null> {
     // the answer was a 500.
     if (record.error === 'trigger_rejected') {
       const status = Number(record.status ?? 0)
+      // Yoxa's own body comes back in `detail`. Discarding it produced a
+      // sentence that was true, unhelpful, and identical every time — the
+      // reference is the only part their support can act on, so it survives.
+      const ref = referenceIn(record.detail)
       if (status >= 500) {
-        return 'The workflow service failed on its side (HTTP 500). Nothing is wrong with your record or your request. This usually means the deployment needs re-activating after a configuration change.'
+        return `The workflow service failed on its side (HTTP ${status}). Nothing is wrong with your record or your request — this is theirs to fix.${ref}`
       }
       if (status === 403 || status === 401) {
         return 'The workflow service refused the request. Either the deployment is not active, or the deployment secret here does not match the one in Yoxa.'
@@ -263,7 +286,7 @@ async function readErrorBody(error: unknown): Promise<string | null> {
       if (status === 404) {
         return 'The workflow service does not recognise this deployment. Its address may have changed.'
       }
-      return `The workflow service refused the request (HTTP ${status}).`
+      return `The workflow service refused the request (HTTP ${status}).${ref}`
     }
     if (record.error === 'yoxa_unreachable') {
       return 'Yoxa could not be reached. Nothing was sent.'

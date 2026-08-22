@@ -16,6 +16,7 @@ import {
   timeline,
 } from '../../data/db'
 import { WorkStream } from '../../components/Priority'
+import { OrcaSuggests, SinceYouWereHere } from '../../components/Returning'
 
 /**
  * 3.1 Patient dashboard.
@@ -36,8 +37,10 @@ export default function PatientHome() {
       <h1 className="text-[1.6rem] font-semibold tracking-[-0.015em] text-ink">Good morning, Ananya</h1>
       <p className="mt-1 text-[0.9rem] text-muted">Wednesday, {formatDate('2026-08-19')}</p>
 
-      {/* Urgency first, and always in the same place. */}
+      {/* Orientation, then urgency, then what is worth doing next — and each
+          of the three only appears when it has something to say. */}
       <div className="mt-6">
+        <SinceYouWereHere />
         <WorkStream />
       </div>
 
@@ -89,8 +92,11 @@ export default function PatientHome() {
         </CardBody>
       </Card>
 
-      {/* --------------------------------------------- needs your attention */}
-            {/* ---------------------------------------------- current activity */}
+      <div className="mt-8">
+        <OrcaSuggests />
+      </div>
+
+      {/* ---------------------------------------------- current activity */}
       <div className="mt-8">
         <SectionTitle>Happening now</SectionTitle>
         <Grid cols={2}>

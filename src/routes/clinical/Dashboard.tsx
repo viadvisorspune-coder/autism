@@ -12,6 +12,8 @@ import {
 import { AiProvenance, WhyButton } from '../../components/shared'
 import { RaiseDecision } from '../../components/Inbox'
 import { WorkStream } from '../../components/Priority'
+import { OrcaSuggests, SinceYouWereHere } from '../../components/Returning'
+import { PrepareSessionButton } from '../../components/PrepareSession'
 import { StatRow } from '../../components/ui'
 import {
   appointments,
@@ -57,6 +59,11 @@ export default function ClinicalDashboard() {
   const base = option.home
   const intro = INTRO[role] ?? { title: 'Dashboard', description: '' }
   const today = appointments.filter((a) => a.datetime.startsWith('2026-08-19'))
+  // The soonest appointment that has not happened, which is the one the
+  // "prepare" button in the header is about.
+  const next = appointments
+    .filter((a) => a.status !== 'Completed' && a.datetime >= '2026-08-19')
+    .sort((a, b) => a.datetime.localeCompare(b.datetime))[0]
   const memory = memoryCandidates.filter((m) => m.raisedFor.includes(role))
   const escalations = requests.filter((r) => r.clarifications.some((c) => !c.answer))
   const reviews = reviewItems.filter((r) => r.assignedTo.includes(role))
@@ -68,6 +75,10 @@ export default function ClinicalDashboard() {
         description={intro.description}
         actions={
           <>
+            {/* The one thing a clinician is trying to do in the five minutes
+                before an appointment gets a button, not a path through the
+                navigation. */}
+            {next ? <PrepareSessionButton patientId={next.patientId} variant="primary" /> : null}
             <Button onClick={() => say('ORCA summarised today’s caseload changes.')}>
               What changed today?
             </Button>
@@ -104,7 +115,11 @@ export default function ClinicalDashboard() {
         ]}
       />
 
+      <SinceYouWereHere />
+
       <WorkStream />
+
+      <OrcaSuggests />
 
       <div className="mb-6">
         <RaiseDecision />
@@ -200,12 +215,15 @@ export default function ClinicalDashboard() {
               <CardHead title={p.name} meta={`${p.age} · ${p.pronouns}`} />
               <CardBody>
                 <p className="text-[0.85rem] leading-relaxed text-ink-2">{p.context}</p>
-                <Link
-                  to={`${base}/patients/${p.id}`}
-                  className="mt-3 inline-block text-[0.85rem] font-medium text-clinical hover:underline"
-                >
-                  Open overview
-                </Link>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <PrepareSessionButton patientId={p.id} />
+                  <Link
+                    to={`${base}/patients/${p.id}`}
+                    className="text-[0.85rem] font-medium text-clinical hover:underline"
+                  >
+                    Open overview
+                  </Link>
+                </div>
               </CardBody>
             </Card>
           ))}
