@@ -159,26 +159,33 @@ export default function AppShell() {
           <p className="mb-2 px-3 text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted">
             {option.label}
           </p>
-          <ul className="space-y-0.5">
-            {items.map((item) => (
-              <li key={item.to}>
-                <NavLink
-                  to={item.to}
-                  end={item.end}
-                  onClick={() => setNavOpen(false)}
-                  className={({ isActive }) =>
-                    `block rounded-lg px-3 py-2 text-[0.87rem] ${
-                      isActive
-                        ? `${accent.tint} font-medium text-ink`
-                        : 'text-ink-2 hover:bg-canvas hover:text-ink'
-                    }`
-                  }
-                >
-                  {item.label}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
+          {items.map((group) => (
+            <div key={group.title} className="mb-5 last:mb-0">
+              <p className="mb-1.5 px-3 text-[0.68rem] font-semibold uppercase tracking-[0.09em] text-muted">
+                {group.title}
+              </p>
+              <ul className="space-y-0.5">
+                {group.items.map((item) => (
+                  <li key={item.to}>
+                    <NavLink
+                      to={item.to}
+                      end={item.end}
+                      onClick={() => setNavOpen(false)}
+                      className={({ isActive }) =>
+                        `block rounded-md px-3 py-2 text-[0.86rem] ${
+                          isActive
+                            ? `${accent.tint} ${accent.text} font-medium`
+                            : 'text-ink-2 hover:bg-canvas hover:text-ink'
+                        }`
+                      }
+                    >
+                      {item.label}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
 
           {role === 'patient' ? (
             <Link

@@ -612,3 +612,41 @@ export function SortHeader({
     </button>
   )
 }
+
+/* --------------------------------------------------------------- stat row */
+
+export interface Stat {
+  label: string
+  value: number | string
+  detail?: string
+  tone?: 'neutral' | 'wait' | 'good' | 'alert'
+}
+
+/**
+ * The four numbers a role checks before doing anything else.
+ *
+ * Not a dashboard of everything countable — four at most, chosen because each
+ * one changes what the person does next. A tile showing a number nobody would
+ * act on is a tile teaching people that these tiles are decorative.
+ */
+export function StatRow({ stats }: { stats: Stat[] }) {
+  const tones = {
+    neutral: 'text-ink',
+    wait: 'text-state-wait',
+    good: 'text-state-good',
+    alert: 'text-state-alert',
+  }
+  return (
+    <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {stats.map((s) => (
+        <div key={s.label} className="rounded-[10px] border border-line bg-surface px-4 py-3.5">
+          <p className="text-[0.78rem] text-muted">{s.label}</p>
+          <p className={`mt-1 text-[1.6rem] font-semibold tracking-[-0.02em] ${tones[s.tone ?? 'neutral']}`}>
+            {s.value}
+          </p>
+          {s.detail ? <p className="mt-0.5 text-[0.78rem] text-muted">{s.detail}</p> : null}
+        </div>
+      ))}
+    </div>
+  )
+}

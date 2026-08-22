@@ -13,6 +13,7 @@ import {
 import { AiProvenance, ReviewRequiredCard, WhyButton } from '../../components/shared'
 import { Inbox, RaiseDecision } from '../../components/Inbox'
 import { PriorityStack } from '../../components/Priority'
+import { StatRow } from '../../components/ui'
 import {
   appointments,
   memoryCandidates,
@@ -81,6 +82,29 @@ export default function ClinicalDashboard() {
             </Link>
           </>
         }
+      />
+
+      <StatRow
+        stats={[
+          { label: 'People in your caseload', value: patients.length, detail: 'Connected to you' },
+          {
+            label: 'Waiting on you',
+            value: reviews.filter((r) => r.status === 'Awaiting approval').length,
+            detail: 'Nothing moves until you decide',
+            tone: 'wait',
+          },
+          {
+            label: 'Patterns to confirm',
+            value: memory.length,
+            detail: 'Not in any record until confirmed',
+          },
+          {
+            label: 'Unanswered questions',
+            value: escalations.length,
+            detail: 'Somebody is waiting on a reply',
+            tone: 'alert',
+          },
+        ]}
       />
 
       <PriorityStack />
