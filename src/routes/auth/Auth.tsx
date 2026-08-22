@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { accountFor, roleOptions, useSession } from '../../state/session'
+import { accountFor, accounts, useSession } from '../../state/session'
 import { Button, Card, CardBody } from '../../components/ui'
 
 function AuthFrame({
@@ -43,7 +43,9 @@ export function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const fill = (option: (typeof roleOptions)[number]) => {
+  const signInAs = accounts()
+
+  const fill = (option: (typeof signInAs)[number]) => {
     setEmail(option.email)
     setPassword('demo-password')
     setError(null)
@@ -127,8 +129,8 @@ export function Login() {
             their details; press Sign in to open their account.
           </p>
           <ul className="grid gap-2 sm:grid-cols-2">
-            {roleOptions.map((option) => (
-              <li key={option.role}>
+            {signInAs.map((option) => (
+              <li key={option.personId}>
                 <button
                   type="button"
                   onClick={() => fill(option)}

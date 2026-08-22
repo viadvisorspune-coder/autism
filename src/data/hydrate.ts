@@ -140,6 +140,8 @@ function apply(b: Bundle) {
       title: u.title ?? undefined,
       organisation: u.organisation ?? undefined,
       pronouns: u.pronouns ?? undefined,
+      email: u.email ?? undefined,
+      active: u.active ?? true,
     })),
   )
 

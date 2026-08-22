@@ -21,6 +21,9 @@ type Action =
   | 'withdraw_review'
   | 'say'
   | 'mark_seen'
+  | 'add_user'
+  | 'update_user'
+  | 'set_user_active'
 
 /** Only these roles may be asked to decide something clinical. */
 const DECIDING_ROLES = new Set([
@@ -51,6 +54,27 @@ Deno.serve(async (req) => {
   const action = str(body.action) as Action | null
   const patientId = str(body.patient_id)
   if (!action) return json({ error: 'action is required' }, 400)
+
+  // Managing accounts is not acting on a record, so it is gated on being an
+  // administrator rather than on a connection to a patient. An administrator
+  // may create an account; they still cannot read what it can see.
+  if (action === 'add_user' || action === 'update_user' || action === 'set_user_active') {
+    if (actor.role !== 'admin') {
+      await recordAudit({
+        actorId: actor.id,
+        actorLabel: actor.name,
+        actorRole: actor.role,
+        action: `Attempted ${action} without administrator rights`,
+        record: 'Accounts',
+        accessType: 'Write',
+        why: 'Not an administrator',
+        result: 'Denied',
+      })
+      return forbidden('Only an administrator can manage accounts.')
+    }
+    return manageAccounts(action, body, actor)
+  }
+
   if (!patientId) return json({ error: 'patient_id is required' }, 400)
 
   // Checked for every action, not assumed from the role name.
@@ -397,4 +421,138 @@ async function notify(
   // The id is kept in the audit trail rather than the notification, which is
   // deliberately a thing a person reads rather than a thing code follows.
   void reviewId
+}
+
+
+/* --------------------------------------------------------------- accounts */
+
+/**
+ * Creating, editing and closing accounts.
+ *
+ * Closing is not deleting. A person who has left still appears in the audit
+ * trail of everything they did, and an entry naming an id nobody can resolve
+ * is not an audit trail — so the row stays and is marked inactive.
+ */
+async function manageAccounts(
+  action: 'add_user' | 'update_user' | 'set_user_active',
+  body: Record<string, unknown>,
+  actor: { id: string; name: string; role: string },
+): Promise<Response> {
+  if (action === 'add_user') {
+    const name = str(body.name)
+    const role = str(body.user_role)
+    const email = str(body.email)
+    if (!name || !role || !email) {
+      return json({ error: 'name, user_role and email are required' }, 400)
+    }
+
+    const id = str(body.user_id) ?? `u-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 20)}-${crypto.randomUUID().slice(0, 4)}`
+
+    const { data, error } = await admin
+      .from('app_users')
+      .insert({
+        id,
+        name,
+        role,
+        email: email.toLowerCase(),
+        title: str(body.title),
+        organisation: str(body.organisation),
+        pronouns: str(body.pronouns),
+      })
+      .select('*')
+      .single()
+
+    if (error) {
+      if (error.code === '23505') {
+        return json({ error: 'That email already has an account.' }, 409)
+      }
+      return json({ error: error.message }, 400)
+    }
+
+    await recordAudit({
+      actorId: actor.id,
+      actorLabel: actor.name,
+      actorRole: actor.role,
+      action: `Created an account for ${name} (${role})`,
+      record: `User ${id}`,
+      accessType: 'Write',
+      why: str(body.reason) ?? 'Account created by an administrator',
+      result: 'Allowed',
+    })
+
+    // Creating an account grants nothing. Access to any record still requires
+    // that patient to make a connection, which is theirs alone to make.
+    return json({
+      user: data,
+      note: `${name} can now sign in. They can see nothing until a patient gives them access.`,
+    })
+  }
+
+  if (action === 'update_user') {
+    const id = str(body.user_id)
+    if (!id) return json({ error: 'user_id is required' }, 400)
+
+    const patch: Record<string, unknown> = {}
+    for (const field of ['name', 'title', 'organisation', 'pronouns'] as const) {
+      const value = str(body[field])
+      if (value !== null) patch[field] = value
+    }
+    const email = str(body.email)
+    if (email) patch.email = email.toLowerCase()
+    const role = str(body.user_role)
+    if (role) patch.role = role
+
+    if (!Object.keys(patch).length) return json({ error: 'nothing to change' }, 400)
+
+    const { data, error } = await admin
+      .from('app_users')
+      .update(patch)
+      .eq('id', id)
+      .select('*')
+      .single()
+    if (error) return json({ error: error.message }, 400)
+
+    await recordAudit({
+      actorId: actor.id,
+      actorLabel: actor.name,
+      actorRole: actor.role,
+      action: `Changed the account for ${data.name}`,
+      record: `User ${id}`,
+      accessType: 'Write',
+      why: Object.keys(patch).join(', '),
+      result: 'Allowed',
+    })
+
+    return json({ user: data })
+  }
+
+  const id = str(body.user_id)
+  const active = body.active === true
+  if (!id) return json({ error: 'user_id is required' }, 400)
+
+  const { data, error } = await admin
+    .from('app_users')
+    .update({ active })
+    .eq('id', id)
+    .select('*')
+    .single()
+  if (error) return json({ error: error.message }, 400)
+
+  await recordAudit({
+    actorId: actor.id,
+    actorLabel: actor.name,
+    actorRole: actor.role,
+    action: active ? `Reopened the account for ${data.name}` : `Closed the account for ${data.name}`,
+    record: `User ${id}`,
+    accessType: active ? 'Write' : 'Revoke',
+    why: str(body.reason) ?? 'Administrator action',
+    result: 'Allowed',
+  })
+
+  return json({
+    user: data,
+    note: active
+      ? `${data.name} can sign in again.`
+      : `${data.name} can no longer sign in. Their history stays in the audit trail.`,
+  })
 }

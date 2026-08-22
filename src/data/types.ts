@@ -61,6 +61,10 @@ export interface Person {
   title?: string
   organisation?: string
   pronouns?: string
+  /** The account they sign in with. Absent for people who have never had one. */
+  email?: string
+  /** False when the account is closed. The person stays in the record. */
+  active?: boolean
 }
 
 export interface Patient {

@@ -238,10 +238,68 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
 }
 
+/**
+ * Where each role lands, and which visual world it belongs to. The only part
+ * of an account the database does not hold, because it is a property of the
+ * interface rather than of the person.
+ */
+const ROLE_SHAPE: Record<Role, { home: string; experience: Experience }> = {
+  patient: { home: '/patient', experience: 'patient' },
+  psychologist: { home: '/psychologist', experience: 'clinical' },
+  psychiatrist: { home: '/psychiatrist', experience: 'clinical' },
+  therapist: { home: '/therapist', experience: 'clinical' },
+  ot: { home: '/ot', experience: 'clinical' },
+  gp: { home: '/gp', experience: 'clinical' },
+  clinic: { home: '/clinic', experience: 'organisation' },
+  employer: { home: '/employer', experience: 'organisation' },
+  university: { home: '/university', experience: 'organisation' },
+  trusted: { home: '/trusted', experience: 'trusted' },
+  admin: { home: '/admin', experience: 'admin' },
+}
+
+/**
+ * Every account that can currently sign in, from the record rather than from a
+ * constant.
+ *
+ * This used to be a hard-coded list, which meant an administrator adding a
+ * colleague changed a table on one screen and nothing else — they could not
+ * sign in, and no other screen knew they existed. Reading the same people
+ * everything else reads is what makes the administration screen real.
+ *
+ * The static list below stays as the floor for a build with no backend.
+ */
+export function accounts(): RoleOption[] {
+  const live = people.filter((p) => p.active !== false && p.email)
+  if (!live.length) return roleOptions
+
+  return live.map((p) => {
+    const shape = ROLE_SHAPE[p.role] ?? { home: '/patient', experience: 'patient' as Experience }
+    return {
+      role: p.role,
+      label: p.title ?? p.role,
+      description: p.title ?? '',
+      experience: shape.experience,
+      home: shape.home,
+      personId: p.id,
+      email: p.email as string,
+      name: p.name,
+      title: p.title ?? describeRole(p.role),
+    }
+  })
+}
+
+/** A role has a job description even when the person has no job title. */
+function describeRole(role: Role): string {
+  if (role === 'patient') return 'Living with an autism diagnosis'
+  if (role === 'trusted') return 'Trusted person'
+  if (role === 'admin') return 'Platform Administrator'
+  return role
+}
+
 /** The account matching an email, however it was typed. */
 export function accountFor(email: string): RoleOption | null {
   const wanted = email.trim().toLowerCase()
-  return roleOptions.find((o) => o.email.toLowerCase() === wanted) ?? null
+  return accounts().find((o) => o.email.toLowerCase() === wanted) ?? null
 }
 
 export function useSession() {

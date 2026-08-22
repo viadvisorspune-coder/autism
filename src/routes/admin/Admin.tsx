@@ -11,6 +11,7 @@ import {
   PageHeader,
   SectionTitle,
   StatusPill,
+  Callout,
   Table,
   Tag,
   formatDate,
@@ -18,6 +19,8 @@ import {
 import { WorkflowStatePanel } from '../../components/shared'
 import { auditLog, patientName, people, workflowRuns } from '../../data/db'
 import { useUI } from '../../state/ui'
+import { useSession } from '../../state/session'
+import { actOnRecord, useLive } from '../../lib/live'
 
 /** 31.1 System dashboard. */
 export function AdminDashboard() {
@@ -282,34 +285,285 @@ export function AdminAudit() {
 
 /** Users. */
 export function AdminUsers() {
+  const { option } = useSession()
+  const { say } = useUI()
+  const { data, refresh } = useLive<{ app_users: LiveUser[] }>('bundle', null, 10000)
+  const [query, setQuery] = useState('')
+  const [roleFilter, setRoleFilter] = useState('All')
+  const [adding, setAdding] = useState(false)
+  const [busy, setBusy] = useState<string | null>(null)
+
+  // The live list where there is one, the prototype's where there is not.
+  const all: LiveUser[] =
+    data?.app_users ??
+    people.map((p) => ({
+      id: p.id,
+      name: p.name,
+      role: p.role,
+      title: p.title ?? null,
+      organisation: p.organisation ?? null,
+      email: p.email ?? null,
+      active: p.active ?? true,
+    }))
+
+  const roles = ['All', ...Array.from(new Set(all.map((u) => u.role))).sort()]
+
+  const shown = all.filter((u) => {
+    if (roleFilter !== 'All' && u.role !== roleFilter) return false
+    if (!query.trim()) return true
+    const hay = `${u.name} ${u.role} ${u.title ?? ''} ${u.organisation ?? ''} ${u.email ?? ''}`
+    return hay.toLowerCase().includes(query.trim().toLowerCase())
+  })
+
+  async function setActive(user: LiveUser, active: boolean) {
+    setBusy(user.id)
+    const result = await actOnRecord('set_user_active', 'pt-ananya', option?.personId ?? '', {
+      user_id: user.id,
+      active,
+    })
+    setBusy(null)
+    say(result.ok ? (result.note ?? 'Saved.') : (result.error ?? 'That could not be saved.'))
+    if (result.ok) refresh()
+  }
+
   return (
     <div className="max-w-6xl">
       <PageHeader
         title="Users"
         description="Accounts and roles. Administrators manage access; they do not read records."
+        actions={
+          <Button variant="primary" onClick={() => setAdding((a) => !a)}>
+            {adding ? 'Cancel' : 'Add a person'}
+          </Button>
+        }
       />
+
+      {adding ? (
+        <div className="mb-6">
+          <AddPerson
+            onDone={() => {
+              setAdding(false)
+              refresh()
+            }}
+          />
+        </div>
+      ) : null}
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by name, role, organisation or email"
+          className="min-w-[16rem] flex-1 rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
+        />
+        <div className="flex flex-wrap gap-1.5">
+          {roles.map((r) => (
+            <button
+              key={r}
+              onClick={() => setRoleFilter(r)}
+              aria-pressed={roleFilter === r}
+              className={`rounded-full border px-3 py-1.5 text-[0.79rem] ${
+                roleFilter === r ? 'border-admin bg-admin-tint text-ink' : 'border-line text-ink-2'
+              }`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <p className="mb-3 text-[0.82rem] text-muted">
+        {shown.length} of {all.length} {all.length === 1 ? 'account' : 'accounts'}
+        {roleFilter !== 'All' || query.trim() ? ' shown' : ''}
+      </p>
+
       <Card>
         <Table
-          columns={['Name', 'Role', 'Title', 'Organisation', 'Record access']}
-          rows={people.map((p) => ({
-            key: p.id,
+          columns={['Name', 'Role', 'Title', 'Organisation', 'Record access', '']}
+          rows={shown.map((u) => ({
+            key: u.id,
             cells: [
-              p.name,
-              p.role,
-              p.title ?? '—',
-              p.organisation ?? '—',
-              p.role === 'admin' ? (
+              <span key="n">
+                <span className={u.active === false ? 'text-muted line-through' : 'text-ink'}>
+                  {u.name}
+                </span>
+                {u.email ? (
+                  <span className="mt-0.5 block text-[0.78rem] text-muted">{u.email}</span>
+                ) : null}
+              </span>,
+              u.role,
+              u.title ?? '—',
+              u.organisation ?? '—',
+              u.role === 'admin' ? (
                 <Tag key="t">None — operational only</Tag>
-              ) : p.role === 'patient' ? (
+              ) : u.role === 'patient' ? (
                 <Tag key="t">Own record</Tag>
               ) : (
                 <Tag key="t">Granted per patient</Tag>
               ),
+              <Button
+                key="a"
+                variant="quiet"
+                disabled={busy === u.id}
+                onClick={() => setActive(u, u.active === false)}
+              >
+                {u.active === false ? 'Reopen' : 'Close'}
+              </Button>,
             ],
           }))}
         />
       </Card>
+
+      {shown.length === 0 ? (
+        <p className="mt-4 text-[0.86rem] text-muted">
+          Nobody matches that. Clear the search or pick a different role.
+        </p>
+      ) : null}
+
+      <p className="mt-4 text-[0.8rem] leading-relaxed text-muted">
+        Closing an account stops someone signing in. It does not remove them: every action they took
+        is still in the audit trail, and an entry naming somebody nobody can identify is not an audit
+        trail.
+      </p>
     </div>
+  )
+}
+
+interface LiveUser {
+  id: string
+  name: string
+  role: string
+  title: string | null
+  organisation: string | null
+  email: string | null
+  active?: boolean
+}
+
+/**
+ * Creating an account grants nothing.
+ *
+ * That is the sentence the form ends on, and it is the whole point: an
+ * administrator can create a psychologist, and that psychologist can see
+ * precisely nothing until a patient chooses to connect to them.
+ */
+function AddPerson({ onDone }: { onDone: () => void }) {
+  const { option } = useSession()
+  const { say } = useUI()
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [role, setRole] = useState('psychologist')
+  const [title, setTitle] = useState('')
+  const [organisation, setOrganisation] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const ROLES = [
+    'patient', 'psychologist', 'psychiatrist', 'therapist', 'ot', 'gp',
+    'clinic', 'employer', 'university', 'trusted', 'admin',
+  ]
+
+  async function save() {
+    setBusy(true)
+    setError(null)
+    const result = await actOnRecord('add_user', 'pt-ananya', option?.personId ?? '', {
+      name,
+      email,
+      user_role: role,
+      title: title || null,
+      organisation: organisation || null,
+    })
+    setBusy(false)
+    if (!result.ok) {
+      setError(result.error)
+      return
+    }
+    say(result.note ?? 'Account created.')
+    onDone()
+  }
+
+  return (
+    <Card>
+      <CardHead title="Add a person" meta="They will appear on the sign-in page straight away" />
+      <CardBody className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-[0.8rem] text-muted">Name</span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Dr Nikhil Bose"
+              className="w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[0.8rem] text-muted">Email</span>
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="n.bose@sahyadri.example"
+              className="w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[0.8rem] text-muted">Job title</span>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Consultant Psychiatrist"
+              className="w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[0.8rem] text-muted">Organisation</span>
+            <input
+              value={organisation}
+              onChange={(e) => setOrganisation(e.target.value)}
+              placeholder="Sahyadri Neurodevelopmental Clinic"
+              className="w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
+            />
+          </label>
+        </div>
+
+        <div>
+          <span className="mb-1.5 block text-[0.8rem] text-muted">Role</span>
+          <div className="flex flex-wrap gap-1.5">
+            {ROLES.map((r) => (
+              <button
+                key={r}
+                type="button"
+                aria-pressed={role === r}
+                onClick={() => setRole(r)}
+                className={`rounded-full border px-3 py-1.5 text-[0.79rem] ${
+                  role === r ? 'border-admin bg-admin-tint text-ink' : 'border-line text-ink-2'
+                }`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {error ? <Callout tone="alert" title="Not created">{error}</Callout> : null}
+
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <Button
+            variant="primary"
+            disabled={busy || !name.trim() || !email.trim()}
+            onClick={save}
+          >
+            {busy ? 'Creating…' : 'Create the account'}
+          </Button>
+          <Button variant="quiet" disabled={busy} onClick={onDone}>
+            Cancel
+          </Button>
+        </div>
+
+        <p className="text-[0.79rem] leading-relaxed text-muted">
+          Creating an account grants nothing. They can sign in and see an empty workspace; every
+          record stays invisible to them until a patient chooses to connect.
+        </p>
+      </CardBody>
+    </Card>
   )
 }
 
