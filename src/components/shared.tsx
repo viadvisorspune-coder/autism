@@ -12,7 +12,7 @@ export function WhyButton({ title, bundle }: { title: string; bundle: EvidenceBu
   return (
     <button
       onClick={() => openEvidence(title, bundle)}
-      className="inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1 text-[0.78rem] text-ink-2 hover:border-line-strong hover:text-ink"
+      className="inline-flex items-center gap-1.5 rounded-2xl  border-line px-2.5 py-1 text-[0.78rem] text-ink-2 hover:text-ink"
     >
       <span aria-hidden>?</span> Why am I seeing this?
     </button>
@@ -72,7 +72,7 @@ export function ReviewRequiredCard({
           </ul>
         </div>
 
-        <div className="rounded-[10px] border border-state-wait/25 bg-state-wait-tint px-4 py-3">
+        <div className="rounded-[20px]  bg-state-wait-tint px-4 py-3">
           <h4 className="text-[0.72rem] font-semibold uppercase tracking-[0.07em] text-state-wait">
             Uncertainty or conflict
           </h4>
@@ -88,7 +88,7 @@ export function ReviewRequiredCard({
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               rows={3}
-              className="w-full rounded-lg border border-line-strong px-3 py-2 text-[0.86rem] outline-none"
+              className="w-full rounded-2xl  border-line-strong px-3 py-2 text-[0.86rem] outline-none"
             />
           ) : (
             <p className="text-[0.86rem] leading-relaxed text-ink">{draft}</p>
@@ -98,7 +98,7 @@ export function ReviewRequiredCard({
         <Field label="Decision required">{item.decisionRequired}</Field>
 
         {decision ? (
-          <p className="rounded-lg bg-state-good-tint px-4 py-3 text-[0.85rem] text-state-good">
+          <p className="rounded-2xl bg-state-good-tint px-4 py-3 text-[0.85rem] text-state-good">
             {decision}
           </p>
         ) : (
@@ -188,7 +188,7 @@ export function ClarificationCard({
       <CardBody className="space-y-3">
         <p className="text-[0.88rem] leading-relaxed text-ink">“{question}”</p>
         {sent ? (
-          <p className="rounded-lg bg-state-good-tint px-4 py-3 text-[0.85rem] text-state-good">
+          <p className="rounded-2xl bg-state-good-tint px-4 py-3 text-[0.85rem] text-state-good">
             Your answer was recorded. It will not be sent until you approve exactly what it contains.
           </p>
         ) : (
@@ -198,7 +198,7 @@ export function ClarificationCard({
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
               placeholder="Answer in your own words"
-              className="w-full rounded-lg border border-line-strong px-3 py-2 text-[0.86rem] outline-none"
+              className="w-full rounded-2xl  border-line-strong px-3 py-2 text-[0.86rem] outline-none"
             />
             <div className="flex flex-wrap gap-2">
               <Button
@@ -249,7 +249,7 @@ export function MemoryValidationCard({
             rows={3}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            className="w-full rounded-lg border border-line-strong px-3 py-2 text-[0.88rem] outline-none"
+            className="w-full rounded-2xl  border-line-strong px-3 py-2 text-[0.88rem] outline-none"
           />
         ) : (
           <p className="text-[0.9rem] leading-relaxed text-ink">{text}</p>
@@ -304,7 +304,7 @@ export function MemoryValidationCard({
           </div>
         ) : (
           <p
-            className={`rounded-lg px-4 py-3 text-[0.85rem] ${
+            className={`rounded-2xl px-4 py-3 text-[0.85rem] ${
               state === 'rejected'
                 ? 'bg-state-neutral-tint text-state-neutral'
                 : 'bg-state-good-tint text-state-good'

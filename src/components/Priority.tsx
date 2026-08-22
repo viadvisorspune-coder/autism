@@ -266,7 +266,7 @@ function TurnChip({ with: withWhom }: { with: string | null }) {
     )
   }
   return (
-    <span className="shrink-0 rounded-full border border-line px-2.5 py-1 text-[0.74rem] text-muted">
+    <span className="shrink-0 rounded-full  border-line px-2.5 py-1 text-[0.74rem] text-muted">
       With {withWhom}
     </span>
   )

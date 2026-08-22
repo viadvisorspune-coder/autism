@@ -376,7 +376,7 @@ export function AdminUsers() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by name, role, organisation or email"
-          className="min-w-[16rem] flex-1 rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
+          className="min-w-[16rem] flex-1 rounded-2xl  bg-surface-2 px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
         />
         <Select
           label="Role"
@@ -523,7 +523,7 @@ function AddPerson({ onDone }: { onDone: () => void }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Dr Nikhil Bose"
-              className="w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
+              className="w-full rounded-2xl  bg-surface-2 px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
             />
           </label>
           <label className="block">
@@ -532,7 +532,7 @@ function AddPerson({ onDone }: { onDone: () => void }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="n.bose@sahyadri.example"
-              className="w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
+              className="w-full rounded-2xl  bg-surface-2 px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
             />
           </label>
           <label className="block">
@@ -541,7 +541,7 @@ function AddPerson({ onDone }: { onDone: () => void }) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Consultant Psychiatrist"
-              className="w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
+              className="w-full rounded-2xl  bg-surface-2 px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
             />
           </label>
           <label className="block">
@@ -550,7 +550,7 @@ function AddPerson({ onDone }: { onDone: () => void }) {
               value={organisation}
               onChange={(e) => setOrganisation(e.target.value)}
               placeholder="Sahyadri Neurodevelopmental Clinic"
-              className="w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
+              className="w-full rounded-2xl  bg-surface-2 px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
             />
           </label>
         </div>
@@ -564,7 +564,7 @@ function AddPerson({ onDone }: { onDone: () => void }) {
                 type="button"
                 aria-pressed={role === r}
                 onClick={() => setRole(r)}
-                className={`rounded-full border px-3 py-1.5 text-[0.79rem] ${
+                className={`rounded-full  px-3 py-1.5 text-[0.79rem] ${
                   role === r ? 'border-admin bg-admin-tint text-ink' : 'border-line text-ink-2'
                 }`}
               >

@@ -48,7 +48,7 @@ export function PatientStory() {
           <li key={event.id}>
             <Link
               to={`/patient/story/${event.id}`}
-              className="block rounded-[10px] border border-line bg-surface px-5 py-4 hover:border-line-strong"
+              className="block rounded-[20px]  bg-surface-2 px-5 py-4 hover:border-line-strong"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -138,7 +138,7 @@ export function PatientStoryEvent() {
               <li key={r.id}>
                 <Link
                   to={`/patient/story/${r.id}`}
-                  className="block rounded-[10px] border border-line bg-surface px-4 py-3 hover:border-line-strong"
+                  className="block rounded-[20px]  bg-surface-2 px-4 py-3 hover:border-line-strong"
                 >
                   <span className="text-[0.88rem] font-medium text-ink">{r.title}</span>
                   <span className="mt-0.5 block text-[0.78rem] text-muted">

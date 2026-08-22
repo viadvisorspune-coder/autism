@@ -2,7 +2,8 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import AppShell from './shell/AppShell'
 import { useSession } from '../state/session'
-import { FirstRun, Login } from '../routes/auth/Auth'
+import { Login } from '../routes/auth/Auth'
+import Onboarding from '../routes/auth/Onboarding'
 
 import PatientHome from '../routes/patient/Home'
 import PatientGuide from '../routes/patient/Guide'
@@ -123,18 +124,29 @@ function clinicalRoutes() {
 }
 
 export default function App() {
-  const { signedIn, option } = useSession()
+  const { signedIn, option, setupComplete } = useSession()
 
   return (
     <Routes>
+      {/* Where a signed-in person belongs is derived here rather than pushed
+          from the sign-in handler. The handler's navigate raced this redirect
+          and lost, which sent every first-time user straight past the
+          introduction — the one screen that explains what ORCA will and will
+          not do without asking. */}
       <Route
         path="/"
-        element={signedIn && option ? <Navigate to={option.home} replace /> : <Login />}
+        element={
+          signedIn && option ? (
+            <Navigate to={setupComplete ? option.home : '/setup'} replace />
+          ) : (
+            <Login />
+          )
+        }
       />
       {/* Kept as a redirect rather than removed: an old bookmark or a
           half-remembered URL should land somewhere sensible, not on a dead end. */}
       <Route path="/role" element={<Navigate to="/" replace />} />
-      <Route path="/setup" element={signedIn ? <FirstRun /> : <Navigate to="/" replace />} />
+      <Route path="/setup" element={signedIn ? <Onboarding /> : <Navigate to="/" replace />} />
 
       <Route
         element={

@@ -167,7 +167,7 @@ export function Inbox({ patientId = 'pt-ananya' }: { patientId?: string }) {
                   ) : null}
 
                   {r.uncertainty ? (
-                    <div className="mt-2 rounded-[10px] border border-state-wait/25 bg-state-wait-tint px-4 py-2.5">
+                    <div className="mt-2 rounded-[20px]  bg-state-wait-tint px-4 py-2.5">
                       <p className="text-[0.83rem] leading-relaxed text-ink-2">
                         <span className="font-medium">Not certain about: </span>
                         {r.uncertainty}
@@ -307,7 +307,7 @@ export function RaiseDecision({ patientId = 'pt-ananya' }: { patientId?: string 
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Whether to keep the advance-notice strategy going"
-            className="w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
+            className="w-full rounded-2xl  bg-surface-2 px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
           />
         </label>
 
@@ -318,7 +318,7 @@ export function RaiseDecision({ patientId = 'pt-ananya' }: { patientId?: string 
             onChange={(e) => setReason(e.target.value)}
             rows={3}
             placeholder="It helped when notice came the evening before, but not when the change was the same hour."
-            className="w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[0.88rem] leading-relaxed outline-none placeholder:text-muted"
+            className="w-full rounded-2xl  bg-surface-2 px-3.5 py-2.5 text-[0.88rem] leading-relaxed outline-none placeholder:text-muted"
           />
         </label>
 
@@ -331,7 +331,7 @@ export function RaiseDecision({ patientId = 'pt-ananya' }: { patientId?: string 
                 type="button"
                 aria-pressed={to.includes(r)}
                 onClick={() => setTo((t) => (t.includes(r) ? t.filter((x) => x !== r) : [...t, r]))}
-                className={`rounded-full border px-3 py-1.5 text-[0.8rem] ${
+                className={`rounded-full  px-3 py-1.5 text-[0.8rem] ${
                   to.includes(r) ? 'border-brand bg-brand-tint text-brand-ink' : 'border-line text-ink-2'
                 }`}
               >

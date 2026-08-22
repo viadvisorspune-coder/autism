@@ -67,7 +67,7 @@ export function PatientRequests() {
                 <button
                   type="button"
                   onClick={() => setOpen(a)}
-                  className="block w-full rounded-[10px] border border-state-wait/30 bg-state-wait-tint px-5 py-4 text-left hover:border-state-wait/50"
+                  className="block w-full rounded-[20px]  bg-state-wait-tint px-5 py-4 text-left hover:"
                 >
                   <p className="text-[0.93rem] font-medium text-ink">{a.title}</p>
                   {a.description ? (
@@ -94,7 +94,7 @@ export function PatientRequests() {
           <li key={request.id}>
             <Link
               to={`/patient/requests/${request.id}`}
-              className="block rounded-[10px] border border-line bg-surface px-5 py-4 hover:border-line-strong"
+              className="block rounded-[20px]  bg-surface-2 px-5 py-4 hover:border-line-strong"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -110,7 +110,7 @@ export function PatientRequests() {
           </li>
         ))}
         {(filtered ?? []).length === 0 ? (
-          <li className="rounded-[10px] border border-dashed border-line-strong px-5 py-6 text-[0.86rem] text-muted">
+          <li className="rounded-[20px]  border-dashed border-line-strong px-5 py-6 text-[0.86rem] text-muted">
             Nothing in this list.
           </li>
         ) : null}
@@ -183,7 +183,7 @@ export function PatientRequest() {
                   </li>
                 ))}
               </ul>
-              <div className="mt-4 rounded-[10px] border border-state-good/25 bg-state-good-tint px-4 py-3">
+              <div className="mt-4 rounded-[20px]  bg-state-good-tint px-4 py-3">
                 <p className="text-[0.8rem] font-semibold uppercase tracking-[0.07em] text-state-good">
                   Held back
                 </p>

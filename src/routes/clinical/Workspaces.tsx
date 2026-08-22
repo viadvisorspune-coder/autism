@@ -331,7 +331,7 @@ export function InterventionWorkspace() {
             key={s.id}
             onClick={() => setSelected(s.id)}
             aria-pressed={selected === s.id}
-            className={`rounded-full border px-3 py-1.5 text-[0.82rem] ${
+            className={`rounded-full  px-3 py-1.5 text-[0.82rem] ${
               selected === s.id
                 ? 'border-clinical bg-clinical-tint text-clinical'
                 : 'border-line text-ink-2 hover:border-line-strong'

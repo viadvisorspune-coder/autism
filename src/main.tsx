@@ -5,6 +5,7 @@ import './index.css'
 import App from './app/App'
 import { SessionProvider } from './state/session'
 import { UIProvider } from './state/ui'
+import { MaturityBridge } from './state/maturity'
 import { RecordProvider } from './data/RecordProvider'
 
 /**
@@ -22,7 +23,9 @@ createRoot(document.getElementById('root')!).render(
       <RecordProvider>
         <SessionProvider>
           <UIProvider>
+            <MaturityBridge>
             <App />
+            </MaturityBridge>
           </UIProvider>
         </SessionProvider>
       </RecordProvider>

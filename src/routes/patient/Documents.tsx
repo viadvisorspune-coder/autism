@@ -41,7 +41,7 @@ export function PatientDocuments() {
           <li key={doc.id}>
             <Link
               to={`/patient/documents/${doc.id}`}
-              className="flex flex-wrap items-start justify-between gap-3 rounded-[10px] border border-line bg-surface px-5 py-4 hover:border-line-strong"
+              className="flex flex-wrap items-start justify-between gap-3 rounded-[20px]  bg-surface-2 px-5 py-4 hover:border-line-strong"
             >
               <div>
                 <p className="text-[0.93rem] font-medium text-ink">{doc.title}</p>
@@ -99,7 +99,7 @@ export function PatientDocument() {
           <Card>
             <CardHead title="Preview" meta={`${doc.fileType} · ${formatDate(doc.date)}`} />
             <CardBody>
-              <div className="flex h-56 items-center justify-center rounded-lg border border-dashed border-line-strong bg-surface-2 text-[0.85rem] text-muted">
+              <div className="flex h-56 items-center justify-center rounded-2xl  border-dashed border-line-strong bg-surface-2 text-[0.85rem] text-muted">
                 Document preview
               </div>
             </CardBody>
@@ -227,7 +227,7 @@ export function PatientDocumentUpload() {
 
       <Card className="mb-6">
         <CardBody>
-          <div className="flex flex-col items-center justify-center rounded-[10px] border border-dashed border-line-strong bg-surface-2 px-6 py-10 text-center">
+          <div className="flex flex-col items-center justify-center rounded-[20px]  border-dashed border-line-strong bg-surface-2 px-6 py-10 text-center">
             <p className="text-[0.92rem] font-medium text-ink">Drop a file here, or choose one</p>
             <p className="mt-1 text-[0.83rem] text-muted">PDF · DOCX · Image · Structured document</p>
             <Button
@@ -253,9 +253,9 @@ export function PatientDocumentUpload() {
               {stages.map((s, i) => (
                 <li
                   key={s}
-                  className={`rounded-full border px-3 py-1.5 text-[0.8rem] ${
+                  className={`rounded-full  px-3 py-1.5 text-[0.8rem] ${
                     i < stage
-                      ? 'border-state-good/30 bg-state-good-tint text-state-good'
+                      ? 'bg-state-good-tint text-state-good'
                       : i === stage
                         ? 'border-brand bg-brand-tint text-brand-ink'
                         : 'border-line text-muted'

@@ -248,7 +248,7 @@ export function PatientAppointment() {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder="Add a question"
-              className="min-w-0 flex-1 rounded-lg border border-line-strong px-3 py-2 text-[0.87rem] outline-none"
+              className="min-w-0 flex-1 rounded-2xl  border-line-strong px-3 py-2 text-[0.87rem] outline-none"
             />
             <Button
               onClick={() => {
@@ -314,7 +314,7 @@ export function PatientAppointmentPrep() {
           return (
             <span
               key={step}
-              className={`rounded-full border px-3 py-1 text-[0.78rem] ${
+              className={`rounded-full  px-3 py-1 text-[0.78rem] ${
                 i <= index ? 'border-brand bg-brand-tint text-brand-ink' : 'border-line text-muted'
               }`}
             >
@@ -366,7 +366,7 @@ export function PatientAppointmentPrep() {
                   rows={3}
                   value={brief[key]}
                   onChange={(e) => setBrief({ ...brief, [key]: e.target.value })}
-                  className="w-full rounded-lg border border-line-strong px-3 py-2 text-[0.87rem] outline-none"
+                  className="w-full rounded-2xl  border-line-strong px-3 py-2 text-[0.87rem] outline-none"
                 />
               ) : (
                 <p className="text-[0.89rem] leading-relaxed text-ink">{brief[key]}</p>
@@ -400,7 +400,7 @@ export function PatientAppointmentPrep() {
             </ul>
           </div>
 
-          <div className="rounded-[10px] bg-canvas px-4 py-3">
+          <div className="rounded-[20px] bg-canvas px-4 py-3">
             <p className="text-[0.83rem] leading-relaxed text-ink-2">
               Not included: your journal entries, anything ORCA has not yet checked with you, and
               anything outside this appointment's purpose.
@@ -412,7 +412,7 @@ export function PatientAppointmentPrep() {
       </Card>
 
       {stage === 'shared' ? (
-        <div className="rounded-[10px] border border-state-good/25 bg-state-good-tint px-4 py-3 text-[0.87rem] text-state-good">
+        <div className="rounded-[20px]  bg-state-good-tint px-4 py-3 text-[0.87rem] text-state-good">
           Shared with {personName(appointment.professionalId)} for this appointment only. The
           disclosure is recorded in your sharing history.
         </div>
@@ -442,7 +442,7 @@ export function PatientAppointmentPrep() {
           )}
           <Link
             to={`/patient/care/appointments/${appointment.id}`}
-            className="rounded-lg border border-line-strong px-3.5 py-2 text-[0.85rem] text-ink hover:bg-surface-2"
+            className="rounded-2xl  border-line-strong px-3.5 py-2 text-[0.85rem] text-ink hover:bg-surface-2"
           >
             Back to appointment
           </Link>

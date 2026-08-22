@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSession } from '../state/session'
+import { useMaturity } from '../state/maturity'
+import { useDraft } from '../lib/draft'
 import { followRun, startRun } from '../lib/agent'
 import type { RunState } from '../lib/agent'
 import { markSeen, persistMessage, useLive } from '../lib/live'
@@ -26,33 +28,33 @@ import { documentsFor, eventsFor, strategiesFor } from '../data/db'
 const COPILOT_TONE = {
   patient: {
     badge: 'bg-brand',
-    bubble: 'border-brand/15 bg-brand-tint',
+    bubble: 'bg-brand-tint',
     label: 'text-brand',
-    rule: 'border-brand/15',
+    rule: '',
   },
   trusted: {
     badge: 'bg-brand',
-    bubble: 'border-brand/15 bg-brand-tint',
+    bubble: 'bg-brand-tint',
     label: 'text-brand',
-    rule: 'border-brand/15',
+    rule: '',
   },
   clinical: {
     badge: 'bg-clinical',
-    bubble: 'border-clinical/15 bg-clinical-tint',
+    bubble: 'bg-clinical-tint',
     label: 'text-clinical',
-    rule: 'border-clinical/15',
+    rule: '',
   },
   organisation: {
     badge: 'bg-org',
-    bubble: 'border-org/15 bg-org-tint',
+    bubble: 'bg-org-tint',
     label: 'text-org',
-    rule: 'border-org/15',
+    rule: '',
   },
   admin: {
     badge: 'bg-admin',
-    bubble: 'border-admin/15 bg-admin-tint',
+    bubble: 'bg-admin-tint',
     label: 'text-admin',
-    rule: 'border-admin/15',
+    rule: '',
   },
 } as const
 
@@ -62,8 +64,18 @@ interface Source {
   to: string
 }
 
-export function Copilot({ onClose }: { onClose: () => void }) {
+export function Copilot({
+  onClose,
+  question,
+  onQuestionUsed,
+}: {
+  onClose: () => void
+  /** A question pushed in from a shortcut elsewhere in the app. */
+  question?: string | null
+  onQuestionUsed?: () => void
+}) {
   const { role, option, experience } = useSession()
+  const { verbosity } = useMaturity()
   // Written out rather than composed, because Tailwind can only see class
   // names that appear literally in the source — a template string produces
   // classes that exist at runtime and were never generated.
@@ -73,7 +85,9 @@ export function Copilot({ onClose }: { onClose: () => void }) {
   const stored = useLive<ConversationData>('conversation', patientId, 8000)
   const [thread, setThread] = useState<{ id: string; from: 'you' | 'orca'; text: string; sources?: Source[] }[]>([])
   const [loaded, setLoaded] = useState(false)
-  const [draft, setDraft] = useState('')
+  const { value: draft, setValue: setDraft, clear: clearDraft, restored } = useDraft(
+    `copilot.${option?.personId ?? 'anon'}`,
+  )
   const [busy, setBusy] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
   const stopFollowing = useRef<(() => void) | null>(null)
@@ -94,6 +108,17 @@ export function Copilot({ onClose }: { onClose: () => void }) {
     endRef.current?.scrollIntoView({ block: 'end' })
   }, [thread])
 
+  // A question pushed in from a shortcut. Sent once, then released, so
+  // reopening the panel does not ask it again.
+  const asked = useRef<string | null>(null)
+  useEffect(() => {
+    if (!question || asked.current === question) return
+    asked.current = question
+    onQuestionUsed?.()
+    void send(question)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [question])
+
   useEffect(() => {
     return () => {
       stopFollowing.current?.()
@@ -112,7 +137,7 @@ export function Copilot({ onClose }: { onClose: () => void }) {
 
     setThread((t) => [...t, { id: `y-${Date.now()}`, from: 'you', text: trimmed }])
     persistMessage(patientId, option?.personId ?? '', trimmed, 'person')
-    setDraft('')
+    clearDraft()
     setBusy(true)
 
     const { runId, error } = await startRun(trimmed, patientId, option?.personId ?? '')
@@ -123,7 +148,12 @@ export function Copilot({ onClose }: { onClose: () => void }) {
       return
     }
 
-    orca('Looking through the record. I will show you what I used.', sourcesFor(trimmed, patientId))
+      orca(
+      verbosity === 'concise'
+        ? 'Reading the record.'
+        : 'Looking through the record. I will show you what I used.',
+      sourcesFor(trimmed, patientId),
+    )
 
     const spoken = new Set<string>()
     stopFollowing.current = followRun(runId, (state: RunState) => {
@@ -143,12 +173,12 @@ export function Copilot({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <aside className="flex h-full w-full flex-col border-l border-line bg-surface">
+    <aside className="frost flex h-full w-full flex-col">
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div className="flex items-center gap-2">
           <span
             aria-hidden
-            className={`flex h-6 w-6 items-center justify-center rounded-md ${tone.badge} text-[0.7rem] font-bold text-white`}
+            className={`flex h-6 w-6 items-center justify-center rounded-2xl ${tone.badge} text-[0.7rem] font-bold text-white`}
           >
             O
           </span>
@@ -157,7 +187,7 @@ export function Copilot({ onClose }: { onClose: () => void }) {
         <button
           onClick={onClose}
           aria-label="Close copilot"
-          className="rounded-md px-2 py-1 text-[0.8rem] text-muted hover:bg-canvas hover:text-ink"
+          className="rounded-2xl px-2 py-1 text-[0.8rem] text-muted hover:bg-canvas hover:text-ink"
         >
           Close
         </button>
@@ -165,7 +195,7 @@ export function Copilot({ onClose }: { onClose: () => void }) {
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {thread.length === 0 ? (
-          <div className="rounded-[10px] border border-line bg-canvas px-4 py-3">
+          <div className="rounded-[20px]  border-line bg-canvas px-4 py-3">
             <p className="text-[0.86rem] leading-relaxed text-ink-2">
               {role === 'patient'
                 ? 'Tell me what is going on, in your own words. I will use what you have already told me, show you where anything I say comes from, and stop to ask before anything is shared.'
@@ -184,7 +214,7 @@ export function Copilot({ onClose }: { onClose: () => void }) {
                 <p className="text-[0.88rem] leading-relaxed text-ink">{m.text}</p>
               </div>
             ) : (
-              <div key={m.id} className={`rounded-[10px] border px-4 py-3 ${tone.bubble}`}>
+              <div key={m.id} className={`rounded-[20px] px-4 py-3 ${tone.bubble}`}>
                 <p className={`mb-1 text-[0.72rem] font-semibold uppercase tracking-[0.06em] ${tone.label}`}>
                   ORCA
                 </p>
@@ -224,7 +254,7 @@ export function Copilot({ onClose }: { onClose: () => void }) {
               key={prompt}
               onClick={() => send(prompt)}
               disabled={busy}
-              className="rounded-full border border-line bg-surface px-2.5 py-1 text-[0.76rem] text-ink-2 hover:border-line-strong hover:text-ink disabled:opacity-50"
+              className="rounded-full  bg-surface-2 px-2.5 py-1 text-[0.76rem] text-ink-2 hover:text-ink disabled:opacity-50"
             >
               {prompt}
             </button>
@@ -242,16 +272,21 @@ export function Copilot({ onClose }: { onClose: () => void }) {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Ask a follow-up question…"
-            className="min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-3 py-2 text-[0.86rem] leading-relaxed outline-none placeholder:text-muted"
+            className="min-w-0 flex-1 rounded-2xl  bg-surface-2 px-3 py-2 text-[0.86rem] leading-relaxed outline-none placeholder:text-muted"
           />
           <button
             type="submit"
             disabled={busy || !draft.trim()}
-            className={`rounded-lg px-3.5 py-2 text-[0.84rem] font-medium text-white disabled:opacity-50 ${tone.badge}`}
+            className={`rounded-2xl px-3.5 py-2 text-[0.84rem] font-medium text-white disabled:opacity-50 ${tone.badge}`}
           >
             {busy ? '…' : 'Ask'}
           </button>
         </form>
+        {restored && draft ? (
+          <p className="mt-1.5 text-[0.74rem] text-state-wait">
+            Picked up where you left off — this was still here from last time.
+          </p>
+        ) : null}
         <p className="mt-1.5 text-[0.74rem] leading-relaxed text-muted">
           Nothing here is shared with anyone. Anything that would leave the record stops for the
           patient first.

@@ -17,7 +17,7 @@ export function Card({
 }) {
   return (
     <As
-      className={`rounded-[10px] border border-line bg-surface ${className}`}
+      className={`rounded-[20px] elevate bg-surface ${className}`}
     >
       {children}
     </As>
@@ -51,13 +51,15 @@ export function CardBody({ children, className = '' }: { children: ReactNode; cl
 type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger'
 
 const buttonBase =
-  'inline-flex items-center justify-center gap-2 rounded-lg border px-3.5 py-2 text-[0.85rem] font-medium transition-colors disabled:opacity-50'
+  'inline-flex items-center justify-center gap-2 rounded-2xl  px-3.5 py-2 text-[0.85rem] font-medium transition-colors disabled:opacity-50'
 
 const buttonVariants: Record<ButtonVariant, string> = {
-  primary: 'border-brand bg-brand text-white hover:bg-brand-ink',
-  secondary: 'border-line-strong bg-surface text-ink hover:bg-surface-2',
-  quiet: 'border-transparent bg-transparent text-ink-2 hover:bg-canvas',
-  danger: 'border-state-alert/30 bg-state-alert-tint text-state-alert hover:bg-state-alert/15',
+  primary: 'bg-brand text-white hover:bg-brand-ink',
+  // Filled rather than outlined: with the strokes gone, a secondary button on
+  // a white card needs something to stand on or it reads as a link.
+  secondary: 'bg-surface-2 text-ink hover:bg-brand-tint',
+  quiet: 'bg-transparent text-ink-2 hover:bg-surface-2',
+  danger: 'bg-state-alert-tint text-state-alert hover:bg-state-alert/15',
 }
 
 export function Button({
@@ -150,7 +152,7 @@ const statusDot: Record<WorkflowStatus | 'Recorded', string> = {
 export function StatusPill({ status }: { status: WorkflowStatus | 'Recorded' }) {
   return (
     <span
-      className={`status-chip inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent px-2.5 py-1 text-[0.72rem] font-medium ${statusTone[status]}`}
+      className={`status-chip inline-flex shrink-0 items-center gap-1.5 rounded-full  border-transparent px-2.5 py-1 text-[0.72rem] font-medium ${statusTone[status]}`}
     >
       <span className={`status-dot h-1.5 w-1.5 shrink-0 rounded-full ${statusDot[status]}`} aria-hidden />
       {status}
@@ -160,15 +162,15 @@ export function StatusPill({ status }: { status: WorkflowStatus | 'Recorded' }) 
 
 const evidenceTone: Record<EvidenceStatus, string> = {
   Reported: 'border-line-strong text-muted',
-  'Professionally documented': 'border-state-info/35 text-state-info',
-  Validated: 'border-state-good/40 text-state-good',
-  'AI interpretation': 'border-state-wait/45 text-state-wait',
+  'Professionally documented': 'text-state-info',
+  Validated: 'text-state-good',
+  'AI interpretation': 'text-state-wait',
 }
 
 export function EvidenceTag({ status }: { status: EvidenceStatus }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-md border px-2 py-0.5 text-[0.7rem] ${evidenceTone[status]}`}
+      className={`inline-flex shrink-0 items-center rounded-2xl  px-2 py-0.5 text-[0.7rem] ${evidenceTone[status]}`}
     >
       {status}
     </span>
@@ -177,7 +179,7 @@ export function EvidenceTag({ status }: { status: EvidenceStatus }) {
 
 export function Tag({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-md bg-canvas px-2 py-0.5 text-[0.72rem] text-ink-2">
+    <span className="inline-flex items-center rounded-2xl bg-canvas px-2 py-0.5 text-[0.72rem] text-ink-2">
       {children}
     </span>
   )
@@ -254,7 +256,7 @@ export function DefinitionList({ items }: { items: { label: string; value: React
 
 export function EmptyState({ title, detail }: { title: string; detail?: string }) {
   return (
-    <div className="rounded-[10px] border border-dashed border-line-strong bg-surface-2 px-5 py-8 text-center">
+    <div className="rounded-[20px]  border-dashed border-line-strong bg-surface-2 px-5 py-8 text-center">
       <p className="text-[0.9rem] font-medium text-ink">{title}</p>
       {detail ? <p className="mt-1 text-[0.82rem] text-muted">{detail}</p> : null}
     </div>
@@ -356,10 +358,10 @@ export function FilterChips({
           key={option}
           onClick={() => onChange(option)}
           aria-pressed={option === active}
-          className={`rounded-full border px-3 py-1 text-[0.78rem] ${
+          className={`rounded-full  px-3 py-1 text-[0.78rem] ${
             option === active
               ? 'border-brand bg-brand-tint text-brand-ink'
-              : 'border-line bg-surface text-ink-2 hover:border-line-strong'
+              : 'bg-surface-2 text-ink-2 hover:border-line-strong'
           }`}
         >
           {option}
@@ -379,12 +381,12 @@ export function WorkflowSteps({ steps }: { steps: WorkflowStep[] }) {
           <div className="flex flex-col items-center">
             <span
               aria-hidden
-              className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[0.6rem] ${
+              className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full  text-[0.6rem] ${
                 step.state === 'done'
                   ? 'border-state-good bg-state-good text-white'
                   : step.state === 'current'
                     ? 'border-brand bg-brand-tint text-brand'
-                    : 'border-line-strong bg-surface text-transparent'
+                    : 'bg-surface-2 text-transparent'
               }`}
             >
               {step.state === 'done' ? '✓' : '•'}
@@ -423,13 +425,13 @@ export function Callout({
   children?: ReactNode
 }) {
   const tones = {
-    info: 'border-state-info/25 bg-state-info-tint',
-    wait: 'border-state-wait/25 bg-state-wait-tint',
-    alert: 'border-state-alert/25 bg-state-alert-tint',
-    good: 'border-state-good/25 bg-state-good-tint',
+    info: 'bg-state-info-tint',
+    wait: 'bg-state-wait-tint',
+    alert: 'bg-state-alert-tint',
+    good: 'bg-state-good-tint',
   }
   return (
-    <div className={`rounded-[10px] border px-4 py-3 ${tones[tone]}`}>
+    <div className={`rounded-[20px]  px-4 py-3 ${tones[tone]}`}>
       <p className="text-[0.85rem] font-semibold text-ink">{title}</p>
       {children ? <div className="mt-1 text-[0.83rem] leading-relaxed text-ink-2">{children}</div> : null}
     </div>
@@ -513,7 +515,7 @@ export function Section({
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
           aria-controls={id}
-          className="disclosure-summary group inline-flex items-center gap-2 rounded-md py-1 text-left"
+          className="disclosure-summary group inline-flex items-center gap-2 rounded-2xl py-1 text-left"
         >
           <span
             aria-hidden
@@ -567,7 +569,7 @@ export function Select({
           id={id}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="appearance-none rounded-lg border border-line-strong bg-surface py-2 pl-3 pr-8 text-[0.85rem] text-ink outline-none hover:border-line-strong"
+          className="appearance-none rounded-2xl  bg-surface-2 py-2 pl-3 pr-8 text-[0.85rem] text-ink outline-none hover:border-line-strong"
         >
           {options.map((o) => (
             <option key={o.value} value={o.value}>
@@ -639,7 +641,7 @@ export function StatRow({ stats }: { stats: Stat[] }) {
   return (
     <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {stats.map((s) => (
-        <div key={s.label} className="rounded-[10px] border border-line bg-surface px-4 py-3.5">
+        <div key={s.label} className="rounded-[20px]  bg-surface-2 px-4 py-3.5">
           <p className="text-[0.78rem] text-muted">{s.label}</p>
           <p className={`mt-1 text-[1.6rem] font-semibold tracking-[-0.02em] ${tones[s.tone ?? 'neutral']}`}>
             {s.value}

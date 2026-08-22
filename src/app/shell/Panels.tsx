@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, formatDate } from '../../components/ui'
 import { useUI } from '../../state/ui'
+import { useMaturity } from '../../state/maturity'
 import { useSession } from '../../state/session'
 import {
   documents,
@@ -47,7 +48,7 @@ export function Drawer({
         className="flex-1 bg-ink/20 backdrop-blur-[1px]"
       />
       <aside
-        className={`flex h-full ${width} max-w-full flex-col border-l border-line bg-surface shadow-xl`}
+        className={`flex h-full ${width} max-w-full flex-col border-l bg-surface-2 shadow-xl`}
         role="dialog"
         aria-label={title}
       >
@@ -94,7 +95,7 @@ export function EvidencePanel() {
 
   return (
     <Drawer title="Why am I seeing this?" subtitle={evidence.title} onClose={closeEvidence}>
-      <div className="mb-5 rounded-[10px] bg-canvas px-4 py-3">
+      <div className="mb-5 rounded-[20px] bg-canvas px-4 py-3">
         <h3 className="mb-1 text-[0.72rem] font-semibold uppercase tracking-[0.07em] text-muted">
           Current input
         </h3>
@@ -109,7 +110,7 @@ export function EvidencePanel() {
         </h3>
         <p className="text-[0.86rem] leading-relaxed text-ink">{b.interpretation}</p>
       </div>
-      <div className="mb-5 rounded-[10px] border border-state-wait/25 bg-state-wait-tint px-4 py-3">
+      <div className="mb-5 rounded-[20px]  bg-state-wait-tint px-4 py-3">
         <h3 className="mb-1 text-[0.72rem] font-semibold uppercase tracking-[0.07em] text-state-wait">
           Uncertainty
         </h3>
@@ -141,7 +142,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void }) {
             key={c}
             onClick={() => setFilter(c)}
             aria-pressed={filter === c}
-            className={`rounded-full border px-2.5 py-1 text-[0.75rem] ${
+            className={`rounded-full  px-2.5 py-1 text-[0.75rem] ${
               filter === c ? 'border-brand bg-brand-tint text-brand-ink' : 'border-line text-ink-2'
             }`}
           >
@@ -151,7 +152,7 @@ export function NotificationPanel({ onClose }: { onClose: () => void }) {
       </div>
       <ul className="space-y-3">
         {shown.map((n) => (
-          <li key={n.id} className="rounded-[10px] border border-line px-4 py-3">
+          <li key={n.id} className="rounded-[20px]  border-line px-4 py-3">
             <div className="mb-1 flex items-center justify-between gap-2">
               <span className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted">
                 {n.category}
@@ -273,7 +274,7 @@ export function SearchPanel({ onClose }: { onClose: () => void }) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search records, workflows, documents, strategies, people"
-        className="mb-4 w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
+        className="mb-4 w-full rounded-2xl  bg-surface-2 px-3.5 py-2.5 text-[0.88rem] outline-none placeholder:text-muted"
       />
       {Object.entries(grouped).map(([group, hits]) => (
         <div key={group} className="mb-5">
@@ -286,7 +287,7 @@ export function SearchPanel({ onClose }: { onClose: () => void }) {
                 <Link
                   to={hit.to}
                   onClick={onClose}
-                  className="block rounded-lg px-3 py-2 hover:bg-canvas"
+                  className="block rounded-2xl px-3 py-2 hover:bg-canvas"
                 >
                   <span className="block text-[0.86rem] text-ink">{hit.label}</span>
                   <span className="block text-[0.78rem] text-muted">{hit.detail}</span>
@@ -307,6 +308,8 @@ export function DisplayPanel({ onClose }: { onClose: () => void }) {
   const { textSize, setTextSize, reducedMotion, setReducedMotion, density, setDensity } = useUI()
   return (
     <Drawer title="Display & help" subtitle="Change how ORCA looks and behaves" onClose={onClose}>
+      <ExperienceLevel />
+
       <h3 className="mb-2 text-[0.78rem] font-semibold uppercase tracking-[0.07em] text-muted">
         How much to show at once
       </h3>
@@ -326,7 +329,7 @@ export function DisplayPanel({ onClose }: { onClose: () => void }) {
         ]).map((choice) => (
           <label
             key={choice.value}
-            className={`flex cursor-pointer items-start gap-2.5 rounded-[10px] border px-3.5 py-3 ${
+            className={`flex cursor-pointer items-start gap-2.5 rounded-[20px]  px-3.5 py-3 ${
               density === choice.value ? 'border-brand bg-brand-tint' : 'border-line'
             }`}
           >
@@ -355,7 +358,7 @@ export function DisplayPanel({ onClose }: { onClose: () => void }) {
             key={size}
             onClick={() => setTextSize(size)}
             aria-pressed={textSize === size}
-            className={`rounded-lg border px-3 py-2 text-[0.82rem] ${
+            className={`rounded-2xl  px-3 py-2 text-[0.82rem] ${
               textSize === size ? 'border-brand bg-brand-tint text-brand-ink' : 'border-line text-ink-2'
             }`}
           >
@@ -405,12 +408,98 @@ export function Toast() {
   return (
     <div
       role="status"
-      className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-lg border border-line bg-ink px-4 py-3 text-[0.85rem] text-white shadow-lg"
+      className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-4 rounded-2xl  border-line bg-ink px-4 py-3 text-[0.85rem] text-white shadow-lg"
     >
       <span>{toast}</span>
       <button onClick={dismissToast} className="text-white/70 hover:text-white">
         Dismiss
       </button>
     </div>
+  )
+}
+
+
+/**
+ * The interface's opinion about you, stated and overridable.
+ *
+ * ORCA quietly simplifies itself as someone gets familiar with it. That is a
+ * good default and a terrible secret: an interface that changes without saying
+ * so is disorienting for anyone, and for someone who navigates by position and
+ * relies on things staying where they were, it is the specific failure this
+ * whole product is meant to avoid causing.
+ *
+ * So the level is on screen, in words, with what it currently does — and can
+ * be pinned. Someone coming back after a long gap, or a bad month, can have
+ * the explanations back without having to prove they need them. Nobody has to
+ * earn the simple version or justify wanting the detailed one.
+ */
+function ExperienceLevel() {
+  const { level, visits, pinned, pinLevel, verbosity, setVerbosity } = useMaturity()
+
+  const describe: Record<number, string> = {
+    1: 'Headings carry a line of explanation, and the getting-started list is on your home page.',
+    2: 'The explanations have stepped back. Shortcuts are offered, and the places you go often appear at the top of the menu.',
+    3: 'Shortcuts first, prose trimmed. The interface stays out of the way.',
+  }
+
+  return (
+    <section className="mb-6 border-b border-line pb-5">
+      <h3 className="mb-2 text-[0.78rem] font-semibold uppercase tracking-[0.07em] text-muted">
+        How much ORCA explains itself
+      </h3>
+      <p className="text-[0.85rem] leading-relaxed text-ink-2">
+        You are at level {level} of 3{pinned ? ' — set by you' : `, from ${visits} visit${visits === 1 ? '' : 's'}`}.
+        {' '}
+        {describe[level]}
+      </p>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {([1, 2, 3] as const).map((l) => (
+          <button
+            key={l}
+            onClick={() => pinLevel(l)}
+            aria-pressed={pinned === l}
+            className={`rounded-2xl  px-3 py-1.5 text-[0.83rem] ${
+              pinned === l
+                ? 'border-brand bg-brand-tint font-medium text-brand-ink'
+                : 'border-line text-ink-2 hover:text-ink'
+            }`}
+          >
+            Level {l}
+          </button>
+        ))}
+        {pinned ? (
+          <button
+            onClick={() => pinLevel(null)}
+            className="rounded-2xl  border-line px-3 py-1.5 text-[0.83rem] text-ink-2 hover:text-ink"
+          >
+            Let it decide again
+          </button>
+        ) : null}
+      </div>
+
+      <div className="mt-4">
+        <p className="text-[0.85rem] font-medium text-ink">How much ORCA says</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {([
+            ['detailed', 'Explain as it goes'],
+            ['concise', 'Keep it short'],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setVerbosity(value)}
+              aria-pressed={verbosity === value}
+              className={`rounded-2xl  px-3 py-1.5 text-[0.83rem] ${
+                verbosity === value
+                  ? 'border-brand bg-brand-tint font-medium text-brand-ink'
+                  : 'border-line text-ink-2 hover:text-ink'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
   )
 }

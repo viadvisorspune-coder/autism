@@ -119,7 +119,7 @@ export function ArrivalAlert({ patientId = 'pt-ananya' }: { patientId?: string }
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-24 left-1/2 z-40 w-[26rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-[12px] border border-state-wait/40 bg-surface p-4 shadow-xl sm:left-auto sm:right-5 sm:translate-x-0"
+      className="frost elevate fixed bottom-24 left-1/2 z-40 w-[26rem] max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-[26px] p-4 sm:left-auto sm:right-5 sm:translate-x-0"
     >
       <div className="mb-1 flex items-center justify-between gap-3">
         <p className="text-[0.74rem] font-semibold uppercase tracking-[0.07em] text-state-wait">

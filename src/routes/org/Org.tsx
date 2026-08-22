@@ -15,10 +15,10 @@ import {
   Tag,
   formatDate,
 } from '../../components/ui'
-import { patientName, patients, requests } from '../../data/db'
+import { TODAY, patientName, patients, requests } from '../../data/db'
 import { useSession } from '../../state/session'
 import { useUI } from '../../state/ui'
-import type { Role } from '../../data/types'
+import type { RequestRecord, Role } from '../../data/types'
 
 const isOrgRole = (role: Role | null): role is 'employer' | 'university' =>
   role === 'employer' || role === 'university'
@@ -50,14 +50,13 @@ export function OrgDashboard() {
         of this process.
       </Callout>
 
-      <div className="mt-6">
-        <Grid cols={4}>
-          <Stat label="New requests" value={incoming.length} />
-          <Stat label="Awaiting your action" value={incoming.length} />
-          <Stat label="Waiting on the requester" value={waiting.length} />
-          <Stat label="Reviews due in 30 days" value={1} />
-        </Grid>
-      </div>
+      {/* One operational sentence, not a wall of counters.
+          The previous version had "New requests" and "Awaiting your action"
+          showing the same number from the same array — four tiles saying two
+          things, one of them twice. An HR officer opening this between
+          meetings needs to know what they owe somebody and by when; the rest
+          is a list they can read underneath. */}
+      <NextAction incoming={incoming} waiting={waiting} base={base} isUni={isUni} />
 
       <div className="mt-8">
         <SectionTitle>Requests needing a decision</SectionTitle>
@@ -66,7 +65,7 @@ export function OrgDashboard() {
             <Link
               key={r.id}
               to={`${base}/requests/${r.id}`}
-              className="block rounded-[10px] border border-line bg-surface px-5 py-4 hover:border-line-strong"
+              className="block rounded-[20px]  bg-surface-2 px-5 py-4 hover:border-line-strong"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -82,7 +81,7 @@ export function OrgDashboard() {
             </Link>
           ))}
           {incoming.length === 0 ? (
-            <p className="rounded-[10px] border border-dashed border-line-strong px-5 py-6 text-[0.86rem] text-muted">
+            <p className="rounded-[20px]  border-dashed border-line-strong px-5 py-6 text-[0.86rem] text-muted">
               Nothing waiting on you.
             </p>
           ) : null}
@@ -112,17 +111,6 @@ export function OrgDashboard() {
         </Card>
       </div>
     </div>
-  )
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <Card>
-      <CardBody>
-        <p className="text-[1.7rem] font-semibold tracking-[-0.02em] text-ink">{value}</p>
-        <p className="mt-0.5 text-[0.82rem] text-muted">{label}</p>
-      </CardBody>
-    </Card>
   )
 }
 
@@ -212,7 +200,7 @@ export function OrgRequestDetail() {
               </li>
             ))}
           </ul>
-          <div className="mt-4 rounded-[10px] bg-canvas px-4 py-3">
+          <div className="mt-4 rounded-[20px] bg-canvas px-4 py-3">
             <p className="text-[0.84rem] leading-relaxed text-ink-2">
               Clinical records, diagnostic documents and personal notes are not part of this process
               and are not available through ORCA. A decision should be based on the functional
@@ -235,7 +223,7 @@ export function OrgRequestDetail() {
               value={clarification}
               onChange={(e) => setClarification(e.target.value)}
               placeholder="For example: which scheduling information would be most useful?"
-              className="w-full rounded-lg border border-line-strong px-3 py-2 text-[0.87rem] outline-none"
+              className="w-full rounded-2xl  border-line-strong px-3 py-2 text-[0.87rem] outline-none"
             />
             <p className="text-[0.82rem] leading-relaxed text-muted">
               Your question goes back into the workflow. The requester decides what to answer, and
@@ -287,9 +275,9 @@ export function OrgRequestDetail() {
               {['Received', 'Under review', 'Decision', 'Implementation', 'Review'].map((step, i) => (
                 <li
                   key={step}
-                  className={`rounded-full border px-3 py-1.5 text-[0.8rem] ${
+                  className={`rounded-full  px-3 py-1.5 text-[0.8rem] ${
                     i < 1
-                      ? 'border-state-good/30 bg-state-good-tint text-state-good'
+                      ? 'bg-state-good-tint text-state-good'
                       : i === 1
                         ? 'border-org bg-org-tint text-org'
                         : 'border-line text-muted'
@@ -455,7 +443,7 @@ export function OrgCommunication() {
       <Card>
         <CardHead title="Notice and transition buffer — Ananya Rao" meta="Request rq-1" />
         <CardBody className="space-y-4">
-          <div className="rounded-[10px] bg-canvas px-4 py-3">
+          <div className="rounded-[20px] bg-canvas px-4 py-3">
             <p className="text-[0.86rem] leading-relaxed text-ink">
               “Please clarify what scheduling information would be most useful, and whether the buffer
               is needed after every meeting or only unplanned ones.”
@@ -468,7 +456,7 @@ export function OrgCommunication() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Add a message to this request"
-            className="w-full rounded-lg border border-line-strong px-3 py-2 text-[0.87rem] outline-none"
+            className="w-full rounded-2xl  border-line-strong px-3 py-2 text-[0.87rem] outline-none"
           />
           <Button variant="primary" onClick={() => say('Message added to the request.')}>
             Send
@@ -524,6 +512,69 @@ export function OrgAcademicSupport() {
           ]}
         />
       </Card>
+    </div>
+  )
+}
+
+
+/**
+ * What this organisation actually has to do.
+ *
+ * Employers and universities are the only people in this system who did not
+ * choose to be here. They have one request in front of them, a legal duty
+ * attached to it, and no interest in a caseload view. So the top of their
+ * screen is a sentence and a button rather than a dashboard, and the sentence
+ * names the oldest thing waiting — because in adjustment requests the age of
+ * the request is the thing that eventually becomes the problem.
+ */
+function NextAction({
+  incoming,
+  waiting,
+  base,
+  isUni,
+}: {
+  incoming: RequestRecord[]
+  waiting: RequestRecord[]
+  base: string
+  isUni: boolean
+}) {
+  const oldest = [...incoming].sort((a, b) => a.raised.localeCompare(b.raised))[0]
+  const days = oldest
+    ? Math.round((Date.parse(TODAY) - Date.parse(oldest.raised)) / 86_400_000)
+    : 0
+
+  return (
+    <div className="mt-6 rounded-[24px]  bg-surface-2 px-5 py-4">
+      {oldest ? (
+        <>
+          <p className="text-[1.02rem] font-medium text-ink">
+            {incoming.length === 1
+              ? 'One request is waiting on you.'
+              : `${incoming.length} requests are waiting on you.`}
+          </p>
+          <p className="mt-1 text-[0.87rem] leading-relaxed text-ink-2">
+            The longest has been open {days} day{days === 1 ? '' : 's'} — {oldest.title}, for{' '}
+            {patientName(oldest.patientId)}. Nothing has been shared with anyone else while it
+            waits.
+          </p>
+          <Link
+            to={`${base}/requests/${oldest.id}`}
+            className="mt-3 inline-block rounded-2xl bg-org px-4 py-2 text-[0.87rem] font-medium text-white hover:opacity-90"
+          >
+            Open the oldest one
+          </Link>
+        </>
+      ) : (
+        <p className="text-[1.02rem] font-medium text-ink">Nothing is waiting on you.</p>
+      )}
+
+      {waiting.length ? (
+        <p className="mt-3 border-t border-line pt-3 text-[0.84rem] leading-relaxed text-muted">
+          {waiting.length} other request{waiting.length === 1 ? ' is' : 's are'} with the{' '}
+          {isUni ? 'student' : 'employee'} — you asked a question and are waiting on the answer.
+          They are not counted above, because they are not yours to move.
+        </p>
+      ) : null}
     </div>
   )
 }

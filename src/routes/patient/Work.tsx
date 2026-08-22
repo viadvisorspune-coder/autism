@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   Button,
   Card,
@@ -36,13 +36,13 @@ export function PatientWork() {
         actions={<LinkButton to="/patient/work/request" variant="primary">Ask for something</LinkButton>}
       />
 
-      <div className="mb-6 inline-flex rounded-lg border border-line bg-surface p-1">
+      <div className="mb-6 inline-flex rounded-2xl  bg-surface-2 p-1">
         {(['Work', 'University'] as const).map((option) => (
           <button
             key={option}
             onClick={() => setContext(option)}
             aria-pressed={context === option}
-            className={`rounded-md px-4 py-1.5 text-[0.85rem] ${
+            className={`rounded-2xl px-4 py-1.5 text-[0.85rem] ${
               context === option ? 'bg-brand-tint font-medium text-brand-ink' : 'text-ink-2'
             }`}
           >
@@ -99,7 +99,7 @@ export function PatientWork() {
             <li key={request.id}>
               <Link
                 to={`/patient/requests/${request.id}`}
-                className="block rounded-[10px] border border-line bg-surface px-5 py-4 hover:border-line-strong"
+                className="block rounded-[20px]  bg-surface-2 px-5 py-4 hover:border-line-strong"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -115,7 +115,7 @@ export function PatientWork() {
             </li>
           ))}
           {shown.length === 0 ? (
-            <li className="rounded-[10px] border border-dashed border-line-strong px-5 py-6 text-[0.86rem] text-muted">
+            <li className="rounded-[20px]  border-dashed border-line-strong px-5 py-6 text-[0.86rem] text-muted">
               Nothing requested here yet.
             </li>
           ) : null}
@@ -133,9 +133,9 @@ export function PatientWork() {
                   (step, i) => (
                     <li
                       key={step}
-                      className={`rounded-full border px-3 py-1.5 text-[0.8rem] ${
+                      className={`rounded-full  px-3 py-1.5 text-[0.8rem] ${
                         i < 2
-                          ? 'border-state-good/30 bg-state-good-tint text-state-good'
+                          ? 'bg-state-good-tint text-state-good'
                           : i === 2
                             ? 'border-brand bg-brand-tint text-brand-ink'
                             : 'border-line text-muted'
@@ -161,8 +161,15 @@ const STEPS = ['Need', 'Context', 'Possible support', 'Draft', 'Review', 'Approv
 export function PatientRequestBuilder() {
   const navigate = useNavigate()
   const { say } = useUI()
+  // Arriving from a conversation rather than from the navigation: what the
+  // person already said becomes the first field, so the request starts where
+  // the conversation got to instead of at an empty form.
+  const location = useLocation() as { state?: { from?: string } }
+  const carried = location.state?.from?.trim()
   const [step, setStep] = useState(0)
-  const [need, setNeed] = useState('Meetings keep changing at the last minute and I lose the rest of the day.')
+  const [need, setNeed] = useState(
+    carried || 'Meetings keep changing at the last minute and I lose the rest of the day.',
+  )
   const [chosen, setChosen] = useState<string[]>([
     'Written notice of meeting changes',
     'Twenty minutes of protected time after an unplanned meeting',
@@ -191,13 +198,23 @@ export function PatientRequestBuilder() {
         ]}
       />
 
+      {carried ? (
+        <div className="mb-6 rounded-[20px]  bg-brand-tint px-4 py-3">
+          <p className="text-[0.85rem] font-semibold text-brand-ink">ORCA understood you</p>
+          <p className="mt-1 text-[0.86rem] leading-relaxed text-ink-2">
+            This is filled in from what you told ORCA, in your words. Change anything that is not
+            right — nothing is sent until you have read the whole thing at the end.
+          </p>
+        </div>
+      ) : null}
+
       <ol className="mb-6 flex flex-wrap gap-2">
         {STEPS.map((label, i) => (
           <li
             key={label}
-            className={`rounded-full border px-3 py-1.5 text-[0.79rem] ${
+            className={`rounded-full  px-3 py-1.5 text-[0.79rem] ${
               i < step
-                ? 'border-state-good/30 bg-state-good-tint text-state-good'
+                ? 'bg-state-good-tint text-state-good'
                 : i === step
                   ? 'border-brand bg-brand-tint text-brand-ink'
                   : 'border-line text-muted'
@@ -217,7 +234,7 @@ export function PatientRequestBuilder() {
                 rows={4}
                 value={need}
                 onChange={(e) => setNeed(e.target.value)}
-                className="w-full rounded-lg border border-line-strong px-3.5 py-3 text-[0.9rem] leading-relaxed outline-none"
+                className="w-full rounded-2xl  border-line-strong px-3.5 py-3 text-[0.9rem] leading-relaxed outline-none"
               />
               <p className="text-[0.82rem] text-muted">
                 Write it as you would say it. ORCA turns it into functional language later — your
@@ -247,7 +264,7 @@ export function PatientRequestBuilder() {
               <ul className="space-y-2">
                 {options.map((option) => (
                   <li key={option}>
-                    <label className="flex items-start gap-2.5 rounded-lg border border-line px-3.5 py-3 text-[0.88rem] text-ink">
+                    <label className="flex items-start gap-2.5 rounded-2xl  border-line px-3.5 py-3 text-[0.88rem] text-ink">
                       <input
                         type="checkbox"
                         className="mt-1"
@@ -273,7 +290,7 @@ export function PatientRequestBuilder() {
                 rows={7}
                 value={draftText}
                 onChange={(e) => setDraftText(e.target.value)}
-                className="w-full rounded-lg border border-line-strong px-3.5 py-3 text-[0.9rem] leading-relaxed outline-none"
+                className="w-full rounded-2xl  border-line-strong px-3.5 py-3 text-[0.9rem] leading-relaxed outline-none"
               />
               <AiProvenance />
             </>
@@ -370,7 +387,7 @@ export function DisclosureReview({
           This is the exact content. Nothing else leaves ORCA.
         </p>
         {draftText ? (
-          <p className="mt-3 rounded-[10px] bg-canvas px-4 py-3 text-[0.88rem] leading-relaxed text-ink">
+          <p className="mt-3 rounded-[20px] bg-canvas px-4 py-3 text-[0.88rem] leading-relaxed text-ink">
             {draftText}
           </p>
         ) : null}
@@ -378,7 +395,7 @@ export function DisclosureReview({
           {items.map((item) => (
             <li
               key={item}
-              className="flex items-start justify-between gap-3 rounded-lg border border-line px-3.5 py-3"
+              className="flex items-start justify-between gap-3 rounded-2xl  border-line px-3.5 py-3"
             >
               <span className="text-[0.88rem] leading-relaxed text-ink">{item}</span>
               <button
@@ -408,7 +425,7 @@ export function DisclosureReview({
         ]}
       />
 
-      <div className="rounded-[10px] border border-state-good/25 bg-state-good-tint px-4 py-3">
+      <div className="rounded-[20px]  bg-state-good-tint px-4 py-3">
         <p className="text-[0.8rem] font-semibold uppercase tracking-[0.07em] text-state-good">
           Held back automatically
         </p>

@@ -147,7 +147,7 @@ export function TrustedObservation() {
                 rows={4}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                className="w-full rounded-lg border border-line-strong px-3 py-2 text-[0.9rem] leading-relaxed outline-none"
+                className="w-full rounded-2xl  border-line-strong px-3 py-2 text-[0.9rem] leading-relaxed outline-none"
               />
             </label>
             <label className="block">
@@ -155,7 +155,7 @@ export function TrustedObservation() {
               <input
                 value={context}
                 onChange={(e) => setContext(e.target.value)}
-                className="w-full rounded-lg border border-line-strong px-3 py-2 text-[0.9rem] outline-none"
+                className="w-full rounded-2xl  border-line-strong px-3 py-2 text-[0.9rem] outline-none"
               />
             </label>
             <div className="flex flex-wrap items-center gap-3">

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Button, Card, CardBody, PageHeader } from '../../components/ui'
 import { AiProvenance, WhyButton } from '../../components/shared'
 import { guideConversation, guidePrompts } from '../../data/db'
@@ -12,6 +12,8 @@ import { markSeen, persistMessage, useLive } from '../../lib/live'
 import type { ConversationData } from '../../lib/live'
 import type { RunState } from '../../lib/agent'
 import { RunProgress } from '../../components/RunProgress'
+import { useDraft } from '../../lib/draft'
+import { useMaturity } from '../../state/maturity'
 import {
   ContextBanner,
   ContextChoice,
@@ -61,7 +63,10 @@ export default function PatientGuide() {
       if (option?.personId) markSeen('pt-ananya', option.personId)
     }
   }, [option?.personId])
-  const [draft, setDraft] = useState('')
+  const { value: draft, setValue: setDraft, clear: clearDraft, restored } = useDraft(
+    `guide.${option?.personId ?? 'anon'}`,
+  )
+  const { verbosity } = useMaturity()
   const [run, setRun] = useState<RunState | null>(null)
   const [starting, setStarting] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
@@ -78,6 +83,9 @@ export default function PatientGuide() {
   )
   const storedCount = stored.data?.messages?.length ?? 0
   const visible = mode === 'fresh' && !showEarlier ? messages.slice(historyCount) : messages
+  // The most recent thing the person said in their own words, which is what a
+  // request should be built out of.
+  const lastSaid = [...messages].reverse().find((m) => m.from === 'patient')?.text ?? ''
 
   const say2 = (text: string) => {
     setMessages((m) => [
@@ -98,7 +106,7 @@ export default function PatientGuide() {
       text: trimmed,
     }
     setMessages((m) => [...m, user])
-    setDraft('')
+    clearDraft()
     persistMessage('pt-ananya', option?.personId ?? 'u-ananya', trimmed, 'person')
 
     // Without a backend there is nothing to send to, so the prototype's own
@@ -123,7 +131,11 @@ export default function PatientGuide() {
         setRunError(error ?? 'The workflow could not be started.')
         return
       }
-      say2('Let me look at your record. This usually takes a few minutes — you do not need to wait here.')
+      say2(
+        verbosity === 'concise'
+          ? 'Looking. You do not need to wait here.'
+          : 'Let me look at your record. This usually takes a few minutes — you do not need to wait here.',
+      )
 
       // Every change in the run becomes something ORCA says, so the
       // conversation is where the work appears rather than a panel beside it.
@@ -212,7 +224,7 @@ export default function PatientGuide() {
         {visible.map((message) =>
           message.from === 'patient' ? (
             <div key={message.id} className="flex justify-end">
-              <div className="max-w-[85%] rounded-[10px] rounded-br-sm bg-brand px-4 py-3 text-[0.92rem] leading-relaxed text-white">
+              <div className="max-w-[85%] rounded-[20px] rounded-br-sm bg-brand px-4 py-3 text-[0.92rem] leading-relaxed text-white">
                 {message.text}
                 <span className="mt-1 block text-[0.72rem] text-white/70">{message.time}</span>
               </div>
@@ -235,7 +247,7 @@ export default function PatientGuide() {
                     {message.options.map((option, i) => (
                       <li
                         key={option.label}
-                        className="rounded-[10px] border border-line px-4 py-3"
+                        className="rounded-[20px]  border-line px-4 py-3"
                       >
                         <p className="text-[0.9rem] font-medium text-ink">
                           {i + 1}. {option.label}
@@ -263,14 +275,14 @@ export default function PatientGuide() {
                       <Link
                         key={action.label}
                         to={action.href}
-                        className="rounded-lg border border-line-strong px-3 py-2 text-[0.84rem] text-ink hover:bg-surface-2"
+                        className="rounded-2xl  border-line-strong px-3 py-2 text-[0.84rem] text-ink hover:bg-surface-2"
                       >
                         {action.label}
                       </Link>
                     ))}
                     <button
                       onClick={() => say('A message has been sent to Dr Kavita Nair.')}
-                      className="rounded-lg border border-line-strong px-3 py-2 text-[0.84rem] text-ink hover:bg-surface-2"
+                      className="rounded-2xl  border-line-strong px-3 py-2 text-[0.84rem] text-ink hover:bg-surface-2"
                     >
                       Ask a person instead
                     </button>
@@ -291,6 +303,8 @@ export default function PatientGuide() {
         </div>
       ) : null}
 
+      <ContinueAsRequest lastSaid={lastSaid} />
+
       {/* ------------------------------------------------------ composer */}
       <div className="sticky bottom-0 mt-6 border-t border-line bg-canvas pt-4 pb-6">
         <div className="mb-2 flex flex-wrap gap-2">
@@ -298,7 +312,7 @@ export default function PatientGuide() {
             <button
               key={prompt}
               onClick={() => send(prompt)}
-              className="rounded-full border border-line bg-surface px-3 py-1.5 text-[0.8rem] text-ink-2 hover:border-line-strong hover:text-ink"
+              className="rounded-full  bg-surface-2 px-3 py-1.5 text-[0.8rem] text-ink-2 hover:text-ink"
             >
               {prompt}
             </button>
@@ -316,7 +330,7 @@ export default function PatientGuide() {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Write as much or as little as you like"
-            className="min-w-0 flex-1 rounded-lg border border-line-strong bg-surface px-4 py-3 text-[0.92rem] leading-relaxed outline-none placeholder:text-muted"
+            className="min-w-0 flex-1 rounded-2xl  bg-surface-2 px-4 py-3 text-[0.92rem] leading-relaxed outline-none placeholder:text-muted"
           />
           <Button onClick={() => say('Attach a document — the file picker is not wired up in this prototype.')}>
             Attach
@@ -325,6 +339,11 @@ export default function PatientGuide() {
             {starting ? 'Sending…' : 'Send'}
           </Button>
         </form>
+        {restored && draft ? (
+          <p className="mt-2 text-[0.79rem] text-state-wait">
+            This was still here from last time. Nothing was sent.
+          </p>
+        ) : null}
       </div>
     </div>
   )
@@ -477,4 +496,41 @@ function relativeDay(iso: string): string {
   if (days === 1) return 'Yesterday'
   if (days < 7) return `${days} days ago`
   return then.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })
+}
+
+
+/* ------------------------------------------------ conversation into a request */
+
+/**
+ * The handoff.
+ *
+ * The gap this closes is the one people give up in. Somebody explains their
+ * situation properly, in their own words, once — and is then shown a form and
+ * asked to explain it again in fields. Most people stop there, and the request
+ * that would have helped them never gets made.
+ *
+ * So the conversation carries. What they wrote becomes the first field of the
+ * request, marked as theirs, editable, and nothing is sent from here: the
+ * builder still ends with the whole thing on screen before it goes anywhere.
+ * Continuity is about not retyping, never about skipping the review.
+ */
+function ContinueAsRequest({ lastSaid }: { lastSaid: string }) {
+  const navigate = useNavigate()
+  if (lastSaid.trim().length < 25) return null
+
+  return (
+    <div className="mt-6 rounded-[20px]  bg-surface-2 px-5 py-4">
+      <p className="text-[0.89rem] font-medium text-ink">Turn this into a request?</p>
+      <p className="mt-1 text-[0.85rem] leading-relaxed text-ink-2">
+        What you have written here can start a request to your employer or university without
+        typing it again. You will see exactly what would be sent before anyone else does.
+      </p>
+      <Button
+        variant="primary"
+        onClick={() => navigate('/patient/work/request', { state: { from: lastSaid } })}
+      >
+        Start a request from this
+      </Button>
+    </div>
+  )
 }

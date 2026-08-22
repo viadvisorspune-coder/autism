@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Card,
@@ -17,6 +16,10 @@ import {
 } from '../../data/db'
 import { WorkStream } from '../../components/Priority'
 import { OrcaSuggests, SinceYouWereHere } from '../../components/Returning'
+import { GettingStarted } from '../../components/GettingStarted'
+import { WhatOrcaRemembers } from '../../components/Remembers'
+import { Shortcuts } from '../../components/Shortcuts'
+import { useDraft } from '../../lib/draft'
 
 /**
  * 3.1 Patient dashboard.
@@ -26,7 +29,9 @@ import { OrcaSuggests, SinceYouWereHere } from '../../components/Returning'
  */
 export default function PatientHome() {
   const navigate = useNavigate()
-  const [message, setMessage] = useState('')
+  // The home composer keeps what was typed. Someone interrupted halfway
+  // through describing a bad week should not have to find the words twice.
+  const { value: message, setValue: setMessage, clear: clearMessage } = useDraft('home.compose')
 
   const strategies = strategiesFor('pt-ananya')
   const active = strategies.find((s) => s.status === 'Active')
@@ -42,6 +47,7 @@ export default function PatientHome() {
       <div className="mt-6">
         <SinceYouWereHere />
         <WorkStream />
+        <Shortcuts />
       </div>
 
       {/* ------------------------------------------- primary interaction */}
@@ -53,6 +59,7 @@ export default function PatientHome() {
           <form
             onSubmit={(e) => {
               e.preventDefault()
+              clearMessage()
               navigate('/patient/guide', { state: { message } })
             }}
             className="mt-3"
@@ -63,12 +70,12 @@ export default function PatientHome() {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="You can write it however it comes out. There is no right way to say it."
-              className="w-full rounded-lg border border-line-strong bg-surface px-4 py-3 text-[0.95rem] leading-relaxed outline-none placeholder:text-muted"
+              className="w-full rounded-2xl  bg-surface-2 px-4 py-3 text-[0.95rem] leading-relaxed outline-none placeholder:text-muted"
             />
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 type="submit"
-                className="rounded-lg bg-brand px-4 py-2 text-[0.88rem] font-medium text-white hover:bg-brand-ink"
+                className="rounded-2xl bg-brand px-4 py-2 text-[0.88rem] font-medium text-white hover:bg-brand-ink"
               >
                 Talk to ORCA
               </button>
@@ -83,7 +90,7 @@ export default function PatientHome() {
               <button
                 key={prompt}
                 onClick={() => navigate('/patient/guide', { state: { message: prompt } })}
-                className="rounded-full border border-line px-3 py-1.5 text-[0.82rem] text-ink-2 hover:border-line-strong hover:text-ink"
+                className="rounded-full  border-line px-3 py-1.5 text-[0.82rem] text-ink-2 hover:text-ink"
               >
                 {prompt}
               </button>
@@ -94,6 +101,8 @@ export default function PatientHome() {
 
       <div className="mt-8">
         <OrcaSuggests />
+        <GettingStarted />
+        <WhatOrcaRemembers />
       </div>
 
       {/* ---------------------------------------------- current activity */}

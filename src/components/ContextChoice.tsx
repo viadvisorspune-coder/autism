@@ -115,7 +115,7 @@ export function ContextChoice({
   const recap = recapFor(patientId, recentMessages)
 
   return (
-    <div className="mb-5 rounded-[12px] border border-line bg-surface px-5 py-4">
+    <div className="frost-tint mb-5 rounded-[26px] px-5 py-4">
       <p className="text-[0.95rem] font-medium text-ink">
         You have talked to ORCA before. Should it use what it already knows?
       </p>
@@ -135,7 +135,7 @@ export function ContextChoice({
             {showing ? 'Hide what it would use' : `See exactly what it would use (${recap.lines.length})`}
           </button>
           {showing ? (
-            <ul className="mt-2 space-y-1 rounded-[10px] border border-line bg-canvas px-4 py-3">
+            <ul className="mt-2 space-y-1 rounded-[20px]  border-line bg-canvas px-4 py-3">
               {recap.lines.map((l) => (
                 <li key={l} className="text-[0.82rem] leading-relaxed text-ink-2">
                   {l}
@@ -149,13 +149,13 @@ export function ContextChoice({
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           onClick={() => onChoose('previous')}
-          className="rounded-lg bg-brand px-4 py-2 text-[0.87rem] font-medium text-white hover:bg-brand-ink"
+          className="rounded-2xl bg-brand px-4 py-2 text-[0.87rem] font-medium text-white hover:bg-brand-ink"
         >
           Use my previous context
         </button>
         <button
           onClick={() => onChoose('fresh')}
-          className="rounded-lg border border-line-strong bg-surface px-4 py-2 text-[0.87rem] font-medium text-ink hover:bg-surface-2"
+          className="rounded-2xl  bg-surface-2 px-4 py-2 text-[0.87rem] font-medium text-ink hover:bg-surface-2"
         >
           Start fresh
         </button>
@@ -175,7 +175,7 @@ export function ContextBanner({
   onChange: () => void
 }) {
   return (
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-line bg-canvas px-4 py-2.5">
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[20px]  border-line bg-canvas px-4 py-2.5">
       <p className="text-[0.83rem] leading-relaxed text-ink-2">
         {mode === 'previous'
           ? `Using what you have already told ORCA — ${count} item${count === 1 ? '' : 's'} from your record.`

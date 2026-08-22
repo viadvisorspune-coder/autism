@@ -125,7 +125,7 @@ export function ApprovalPanel({
       ) : null}
 
       {approval.withheld?.length ? (
-        <div className="mb-5 rounded-[10px] border border-line bg-canvas px-4 py-3">
+        <div className="mb-5 rounded-[20px]  border-line bg-canvas px-4 py-3">
           <h3 className="mb-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.07em] text-muted">
             What would stay private
           </h3>
@@ -147,7 +147,7 @@ export function ApprovalPanel({
         {approval.options.map((option) => (
           <label
             key={option.id}
-            className={`flex cursor-pointer items-start gap-3 rounded-[10px] border px-4 py-3 ${
+            className={`flex cursor-pointer items-start gap-3 rounded-[20px]  px-4 py-3 ${
               chosen === option.id && !writing ? 'border-brand bg-brand-tint' : 'border-line'
             }`}
           >
@@ -180,7 +180,7 @@ export function ApprovalPanel({
         {/* Always available. A set of options someone did not want to pick from
             is not a decision, and "none of these" needs somewhere to go. */}
         <label
-          className={`flex cursor-pointer items-start gap-3 rounded-[10px] border px-4 py-3 ${
+          className={`flex cursor-pointer items-start gap-3 rounded-[20px]  px-4 py-3 ${
             writing ? 'border-brand bg-brand-tint' : 'border-line'
           }`}
         >
@@ -209,7 +209,7 @@ export function ApprovalPanel({
           onChange={(e) => setMessage(e.target.value)}
           rows={4}
           placeholder="What would you like to happen?"
-          className="mb-4 w-full rounded-lg border border-line-strong bg-surface px-3.5 py-2.5 text-[0.88rem] leading-relaxed outline-none placeholder:text-muted"
+          className="mb-4 w-full rounded-2xl  bg-surface-2 px-3.5 py-2.5 text-[0.88rem] leading-relaxed outline-none placeholder:text-muted"
         />
       ) : null}
 

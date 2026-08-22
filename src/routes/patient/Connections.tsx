@@ -156,7 +156,7 @@ export function PatientConnection() {
         </Button>
         <Link
           to="/patient/privacy/history"
-          className="rounded-lg border border-line-strong px-3.5 py-2 text-[0.85rem] text-ink hover:bg-surface-2"
+          className="rounded-2xl  border-line-strong px-3.5 py-2 text-[0.85rem] text-ink hover:bg-surface-2"
         >
           Review sharing history
         </Link>

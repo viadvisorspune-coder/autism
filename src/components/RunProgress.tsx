@@ -108,7 +108,7 @@ export function RunProgress({
             </h3>
             <ul className="space-y-2">
               {denials.map((d) => (
-                <li key={d.id} className="rounded-[10px] border border-line bg-canvas px-4 py-3">
+                <li key={d.id} className="rounded-[20px]  border-line bg-canvas px-4 py-3">
                   <p className="text-[0.87rem] text-ink">{d.action}</p>
                   {d.why ? (
                     <p className="mt-0.5 text-[0.82rem] leading-relaxed text-muted">{d.why}</p>
@@ -126,7 +126,7 @@ export function RunProgress({
             </h3>
             <ul className="space-y-2">
               {approvals.map((a) => (
-                <li key={a.request_id} className="rounded-[10px] border border-state-wait/30 bg-state-wait-tint px-4 py-3">
+                <li key={a.request_id} className="rounded-[20px]  bg-state-wait-tint px-4 py-3">
                   <p className="text-[0.88rem] font-medium text-ink">{a.title}</p>
                   {a.description ? (
                     <p className="mt-0.5 text-[0.83rem] leading-relaxed text-ink-2">{a.description}</p>
@@ -147,7 +147,7 @@ export function RunProgress({
             </h3>
             <ul className="space-y-2">
               {reviews.map((r) => (
-                <li key={r.id} className="rounded-[10px] border border-line px-4 py-3">
+                <li key={r.id} className="rounded-[20px]  border-line px-4 py-3">
                   <p className="text-[0.88rem] font-medium text-ink">{r.title}</p>
                   <p className="mt-0.5 text-[0.83rem] leading-relaxed text-ink-2">{r.reason}</p>
                   {r.uncertainty ? (

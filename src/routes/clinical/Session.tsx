@@ -81,7 +81,7 @@ export default function SessionWorkspace() {
                 )
               }
             }}
-            className="rounded-lg border border-line-strong bg-surface px-3 py-2 text-[0.83rem] text-ink hover:bg-surface-2"
+            className="rounded-2xl  bg-surface-2 px-3 py-2 text-[0.83rem] text-ink hover:bg-surface-2"
           >
             {label}
           </button>
@@ -174,7 +174,7 @@ export default function SessionWorkspace() {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Session notes"
-                className="w-full rounded-lg border border-line-strong px-3 py-2 text-[0.87rem] leading-relaxed outline-none"
+                className="w-full rounded-2xl  border-line-strong px-3 py-2 text-[0.87rem] leading-relaxed outline-none"
               />
             </CardBody>
           </Card>
@@ -187,7 +187,7 @@ export default function SessionWorkspace() {
                 value={observations}
                 onChange={(e) => setObservations(e.target.value)}
                 placeholder="What you observed, in your own words"
-                className="w-full rounded-lg border border-line-strong px-3 py-2 text-[0.87rem] leading-relaxed outline-none"
+                className="w-full rounded-2xl  border-line-strong px-3 py-2 text-[0.87rem] leading-relaxed outline-none"
               />
             </CardBody>
           </Card>
@@ -218,7 +218,7 @@ export default function SessionWorkspace() {
                   value={newAction}
                   onChange={(e) => setNewAction(e.target.value)}
                   placeholder="Add an action"
-                  className="min-w-0 flex-1 rounded-lg border border-line-strong px-3 py-2 text-[0.86rem] outline-none"
+                  className="min-w-0 flex-1 rounded-2xl  border-line-strong px-3 py-2 text-[0.86rem] outline-none"
                 />
                 <Button
                   onClick={() => {

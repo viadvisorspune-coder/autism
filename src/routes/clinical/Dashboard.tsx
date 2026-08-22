@@ -7,21 +7,26 @@ import {
   Grid,
   PageHeader,
   SectionTitle,
-  formatDateTime,
+  formatDate,
 } from '../../components/ui'
 import { AiProvenance, WhyButton } from '../../components/shared'
 import { RaiseDecision } from '../../components/Inbox'
 import { WorkStream } from '../../components/Priority'
 import { OrcaSuggests, SinceYouWereHere } from '../../components/Returning'
 import { PrepareSessionButton } from '../../components/PrepareSession'
+import { MyDay } from '../../components/MyDay'
+import { WhatOrcaRemembers } from '../../components/Remembers'
+import { Shortcuts } from '../../components/Shortcuts'
 import { StatRow } from '../../components/ui'
 import {
+  TODAY,
   appointments,
   memoryCandidates,
-  patientName,
   patients,
   requests,
+  requestsFor,
   reviewItems,
+  strategiesFor,
 } from '../../data/db'
 import { useSession } from '../../state/session'
 import { useUI } from '../../state/ui'
@@ -58,7 +63,6 @@ export default function ClinicalDashboard() {
 
   const base = option.home
   const intro = INTRO[role] ?? { title: 'Dashboard', description: '' }
-  const today = appointments.filter((a) => a.datetime.startsWith('2026-08-19'))
   // The soonest appointment that has not happened, which is the one the
   // "prepare" button in the header is about.
   const next = appointments
@@ -84,7 +88,7 @@ export default function ClinicalDashboard() {
             </Button>
             <Link
               to={`${base}/patients`}
-              className="rounded-lg border border-line-strong bg-surface px-3.5 py-2 text-[0.85rem] text-ink hover:bg-surface-2"
+              className="rounded-2xl  bg-surface-2 px-3.5 py-2 text-[0.85rem] text-ink hover:bg-surface-2"
             >
               Open patient list
             </Link>
@@ -117,9 +121,15 @@ export default function ClinicalDashboard() {
 
       <SinceYouWereHere />
 
+      <MyDay />
+
       <WorkStream />
 
       <OrcaSuggests />
+
+      <Shortcuts subject="your caseload" />
+
+      <WhatOrcaRemembers />
 
       <div className="mb-6">
         <RaiseDecision />
@@ -129,32 +139,7 @@ export default function ClinicalDashboard() {
         Signed in as {personName} · {option.label}
       </p>
 
-      <Grid cols={3}>
-        <Card>
-          <CardHead title="Today" meta={`${today.length} appointments`} />
-          <CardBody>
-            <ul className="space-y-3">
-              {today.map((a) => (
-                <li key={a.id}>
-                  <Link
-                    to={`${base}/patients/${a.patientId}`}
-                    className="text-[0.88rem] font-medium text-ink hover:underline"
-                  >
-                    {patientName(a.patientId)}
-                  </Link>
-                  <span className="block text-[0.79rem] text-muted">
-                    {formatDateTime(a.datetime)} · {a.purpose}
-                  </span>
-                </li>
-              ))}
-              {today.length === 0 ? (
-                <li className="text-[0.85rem] text-muted">No appointments today.</li>
-              ) : null}
-            </ul>
-          </CardBody>
-        </Card>
-
-
+      <Grid cols={2}>
         <Card>
           <CardHead
             title="Prepared by ORCA"
@@ -214,7 +199,7 @@ export default function ClinicalDashboard() {
             <Card key={p.id}>
               <CardHead title={p.name} meta={`${p.age} · ${p.pronouns}`} />
               <CardBody>
-                <p className="text-[0.85rem] leading-relaxed text-ink-2">{p.context}</p>
+                <PatientSignals patientId={p.id} fallback={p.context} />
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   <PrepareSessionButton patientId={p.id} />
                   <Link
@@ -230,5 +215,59 @@ export default function ClinicalDashboard() {
         </Grid>
       </div>
     </div>
+  )
+}
+
+
+/**
+ * What is worth knowing about this person at a glance.
+ *
+ * The card used to carry a paragraph of standing context — true, unchanging,
+ * and therefore worthless on a dashboard, because it reads the same on the day
+ * everything is fine as on the day it is not. A card that never changes is a
+ * card people stop reading.
+ *
+ * So it carries signals instead: the review that has come due, the strategy
+ * that stopped reporting, the question nobody answered. If none of those
+ * exist, it falls back to the standing context and says the quiet part —
+ * nothing needs attention — rather than manufacturing an alarm.
+ */
+function PatientSignals({ patientId, fallback }: { patientId: string; fallback: string }) {
+  const signals: string[] = []
+
+  strategiesFor(patientId).forEach((s) => {
+    if (s.status !== 'Active') return
+    const due = Math.round((Date.parse(s.reviewDate) - Date.parse(TODAY)) / 86_400_000)
+    if (due <= 7) signals.push(`${s.title} is due for review ${due < 0 ? 'and is overdue' : `in ${due} days`}`)
+    const last = s.checkIns.map((c) => c.date).sort().pop()
+    if (last && Math.round((Date.parse(TODAY) - Date.parse(last)) / 86_400_000) >= 14) {
+      signals.push(`No check-in on ${s.title.toLowerCase()} since ${formatDate(last)}`)
+    }
+  })
+
+  requestsFor(patientId).forEach((r) =>
+    r.clarifications
+      .filter((c) => !c.answer)
+      .forEach((c) => signals.push(`${r.destination} asked: “${c.question}”`)),
+  )
+
+  if (!signals.length) {
+    return (
+      <>
+        <p className="text-[0.85rem] leading-relaxed text-ink-2">{fallback}</p>
+        <p className="mt-1 text-[0.8rem] text-muted">Nothing needs attention.</p>
+      </>
+    )
+  }
+
+  return (
+    <ul className="space-y-1.5">
+      {signals.slice(0, 3).map((signal) => (
+        <li key={signal} className="flex gap-2 text-[0.84rem] leading-relaxed text-ink-2">
+          <span aria-hidden className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-state-wait" />
+          {signal}
+        </li>
+      ))}
+    </ul>
   )
 }

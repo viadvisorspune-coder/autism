@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '../../state/session'
+import { useMaturity } from '../../state/maturity'
+import { onAskOrca } from '../../lib/ask'
 import { ArrivalAlert } from '../../components/ArrivalAlert'
 import { Copilot } from '../../components/Copilot'
 import { useRecordStatus } from '../../data/RecordProvider'
@@ -13,7 +15,7 @@ function Logo({ tone }: { tone: string }) {
     <span className="flex items-center gap-2">
       <span
         aria-hidden
-        className={`flex h-7 w-7 items-center justify-center rounded-md ${tone} text-[0.78rem] font-bold text-white`}
+        className={`flex h-7 w-7 items-center justify-center rounded-2xl ${tone} text-[0.78rem] font-bold text-white`}
       >
         O
       </span>
@@ -30,6 +32,13 @@ export default function AppShell() {
   // is about, not on another screen.
   const [copilot, setCopilot] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null)
+
+  // A shortcut anywhere in the app opens the rail with its question ready.
+  useEffect(() => onAskOrca((question) => {
+    setPendingQuestion(question)
+    setCopilot(true)
+  }), [])
 
   if (!role || !option) return null
 
@@ -42,10 +51,10 @@ export default function AppShell() {
   return (
     <div className="min-h-screen">
       {/* ---------------------------------------------------------- top bar */}
-      <header className="sticky top-0 z-30 border-b border-line bg-surface">
+      <header className="frost sticky top-0 z-30">
         <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
           <button
-            className="rounded-md border border-line px-2 py-1 text-[0.8rem] text-ink-2 lg:hidden"
+            className="rounded-2xl  border-line px-2 py-1 text-[0.8rem] text-ink-2 lg:hidden"
             onClick={() => setNavOpen((v) => !v)}
             aria-expanded={navOpen}
           >
@@ -61,10 +70,10 @@ export default function AppShell() {
           <button
               onClick={() => setCopilot((c) => !c)}
               aria-pressed={copilot}
-              className={`ml-auto flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[0.82rem] font-medium ${
+              className={`ml-auto flex items-center gap-1.5 rounded-2xl  px-3 py-1.5 text-[0.82rem] font-medium ${
                 copilot
                   ? `${accent.border} ${accent.bg} text-white`
-                  : 'border-line-strong bg-surface text-ink hover:bg-surface-2'
+                  : 'bg-surface-2 text-ink hover:bg-surface-2'
               }`}
             >
               <span aria-hidden>✦</span> ORCA
@@ -72,7 +81,7 @@ export default function AppShell() {
 
           <button
             onClick={() => setPanel('search')}
-            className="ml-3 hidden w-64 items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 py-1.5 text-left text-[0.82rem] text-muted hover:border-line-strong md:flex"
+            className="ml-3 hidden w-64 items-center gap-2 rounded-2xl  border-line bg-surface-2 px-3 py-1.5 text-left text-[0.82rem] text-muted md:flex"
           >
             Search
           </button>
@@ -80,13 +89,13 @@ export default function AppShell() {
           <div className="ml-auto flex items-center gap-1 md:ml-0">
             <button
               onClick={() => setPanel('search')}
-              className="rounded-md px-2.5 py-1.5 text-[0.82rem] text-ink-2 hover:bg-canvas md:hidden"
+              className="rounded-2xl px-2.5 py-1.5 text-[0.82rem] text-ink-2 hover:bg-canvas md:hidden"
             >
               Search
             </button>
             <button
               onClick={() => setPanel('notifications')}
-              className="relative rounded-md px-2.5 py-1.5 text-[0.82rem] text-ink-2 hover:bg-canvas"
+              className="relative rounded-2xl px-2.5 py-1.5 text-[0.82rem] text-ink-2 hover:bg-canvas"
             >
               Notifications
               {unread > 0 ? (
@@ -97,13 +106,13 @@ export default function AppShell() {
             </button>
             <button
               onClick={() => setPanel('display')}
-              className="rounded-md px-2.5 py-1.5 text-[0.82rem] text-ink-2 hover:bg-canvas"
+              className="rounded-2xl px-2.5 py-1.5 text-[0.82rem] text-ink-2 hover:bg-canvas"
             >
               Help
             </button>
             <button
               onClick={() => setPanel(panel === 'profile' ? 'none' : 'profile')}
-              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[0.82rem] text-ink hover:bg-canvas"
+              className="flex items-center gap-2 rounded-2xl px-2 py-1.5 text-[0.82rem] text-ink hover:bg-canvas"
             >
               <span
                 aria-hidden
@@ -120,7 +129,7 @@ export default function AppShell() {
         </div>
 
         {panel === 'profile' ? (
-          <div className="absolute right-4 top-14 z-40 w-64 rounded-[10px] border border-line bg-surface p-2 shadow-lg">
+          <div className="frost elevate absolute right-4 top-14 z-40 w-64 rounded-[20px] p-2">
             <p className="px-3 py-2 text-[0.8rem] text-muted">
               Signed in as <span className="text-ink">{personName}</span>
               <span className="mt-0.5 block">{option.title}</span>
@@ -130,7 +139,7 @@ export default function AppShell() {
                 close()
                 setPanel('display')
               }}
-              className="w-full rounded-md px-3 py-2 text-left text-[0.85rem] text-ink hover:bg-canvas"
+              className="w-full rounded-2xl px-3 py-2 text-left text-[0.85rem] text-ink hover:bg-canvas"
             >
               Display settings
             </button>
@@ -139,7 +148,7 @@ export default function AppShell() {
                 signOut()
                 navigate('/')
               }}
-              className="w-full rounded-md px-3 py-2 text-left text-[0.85rem] text-ink hover:bg-canvas"
+              className="w-full rounded-2xl px-3 py-2 text-left text-[0.85rem] text-ink hover:bg-canvas"
             >
               Sign out
             </button>
@@ -153,11 +162,12 @@ export default function AppShell() {
           aria-label="Primary"
           className={`${
             navOpen ? 'block' : 'hidden'
-          } w-full shrink-0 border-r border-line bg-surface px-3 py-4 lg:sticky lg:top-14 lg:block lg:h-[calc(100vh-3.5rem)] lg:w-60 lg:overflow-y-auto`}
+          } frost w-full shrink-0 px-3 py-4 lg:sticky lg:top-14 lg:block lg:h-[calc(100vh-3.5rem)] lg:w-60 lg:overflow-y-auto`}
         >
           <p className="mb-2 px-3 text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted">
             {option.label}
           </p>
+          <Frequent onNavigate={() => setNavOpen(false)} />
           {items.map((group) => (
             <div key={group.title} className="mb-5 last:mb-0">
               <p className="mb-1.5 px-3 text-[0.68rem] font-semibold uppercase tracking-[0.09em] text-muted">
@@ -171,7 +181,7 @@ export default function AppShell() {
                       end={item.end}
                       onClick={() => setNavOpen(false)}
                       className={({ isActive }) =>
-                        `block rounded-md px-3 py-2 text-[0.86rem] ${
+                        `block rounded-2xl px-3 py-2 text-[0.86rem] ${
                           isActive
                             ? `${accent.tint} ${accent.text} font-medium`
                             : 'text-ink-2 hover:bg-canvas hover:text-ink'
@@ -190,7 +200,7 @@ export default function AppShell() {
             <Link
               to="/patient/guide"
               onClick={() => setNavOpen(false)}
-              className="mt-5 block rounded-[10px] bg-brand px-4 py-4 text-white hover:bg-brand-ink"
+              className="mt-5 block rounded-[20px] bg-brand px-4 py-4 text-white hover:bg-brand-ink"
             >
               <span className="flex items-center gap-2 text-[0.95rem] font-semibold">
                 <span aria-hidden>💬</span> Ask ORCA
@@ -211,6 +221,7 @@ export default function AppShell() {
         {/* ------------------------------------------------------- main content */}
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-8 sm:py-8">
           <RecordBanner />
+          <VisitRecorder />
           <Outlet />
         </main>
 
@@ -219,7 +230,11 @@ export default function AppShell() {
         {copilot ? (
           <div className="hidden w-[24rem] shrink-0 xl:block">
             <div className="sticky top-14 h-[calc(100vh-3.5rem)]">
-              <Copilot onClose={() => setCopilot(false)} />
+              <Copilot
+                onClose={() => setCopilot(false)}
+                question={pendingQuestion}
+                onQuestionUsed={() => setPendingQuestion(null)}
+              />
             </div>
           </div>
         ) : null}
@@ -234,7 +249,11 @@ export default function AppShell() {
             className="flex-1 bg-ink/20"
           />
           <div className="h-full w-[24rem] max-w-full">
-            <Copilot onClose={() => setCopilot(false)} />
+            <Copilot
+              onClose={() => setCopilot(false)}
+              question={pendingQuestion}
+              onQuestionUsed={() => setPendingQuestion(null)}
+            />
           </div>
         </div>
       ) : null}
@@ -274,7 +293,7 @@ function RecordBanner() {
   }
 
   return (
-    <div className="mb-6 rounded-[10px] border border-state-wait/25 bg-state-wait-tint px-4 py-3">
+    <div className="mb-6 rounded-[20px]  bg-state-wait-tint px-4 py-3">
       <p className="text-[0.85rem] font-semibold text-ink">Demonstration data</p>
       <p className="mt-1 text-[0.83rem] leading-relaxed text-ink-2">
         {note ?? 'The live record could not be reached.'} Everything below is the prototype's own example
@@ -313,5 +332,84 @@ function AskOrcaButton({ onOpen }: { onOpen: () => void }) {
       <span aria-hidden className="text-[1.05rem]">💬</span>
       <span className="text-[0.9rem] font-semibold">Ask ORCA</span>
     </button>
+  )
+}
+
+
+/**
+ * Counting what this person actually does.
+ *
+ * Only the page they landed on, only once per navigation, only on this device.
+ * It exists to answer one question — which of these fifteen destinations does
+ * this person keep going back to — so that after a fortnight the two they
+ * always use can be offered before the thirteen they never open.
+ *
+ * Deliberately a path and nothing else. No timings, no content, nothing about
+ * what they read when they got there. The point is to shorten a journey the
+ * person is already making, and anything beyond the destination would be
+ * surveillance dressed as convenience.
+ */
+function VisitRecorder() {
+  const location = useLocation()
+  const { record } = useMaturity()
+  const last = useRef<string | null>(null)
+
+  useEffect(() => {
+    const path = location.pathname
+    if (last.current === path) return
+    last.current = path
+    const leaf = path.split('/').filter(Boolean).slice(1).join('/') || 'home'
+    record(`visit:${leaf}`)
+  }, [location.pathname, record])
+
+  return null
+}
+
+/**
+ * The two or three places this person always ends up.
+ *
+ * Sits above the grouped navigation once there is enough history to be sure,
+ * and says why it is there. An unexplained list that reorders itself is
+ * disorienting for anyone and worse for someone who navigates by position —
+ * so this is additive, sits in a fixed place, and never reorders the real
+ * navigation underneath it.
+ */
+function Frequent({ onNavigate }: { onNavigate: () => void }) {
+  const { level, frequent } = useMaturity()
+  const { role } = useSession()
+  if (level < 2 || !role) return null
+
+  const groups = navByRole[role]
+  const all = groups.flatMap((g) => g.items)
+
+  const top = frequent(8)
+    .filter((a) => a.startsWith('visit:'))
+    .map((a) => a.replace('visit:', ''))
+    .map((leaf) => all.find((item) => item.to.split('/').filter(Boolean).slice(1).join('/') === leaf))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+    .slice(0, 3)
+
+  if (top.length < 2) return null
+
+  return (
+    <div className="mb-5">
+      <p className="mb-1.5 px-3 text-[0.68rem] font-semibold uppercase tracking-[0.09em] text-muted">
+        You come here often
+      </p>
+      <ul className="space-y-0.5">
+        {top.map((item) => (
+          <li key={item.to}>
+            <NavLink
+              to={item.to}
+              end={item.end}
+              onClick={onNavigate}
+              className="block rounded-2xl px-3 py-2 text-[0.86rem] text-ink-2 hover:bg-canvas hover:text-ink"
+            >
+              {item.label}
+            </NavLink>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }

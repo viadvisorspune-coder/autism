@@ -46,7 +46,7 @@ export function PatientSupport() {
             <li key={strategy.id}>
               <Link
                 to={`/patient/support/${strategy.id}`}
-                className="block rounded-[10px] border border-line bg-surface px-5 py-4 hover:border-line-strong"
+                className="block rounded-[20px]  bg-surface-2 px-5 py-4 hover:border-line-strong"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -107,9 +107,9 @@ export function PatientStrategy() {
             {phases.map((phase, i) => (
               <li
                 key={phase}
-                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[0.8rem] ${
+                className={`flex items-center gap-2 rounded-full  px-3 py-1.5 text-[0.8rem] ${
                   i < phaseIndex
-                    ? 'border-state-good/30 bg-state-good-tint text-state-good'
+                    ? 'bg-state-good-tint text-state-good'
                     : i === phaseIndex
                       ? 'border-brand bg-brand-tint text-brand-ink'
                       : 'border-line text-muted'
@@ -134,7 +134,7 @@ export function PatientStrategy() {
                     <li key={e.id}>
                       <Link
                         to={`/patient/story/${e.id}`}
-                        className="block rounded-lg border border-line px-3 py-2 text-[0.84rem] hover:border-line-strong"
+                        className="block rounded-2xl  border-line px-3 py-2 text-[0.84rem] hover:border-line-strong"
                       >
                         <span className="text-ink">{e.title}</span>
                         <span className="ml-2 text-muted">{formatDate(e.date)}</span>
@@ -195,7 +195,7 @@ export function PatientStrategy() {
                 </ul>
               )}
 
-              <div className="rounded-[10px] bg-canvas px-4 py-4">
+              <div className="rounded-[20px] bg-canvas px-4 py-4">
                 <h3 className="text-[0.88rem] font-medium text-ink">Add a check-in</h3>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {(['Helped', 'Partly helped', 'Did not help'] as const).map((h) => (
@@ -203,10 +203,10 @@ export function PatientStrategy() {
                       key={h}
                       onClick={() => setHelpfulness(h)}
                       aria-pressed={helpfulness === h}
-                      className={`rounded-full border px-3 py-1.5 text-[0.8rem] ${
+                      className={`rounded-full  px-3 py-1.5 text-[0.8rem] ${
                         helpfulness === h
                           ? 'border-brand bg-brand-tint text-brand-ink'
-                          : 'border-line bg-surface text-ink-2'
+                          : 'bg-surface-2 text-ink-2'
                       }`}
                     >
                       {h}
@@ -218,7 +218,7 @@ export function PatientStrategy() {
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="What happened? How much notice did you get?"
-                  className="mt-3 w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-[0.87rem] outline-none"
+                  className="mt-3 w-full rounded-2xl  bg-surface-2 px-3 py-2 text-[0.87rem] outline-none"
                 />
                 <Button
                   variant="primary"
@@ -258,7 +258,7 @@ export function PatientStrategy() {
                   ]}
                 />
                 {strategy.outcome.proposedAdaptation ? (
-                  <div className="rounded-[10px] border border-state-wait/25 bg-state-wait-tint px-4 py-3">
+                  <div className="rounded-[20px]  bg-state-wait-tint px-4 py-3">
                     <p className="text-[0.8rem] font-semibold uppercase tracking-[0.07em] text-state-wait">
                       Proposed adaptation
                     </p>
@@ -308,7 +308,7 @@ export function PatientStrategy() {
               <Button onClick={() => say('Kept as it is.')}>Continue</Button>
               <Link
                 to="/patient/guide"
-                className="rounded-lg border border-line-strong px-3.5 py-2 text-center text-[0.85rem] text-ink hover:bg-surface-2"
+                className="rounded-2xl  border-line-strong px-3.5 py-2 text-center text-[0.85rem] text-ink hover:bg-surface-2"
               >
                 Ask ORCA about this
               </Link>

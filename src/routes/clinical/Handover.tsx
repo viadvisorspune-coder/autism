@@ -54,9 +54,9 @@ export default function HandoverBuilder() {
         {STAGES.map((label, i) => (
           <li
             key={label}
-            className={`rounded-full border px-3 py-1.5 text-[0.79rem] ${
+            className={`rounded-full  px-3 py-1.5 text-[0.79rem] ${
               i < stage
-                ? 'border-state-good/30 bg-state-good-tint text-state-good'
+                ? 'bg-state-good-tint text-state-good'
                 : i === stage
                   ? 'border-clinical bg-clinical-tint text-clinical'
                   : 'border-line text-muted'
@@ -76,7 +76,7 @@ export default function HandoverBuilder() {
                 <select
                   value={patient}
                   onChange={(e) => setPatient(e.target.value)}
-                  className="w-full rounded-lg border border-line-strong px-3 py-2 text-[0.88rem]"
+                  className="w-full rounded-2xl  border-line-strong px-3 py-2 text-[0.88rem]"
                 >
                   {patients.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -91,7 +91,7 @@ export default function HandoverBuilder() {
                 <select
                   value={recipient}
                   onChange={(e) => setRecipient(e.target.value)}
-                  className="w-full rounded-lg border border-line-strong px-3 py-2 text-[0.88rem]"
+                  className="w-full rounded-2xl  border-line-strong px-3 py-2 text-[0.88rem]"
                 >
                   {people
                     .filter((p) => !['patient', 'admin'].includes(p.role))
@@ -108,7 +108,7 @@ export default function HandoverBuilder() {
                 <input
                   value={purpose}
                   onChange={(e) => setPurpose(e.target.value)}
-                  className="w-full rounded-lg border border-line-strong px-3 py-2 text-[0.88rem] outline-none"
+                  className="w-full rounded-2xl  border-line-strong px-3 py-2 text-[0.88rem] outline-none"
                 />
               </label>
 
@@ -117,7 +117,7 @@ export default function HandoverBuilder() {
                 <select
                   value={period}
                   onChange={(e) => setPeriod(e.target.value)}
-                  className="w-full rounded-lg border border-line-strong px-3 py-2 text-[0.88rem]"
+                  className="w-full rounded-2xl  border-line-strong px-3 py-2 text-[0.88rem]"
                 >
                   {['Last month', 'Last 3 months', 'Last 6 months', 'Since diagnosis'].map((p) => (
                     <option key={p}>{p}</option>
@@ -135,7 +135,7 @@ export default function HandoverBuilder() {
                     return (
                       <li key={c}>
                         <label
-                          className={`flex items-start gap-2.5 rounded-lg border px-3.5 py-2.5 text-[0.87rem] ${
+                          className={`flex items-start gap-2.5 rounded-2xl  px-3.5 py-2.5 text-[0.87rem] ${
                             blocked ? 'border-line bg-surface-2 text-muted' : 'border-line text-ink'
                           }`}
                         >
@@ -174,7 +174,7 @@ export default function HandoverBuilder() {
                 rows={9}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                className="w-full rounded-lg border border-line-strong px-3.5 py-3 text-[0.89rem] leading-relaxed outline-none"
+                className="w-full rounded-2xl  border-line-strong px-3.5 py-3 text-[0.89rem] leading-relaxed outline-none"
               />
               <AiProvenance />
             </>
@@ -192,7 +192,7 @@ export default function HandoverBuilder() {
                   { label: 'Categories', value: chosen.join(', ') },
                 ]}
               />
-              <p className="rounded-[10px] bg-canvas px-4 py-3 text-[0.87rem] leading-relaxed text-ink">
+              <p className="rounded-[20px] bg-canvas px-4 py-3 text-[0.87rem] leading-relaxed text-ink">
                 {draft}
               </p>
               <Callout tone="wait" title="This still needs the patient's approval">

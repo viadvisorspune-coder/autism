@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { accountFor, accounts, useSession } from '../../state/session'
+import { accountFor, accounts, hasOnboarded, useSession } from '../../state/session'
 import { Button, Card, CardBody } from '../../components/ui'
 
 function AuthFrame({
@@ -20,7 +20,7 @@ function AuthFrame({
         <div className="mb-6 flex items-center gap-2">
           <span
             aria-hidden
-            className="flex h-8 w-8 items-center justify-center rounded-md bg-brand text-[0.85rem] font-bold text-white"
+            className="flex h-8 w-8 items-center justify-center rounded-2xl bg-brand text-[0.85rem] font-bold text-white"
           >
             O
           </span>
@@ -58,7 +58,9 @@ export function Login() {
       return
     }
     signIn(account)
-    navigate(account.home)
+    // Not account.home: someone who has never been here goes to the
+    // introduction first, and the route table decides which that is.
+    navigate(hasOnboarded(account.personId) ? account.home : '/setup', { replace: true })
   }
 
   return (
@@ -87,7 +89,7 @@ export function Login() {
                   }}
                   placeholder="name@example.in"
                   autoComplete="username"
-                  className="w-full rounded-lg border border-line-strong px-3 py-2.5 text-[0.9rem] outline-none placeholder:text-muted"
+                  className="w-full rounded-2xl  border-line-strong px-3 py-2.5 text-[0.9rem] outline-none placeholder:text-muted"
                 />
               </label>
               <label className="block">
@@ -97,7 +99,7 @@ export function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
-                  className="w-full rounded-lg border border-line-strong px-3 py-2.5 text-[0.9rem] outline-none"
+                  className="w-full rounded-2xl  border-line-strong px-3 py-2.5 text-[0.9rem] outline-none"
                 />
               </label>
 
@@ -135,10 +137,10 @@ export function Login() {
                   type="button"
                   onClick={() => fill(option)}
                   aria-pressed={email === option.email}
-                  className={`h-full w-full rounded-[10px] border px-4 py-3 text-left transition-colors ${
+                  className={`h-full w-full rounded-[20px]  px-4 py-3 text-left transition-colors ${
                     email === option.email
                       ? 'border-brand bg-brand-tint'
-                      : 'border-line bg-surface hover:border-line-strong hover:bg-surface-2'
+                      : 'bg-surface-2 hover:bg-surface-2'
                   }`}
                 >
                   <span className="block text-[0.89rem] font-medium text-ink">{option.name}</span>
@@ -231,7 +233,7 @@ export function FirstRun() {
                     key={opt}
                     onClick={() => setChoices((c) => ({ ...c, [group.title]: opt }))}
                     aria-pressed={choices[group.title] === opt}
-                    className={`rounded-full border px-3 py-1.5 text-[0.82rem] ${
+                    className={`rounded-full  px-3 py-1.5 text-[0.82rem] ${
                       choices[group.title] === opt
                         ? 'border-brand bg-brand-tint text-brand-ink'
                         : 'border-line text-ink-2 hover:border-line-strong'

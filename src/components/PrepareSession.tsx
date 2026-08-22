@@ -53,8 +53,8 @@ export function PrepareSessionButton({
         onClick={() => setOpen(true)}
         className={
           variant === 'primary'
-            ? 'rounded-lg bg-clinical px-4 py-2 text-[0.87rem] font-medium text-white hover:bg-clinical-ink'
-            : 'rounded-lg border border-line-strong bg-surface px-3.5 py-2 text-[0.85rem] font-medium text-ink hover:bg-surface-2'
+            ? 'rounded-2xl bg-clinical px-4 py-2 text-[0.87rem] font-medium text-white hover:bg-clinical-ink'
+            : 'rounded-2xl  bg-surface-2 px-3.5 py-2 text-[0.85rem] font-medium text-ink hover:bg-surface-2'
         }
       >
         Prepare for session
@@ -116,9 +116,9 @@ function SessionBrief({ patientId, onClose }: { patientId: string; onClose: () =
       <div
         role="dialog"
         aria-label={`Session brief for ${patientName(patientId)}`}
-        className="h-full w-[34rem] max-w-full overflow-y-auto border-l border-line bg-surface"
+        className="frost h-full w-[34rem] max-w-full overflow-y-auto"
       >
-        <div className="sticky top-0 flex items-start justify-between gap-3 border-b border-line bg-surface px-6 py-4">
+        <div className="frost sticky top-0 flex items-start justify-between gap-3 px-6 py-4">
           <div>
             <p className="text-[0.72rem] font-semibold uppercase tracking-[0.07em] text-muted">
               Session brief
@@ -134,7 +134,7 @@ function SessionBrief({ patientId, onClose }: { patientId: string; onClose: () =
           </div>
           <button
             onClick={onClose}
-            className="rounded-md px-2 py-1 text-[0.82rem] text-muted hover:bg-canvas hover:text-ink"
+            className="rounded-2xl px-2 py-1 text-[0.82rem] text-muted hover:bg-canvas hover:text-ink"
           >
             Close
           </button>
@@ -252,7 +252,7 @@ function SessionBrief({ patientId, onClose }: { patientId: string; onClose: () =
             )}
           </Block>
 
-          <div className="mt-5 rounded-[10px] border border-line bg-canvas px-4 py-3">
+          <div className="mt-5 rounded-[20px]  border-line bg-canvas px-4 py-3">
             <p className="text-[0.78rem] font-semibold uppercase tracking-[0.06em] text-muted">
               Assembled from
             </p>
@@ -273,7 +273,7 @@ function SessionBrief({ patientId, onClose }: { patientId: string; onClose: () =
             <Link
               to={`${base}/session`}
               onClick={onClose}
-              className="mt-4 inline-block rounded-lg bg-clinical px-4 py-2 text-[0.87rem] font-medium text-white hover:bg-clinical-ink"
+              className="mt-4 inline-block rounded-2xl bg-clinical px-4 py-2 text-[0.87rem] font-medium text-white hover:bg-clinical-ink"
             >
               Open session workspace
             </Link>

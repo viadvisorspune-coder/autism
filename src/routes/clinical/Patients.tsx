@@ -125,7 +125,7 @@ export function ClinicalPatientOverview() {
       />
 
       {next ? (
-        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-[10px] border border-line bg-surface px-5 py-3">
+        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-[20px]  bg-surface-2 px-5 py-3">
           <span className="text-[0.85rem] text-muted">Next appointment</span>
           <span className="text-[0.88rem] font-medium text-ink">{formatDateTime(next.datetime)}</span>
           <span className="text-[0.85rem] text-ink-2">

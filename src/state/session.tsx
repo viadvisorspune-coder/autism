@@ -189,6 +189,42 @@ function readStored(): StoredSession {
   return { signedIn: false, role: null, setupComplete: false }
 }
 
+/**
+ * Whether this person has been through first-run, on this device.
+ *
+ * Kept in local storage rather than the session, because "have I seen the
+ * introduction" is a fact about a person and not about a browsing session —
+ * being walked through the privacy model again on every sign-in would teach
+ * people to click past the one screen most worth reading.
+ */
+const ONBOARDED = (personId: string) => `orca.onboarded.${personId}`
+
+export function hasOnboarded(personId: string): boolean {
+  try {
+    return window.localStorage.getItem(ONBOARDED(personId)) === 'yes'
+  } catch {
+    return false
+  }
+}
+
+function rememberOnboarded(personId: string) {
+  try {
+    window.localStorage.setItem(ONBOARDED(personId), 'yes')
+  } catch {
+    /* Private browsing. They will be offered the introduction again. */
+  }
+}
+
+/** Demo affordance: put a person back to their very first sign-in. */
+export function forgetOnboarding(personId: string) {
+  try {
+    window.localStorage.removeItem(ONBOARDED(personId))
+    window.localStorage.removeItem(`orca.maturity.${personId}`)
+  } catch {
+    /* Nothing stored, nothing to clear. */
+  }
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const stored = readStored()
   const [signedIn, setSignedIn] = useState(stored.signedIn)
@@ -207,7 +243,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback((option: RoleOption) => {
     setRole(option.role)
     setSignedIn(true)
-    setSetupComplete(true)
+    // A returning person goes straight to their work. Only someone who has
+    // never been here gets the six screens.
+    setSetupComplete(hasOnboarded(option.personId))
   }, [])
   const signOut = useCallback(() => {
     setSignedIn(false)
@@ -215,7 +253,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setSetupComplete(false)
   }, [])
   const chooseRole = useCallback((next: Role) => setRole(next), [])
-  const completeSetup = useCallback(() => setSetupComplete(true), [])
+  const completeSetup = useCallback(() => {
+    setSetupComplete(true)
+    const current = roleOptions.find((r) => r.role === role)
+    if (current) rememberOnboarded(current.personId)
+  }, [role])
 
   const value = useMemo<SessionValue>(() => {
     const option = roleOptions.find((r) => r.role === role) ?? null
