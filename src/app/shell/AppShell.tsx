@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '../../state/session'
 import { useRecordStatus } from '../../data/RecordProvider'
 import { accentByExperience, navByRole } from '../nav'
@@ -166,11 +166,14 @@ export default function AppShell() {
             <Link
               to="/patient/guide"
               onClick={() => setNavOpen(false)}
-              className="mt-5 block rounded-[10px] bg-brand px-4 py-3 text-white"
+              className="mt-5 block rounded-[10px] bg-brand px-4 py-4 text-white hover:bg-brand-ink"
             >
-              <span className="block text-[0.9rem] font-semibold">Talk to ORCA</span>
-              <span className="mt-0.5 block text-[0.78rem] text-white/80">
-                Ask about anything that is going on
+              <span className="flex items-center gap-2 text-[0.95rem] font-semibold">
+                <span aria-hidden>💬</span> Ask ORCA
+              </span>
+              <span className="mt-1 block text-[0.79rem] leading-relaxed text-white/85">
+                Describe what is happening in your own words. It will use what you have already told
+                it, and stop to ask you before anything is shared.
               </span>
             </Link>
           ) : null}
@@ -187,6 +190,8 @@ export default function AppShell() {
           <Outlet />
         </main>
       </div>
+
+      {role === 'patient' ? <AskOrcaButton /> : null}
 
       {panel === 'notifications' ? <NotificationPanel onClose={close} /> : null}
       {panel === 'search' ? <SearchPanel onClose={close} /> : null}
@@ -224,5 +229,33 @@ function RecordBanner() {
         record. It is not a reading of anyone's information.
       </p>
     </div>
+  )
+}
+
+
+/**
+ * The way in to the assistant, from wherever you are.
+ *
+ * It used to be one card in the sidebar, which meant that on any screen where
+ * the sidebar was collapsed — every phone, and every desktop once you scrolled
+ * — the main thing ORCA can do for a person was invisible. This sits above the
+ * page and does not move, because the moment someone needs to ask for help is
+ * rarely the moment they are looking at the navigation.
+ *
+ * It hides itself on the Guide, where it would only be a button leading to the
+ * page you are already on.
+ */
+function AskOrcaButton() {
+  const location = useLocation()
+  if (location.pathname.startsWith('/patient/guide')) return null
+
+  return (
+    <Link
+      to="/patient/guide"
+      className="fixed bottom-5 right-5 z-30 flex items-center gap-2.5 rounded-full bg-brand px-5 py-3.5 text-white shadow-lg hover:bg-brand-ink"
+    >
+      <span aria-hidden className="text-[1.05rem]">💬</span>
+      <span className="text-[0.9rem] font-semibold">Ask ORCA</span>
+    </Link>
   )
 }

@@ -20,6 +20,7 @@ import {
   strategiesFor,
   timeline,
 } from '../../data/db'
+import { PriorityStack } from '../../components/Priority'
 
 /**
  * 3.1 Patient dashboard.
@@ -45,8 +46,51 @@ export default function PatientHome() {
       <h1 className="text-[1.6rem] font-semibold tracking-[-0.015em] text-ink">Good morning, Ananya</h1>
       <p className="mt-1 text-[0.9rem] text-muted">Wednesday, {formatDate('2026-08-19')}</p>
 
+      {/* Urgency first, and always in the same place. */}
+      <div className="mt-6">
+        <PriorityStack
+          extraCount={[pending?.clarifications.length, memory, appointment, awaitingYou].filter(Boolean).length}
+          extra={
+            <>
+          {pending?.clarifications.length ? (
+            <AttentionRow
+              to={`/patient/requests/${pending.id}`}
+              title="Your employer has asked a question about your request"
+              detail="ORCA has drafted an answer. Nothing is sent until you approve it."
+              status="Awaiting approval"
+            />
+          ) : null}
+          {memory ? (
+            <AttentionRow
+              to="/patient/profile"
+              title="ORCA wants to remember something about advance notice"
+              detail="Confirm, edit or decline. It stays out of your record until you decide."
+              status="Awaiting approval"
+            />
+          ) : null}
+          {appointment ? (
+            <AttentionRow
+              to={`/patient/care/appointments/${appointment.id}/prepare`}
+              title={`Appointment brief for ${formatDate(appointment.datetime.split('T')[0])} is ready`}
+              detail={`It will be shared with ${personName(appointment.professionalId)} only after you approve it.`}
+              status="Awaiting approval"
+            />
+          ) : null}
+          {awaitingYou ? (
+            <AttentionRow
+              to={`/patient/requests/${awaitingYou.id}`}
+              title={awaitingYou.title}
+              detail="Review what would be shared before it goes anywhere."
+              status={awaitingYou.status}
+            />
+          ) : null}
+            </>
+          }
+        />
+      </div>
+
       {/* ------------------------------------------- primary interaction */}
-      <Card className="mt-6">
+      <Card>
         <CardBody>
           <label htmlFor="guide-input" className="block text-[1.05rem] font-medium text-ink">
             What do you need help with today?
@@ -94,45 +138,7 @@ export default function PatientHome() {
       </Card>
 
       {/* --------------------------------------------- needs your attention */}
-      <div className="mt-8">
-        <SectionTitle>Needs your attention</SectionTitle>
-        <div className="space-y-3">
-          {pending?.clarifications.length ? (
-            <AttentionRow
-              to={`/patient/requests/${pending.id}`}
-              title="Your employer has asked a question about your request"
-              detail="ORCA has drafted an answer. Nothing is sent until you approve it."
-              status="Awaiting approval"
-            />
-          ) : null}
-          {memory ? (
-            <AttentionRow
-              to="/patient/profile"
-              title="ORCA wants to remember something about advance notice"
-              detail="Confirm, edit or decline. It stays out of your record until you decide."
-              status="Awaiting approval"
-            />
-          ) : null}
-          {appointment ? (
-            <AttentionRow
-              to={`/patient/care/appointments/${appointment.id}/prepare`}
-              title={`Appointment brief for ${formatDate(appointment.datetime.split('T')[0])} is ready`}
-              detail={`It will be shared with ${personName(appointment.professionalId)} only after you approve it.`}
-              status="Awaiting approval"
-            />
-          ) : null}
-          {awaitingYou ? (
-            <AttentionRow
-              to={`/patient/requests/${awaitingYou.id}`}
-              title={awaitingYou.title}
-              detail="Review what would be shared before it goes anywhere."
-              status={awaitingYou.status}
-            />
-          ) : null}
-        </div>
-      </div>
-
-      {/* ---------------------------------------------- current activity */}
+            {/* ---------------------------------------------- current activity */}
       <div className="mt-8">
         <SectionTitle>Happening now</SectionTitle>
         <Grid cols={2}>

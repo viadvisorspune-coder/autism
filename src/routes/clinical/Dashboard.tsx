@@ -12,6 +12,7 @@ import {
 } from '../../components/ui'
 import { AiProvenance, ReviewRequiredCard, WhyButton } from '../../components/shared'
 import { Inbox, RaiseDecision } from '../../components/Inbox'
+import { PriorityStack } from '../../components/Priority'
 import {
   appointments,
   memoryCandidates,
@@ -81,6 +82,8 @@ export default function ClinicalDashboard() {
           </>
         }
       />
+
+      <PriorityStack />
 
       {/* The other side of the same conversation the patient is having. */}
       <div className="mb-6 space-y-6">
