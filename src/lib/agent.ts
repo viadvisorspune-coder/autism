@@ -248,10 +248,22 @@ async function readErrorBody(error: unknown): Promise<string | null> {
     const record = parsed as Record<string, unknown> | null
     if (!record) return null
 
-    // A rejection from Yoxa carries its own status and body; say both.
+    // A rejection carries a status, and the status says whose problem it is.
+    // Repeating one explanation for every code sends people to check the thing
+    // that is already correct — which is exactly what a 403 message did when
+    // the answer was a 500.
     if (record.error === 'trigger_rejected') {
-      const status = record.status
-      return `Yoxa refused the request (HTTP ${status}). The deployment may be inactive, or the deployment secret may be wrong.`
+      const status = Number(record.status ?? 0)
+      if (status >= 500) {
+        return 'The workflow service failed on its side (HTTP 500). Nothing is wrong with your record or your request. This usually means the deployment needs re-activating after a configuration change.'
+      }
+      if (status === 403 || status === 401) {
+        return 'The workflow service refused the request. Either the deployment is not active, or the deployment secret here does not match the one in Yoxa.'
+      }
+      if (status === 404) {
+        return 'The workflow service does not recognise this deployment. Its address may have changed.'
+      }
+      return `The workflow service refused the request (HTTP ${status}).`
     }
     if (record.error === 'yoxa_unreachable') {
       return 'Yoxa could not be reached. Nothing was sent.'
