@@ -53,6 +53,87 @@ export interface LocalAction {
   think?: string
 }
 
+/**
+ * Somewhere in the interface, named by somebody who wants to be there.
+ *
+ * Every screen is listed with the words people actually use for it, which are
+ * rarely the words in the navigation. Nobody says "support strategies" — they
+ * say "what am I trying".
+ */
+interface Destination {
+  to: string
+  label: string
+  line: string
+  words: RegExp
+}
+
+const PLACES: Destination[] = [
+  {
+    to: '/patient/story',
+    label: 'My story',
+    line: 'Opening your story.',
+    words: /\b(my story|the story|timeline|my history|what has happened)\b/i,
+  },
+  {
+    to: '/patient/profile',
+    label: 'My profile',
+    line: 'Opening your profile — everything recorded about you, with where each part came from.',
+    words: /\b(my profile|about me|what (do you|orca) know|what is recorded)\b/i,
+  },
+  {
+    to: '/patient/support',
+    label: 'My support',
+    line: 'Opening what you are trying.',
+    words: /\b(my support|my strategies|what am i trying|the trial)\b/i,
+  },
+  {
+    to: '/patient/calendar',
+    label: 'Calendar',
+    line: 'Opening your calendar.',
+    words: /\b(my calendar|my diary|my appointments|what is booked)\b/i,
+  },
+  {
+    to: '/patient/documents',
+    label: 'Documents',
+    line: 'Opening your documents.',
+    words: /\b(my documents|my files|my letters|my reports)\b/i,
+  },
+  {
+    to: '/patient/privacy',
+    label: 'Privacy and sharing',
+    line: 'Opening privacy and sharing.',
+    words: /\b(my privacy|sharing settings|who i share)\b/i,
+  },
+  {
+    to: '/patient/requests',
+    label: 'My requests',
+    line: 'Opening your requests.',
+    words: /\b(my requests|what i have asked for)\b/i,
+  },
+  {
+    to: '/patient/progress',
+    label: 'Progress',
+    line: 'Opening your progress.',
+    words: /\b(my progress|how am i doing|what has changed overall)\b/i,
+  },
+]
+
+/**
+ * Asking to be taken somewhere, rather than asking about it.
+ *
+ * "Show me my story" wants the page. "What is in my story" wants an answer.
+ * The difference is a verb of showing or going, so that is what is required —
+ * a bare mention of a screen name is not a request to leave the conversation,
+ * and moving somebody who did not ask to move is the rudest thing an interface
+ * can do to a person who finds unexpected change expensive.
+ */
+const GO = /\b(show|open|take me|go to|bring up|see|view|jump to|navigate)\b/i
+
+function destinationIn(question: string): Destination | null {
+  if (!GO.test(question)) return null
+  return PLACES.find((p) => p.words.test(question)) ?? null
+}
+
 export interface LocalAnswer {
   /** The answer itself. One or two sentences. Nothing else goes here. */
   text: string
@@ -63,6 +144,14 @@ export interface LocalAnswer {
   sources: LocalSource[]
   /** False when nothing in the record matched, so callers can stop explaining. */
   matched?: boolean
+  /**
+   * Somewhere to go, when the person asked to be taken there.
+   *
+   * The caller navigates on this. Set only for an explicit request — never as
+   * a helpful guess, because moving somebody who did not ask to move is the
+   * rudest thing this interface could do.
+   */
+  goTo?: string
 }
 
 const DAY = 86_400_000
@@ -272,6 +361,22 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
         actions: [{ label: 'Edit or remove any of it', to: '/patient/profile' }],
         sources: [{ label: 'My profile', detail: 'Everything recorded about you', to: '/patient/profile' }],
       }
+    }
+  }
+
+  /* ------------------------------------------------ take me somewhere */
+  // "Show me my story" is not a question about the record. It is a request to
+  // be somewhere, and the honest answer is to open it rather than to describe
+  // it. Placed after the specific lookups so that "who can see my record" is
+  // still answered rather than turned into a trip to the privacy page.
+  const place = destinationIn(question)
+  if (place) {
+    return {
+      text: place.line,
+      actions: [{ label: place.label, to: place.to }],
+      sources: [],
+      // The caller navigates on this rather than waiting to be clicked.
+      goTo: place.to,
     }
   }
 

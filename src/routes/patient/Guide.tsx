@@ -32,6 +32,7 @@ import {
  */
 export default function PatientGuide() {
   const location = useLocation() as { state?: { message?: string } }
+  const navigate = useNavigate()
   const { say } = useUI()
   const { option } = useSession()
   const [messages, setMessages] = useState<GuideMessage[]>(guideConversation)
@@ -185,6 +186,16 @@ export default function PatientGuide() {
       force && local.matched === false
         ? 'Let me think about this one properly.'
         : local.text
+
+    // Asked to be taken somewhere: say it, then go. The pause is deliberate —
+    // the sentence has to be readable before the screen changes, or the person
+    // arrives somewhere without knowing why.
+    if (local.goTo) {
+      say2(local.text)
+      const to = local.goTo
+      window.setTimeout(() => navigate(to), 700)
+      return
+    }
 
     say2(escalating ? `${opener}\n\n${startedLine(verbosity === 'concise', lane)}` : opener, {
       detail: force && local.matched === false ? undefined : local.detail,
