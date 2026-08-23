@@ -29,18 +29,19 @@ type Resource =
   | 'approvals'
   | 'workflow_runs'
   | 'calendar'
+  | 'caseload'
 
 /** What each role may ever receive, before per-patient consent narrows it. */
 const ROLE_MAY_READ: Record<string, Resource[]> = {
   patient: ['bundle', 'run', 'inbox', 'conversation', 'privacy', 'timeline', 'requests', 'profile', 'strategies', 'audit', 'approvals', 'workflow_runs', 'calendar'],
-  psychologist: ['calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'strategies', 'requests', 'approvals'],
-  psychiatrist: ['calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'requests'],
-  therapist: ['calendar', 'bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies'],
-  ot: ['calendar', 'bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies'],
-  gp: ['calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile'],
-  clinic: ['calendar', 'bundle', 'run', 'inbox', 'conversation', 'requests', 'workflow_runs'],
-  employer: ['bundle', 'run', 'inbox', 'conversation', 'requests'],
-  university: ['bundle', 'run', 'inbox', 'conversation', 'requests'],
+  psychologist: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'strategies', 'requests', 'approvals'],
+  psychiatrist: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'requests'],
+  therapist: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies'],
+  ot: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies'],
+  gp: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile'],
+  clinic: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'requests', 'workflow_runs'],
+  employer: ['caseload', 'bundle', 'run', 'inbox', 'conversation', 'requests'],
+  university: ['caseload', 'bundle', 'run', 'inbox', 'conversation', 'requests'],
   trusted: ['bundle', 'run', 'inbox', 'conversation', 'profile'],
   admin: ['bundle', 'run', 'inbox', 'conversation', 'workflow_runs', 'audit'],
 }
@@ -112,7 +113,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const data = await read(resource, patientId, runId, conversationActor)
+    const data = await read(resource, patientId, runId, conversationActor, role)
     return json({ resource, role, permitted: true, reason: null, data })
   } catch (error) {
     console.error(error)
@@ -125,6 +126,7 @@ async function read(
   patientId: string | null,
   runId: string | null,
   actorId: string | null,
+  role: string = 'patient',
 ): Promise<unknown> {
   switch (resource) {
     // The thread, plus what changed while this person was away. Both together,
@@ -343,6 +345,151 @@ async function read(
     // Everything the interface renders, in one call at boot. The alternative —
     // one request per screen — turns a role switch into twenty round trips and
     // makes every screen responsible for its own loading state.
+    /**
+     * A professional's whole caseload, one row per person.
+     *
+     * Every other read here is scoped to one record, which is right — but it
+     * left a clinician with twelve people unable to ask the question they
+     * actually have between appointments, which is never "tell me about
+     * Ananya". It is "which of these twelve needs me first". Answering that by
+     * opening twelve records in turn is not answering it.
+     *
+     * THE SCOPE IS PER CONNECTION, NOT PER ROLE. This is the part worth being
+     * careful about. Twelve patients means twelve separate consent decisions,
+     * and they do not agree with each other: one has shared their strategies
+     * and not their requests, another the reverse. So each row is assembled
+     * against that patient's own `access_scope`, and a count this clinician
+     * may not see is `null` — absent, not zero. Zero is a claim about the
+     * record; null is an honest "not yours to know".
+     *
+     * Nothing here returns content. Counts, dates and one reason per person —
+     * enough to decide who to open, and no more. Opening them goes through the
+     * ordinary per-record path with its ordinary checks.
+     */
+    case 'caseload': {
+      if (!actorId) return { patients: [], as_of: new Date().toISOString() }
+
+      const today = new Date().toISOString().slice(0, 10)
+
+      const { data: links } = await admin
+        .from('connections')
+        .select('patient_id, relationship, purpose, access_scope, review_due, last_interaction')
+        .eq('person_id', actorId)
+        .eq('consent_status', 'Active')
+
+      // A connection past its review date has lapsed. It is not a caseload
+      // member until somebody renews it, and quietly including it here would
+      // be the exact leak the review date exists to prevent.
+      const live = (links ?? []).filter((l) => !l.review_due || String(l.review_due) >= today)
+      if (!live.length) return { patients: [], as_of: new Date().toISOString() }
+
+      const ids = live.map((l) => String(l.patient_id))
+
+      const [names, strategies, requests, appointments, reviews, events] =
+        await Promise.all([
+          admin.from('patients').select('id, name').in('id', ids),
+          admin.from('strategies').select('id, patient_id, title, status, review_date').in('patient_id', ids),
+          admin
+            .from('requests')
+            .select('id, patient_id, title, status, current_owner, raised_on, clarifications')
+            .in('patient_id', ids),
+          admin
+            .from('appointments')
+            .select('patient_id, scheduled_for, status, preparation_status')
+            .in('patient_id', ids)
+            .gte('scheduled_for', new Date().toISOString()),
+          admin.from('review_items').select('patient_id, status, assigned_to').in('patient_id', ids),
+          admin
+            .from('timeline_events')
+            .select('patient_id, recorded_on')
+            .in('patient_id', ids)
+            .order('recorded_on', { ascending: false }),
+        ])
+
+      const nameOf = new Map((names.data ?? []).map((p) => [String(p.id), String(p.name)]))
+
+      // Check-ins hang off the strategy, so they are fetched once the strategy
+      // ids are known rather than by patient.
+      const strategyIds = (strategies.data ?? []).map((s) => String(s.id))
+      const { data: checkins } = strategyIds.length
+        ? await admin.from('strategy_checkins').select('strategy_id, recorded_on').in('strategy_id', strategyIds)
+        : { data: [] }
+
+      const lastCheckIn = new Map<string, string>()
+      for (const c of checkins ?? []) {
+        const at = String(c.recorded_on)
+        const key = String(c.strategy_id)
+        if (!lastCheckIn.has(key) || at > lastCheckIn.get(key)!) lastCheckIn.set(key, at)
+      }
+
+      /** A request with a question on it that nobody has answered. */
+      const isWaiting = (r: Record<string, unknown>) =>
+        Array.isArray(r.clarifications) &&
+        (r.clarifications as { answer?: unknown }[]).some((c) => !c?.answer)
+
+      const rows = live.map((link) => {
+        const id = String(link.patient_id)
+        const scope = (link.access_scope as string[] | null) ?? []
+        const allows = (...words: string[]) =>
+          scope.length === 0 || words.some((w) => scope.some((s) => s.toLowerCase().includes(w)))
+
+        const mineStrategies = (strategies.data ?? []).filter((s) => s.patient_id === id)
+        const running = mineStrategies.filter((s) => s.status === 'Active')
+        const mineRequests = (requests.data ?? []).filter((r) => r.patient_id === id)
+        const open = mineRequests.filter(
+          (r) => r.status !== 'Completed' && r.status !== 'Cancelled',
+        )
+        const next = (appointments.data ?? [])
+          .filter((a) => a.patient_id === id && a.status !== 'Cancelled')
+          .sort((x, y) => String(x.scheduled_for).localeCompare(String(y.scheduled_for)))[0]
+        const waitingOnMe = (reviews.data ?? []).filter(
+          (r) =>
+            r.patient_id === id &&
+            r.status === 'Awaiting approval' &&
+            ((r.assigned_to as string[] | null) ?? []).includes(role),
+        ).length
+        const lastEvent = (events.data ?? []).find((e) => e.patient_id === id)
+
+        // The oldest un-checked-in running strategy. "Started three weeks ago
+        // and nobody has said whether it helped" is the single most useful
+        // thing to know about a caseload, and it is invisible one record at a
+        // time.
+        const stale = running
+          .map((s) => ({ title: String(s.title), since: lastCheckIn.get(String(s.id)) ?? null }))
+          .sort((a, b) => (a.since ?? '').localeCompare(b.since ?? ''))[0]
+
+        const seenStrategies = allows('strateg', 'outcome', 'functional')
+        const seenRequests = allows('request', 'authorised', 'timeline')
+
+        return {
+          patient_id: id,
+          name: nameOf.get(id) ?? id,
+          relationship: link.relationship,
+          purpose: link.purpose,
+          scope,
+          // null means "outside what this person shared with you". Not zero.
+          active_strategies: seenStrategies ? running.length : null,
+          stale_strategy: seenStrategies ? stale ?? null : null,
+          open_requests: seenRequests ? open.length : null,
+          requests_needing_them: seenRequests
+            ? open.filter(isWaiting).length
+            : null,
+          next_appointment: next
+            ? {
+                at: next.scheduled_for,
+                status: next.status,
+                brief: next.preparation_status,
+              }
+            : null,
+          waiting_on_you: waitingOnMe,
+          last_activity: lastEvent?.recorded_on ?? link.last_interaction ?? null,
+          review_due: link.review_due,
+        }
+      })
+
+      return { patients: rows, as_of: new Date().toISOString() }
+    }
+
     case 'bundle': {
       const [
         users,

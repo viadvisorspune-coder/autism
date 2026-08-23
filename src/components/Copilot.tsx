@@ -6,6 +6,8 @@ import { useDraft } from '../lib/draft'
 import { directReply } from '../lib/answer'
 import type { LocalAction } from '../lib/answer'
 import { laneFor, startedLine, type Lane } from '../lib/route'
+import { asksAboutCaseload, lapsingSoon, needsAttention } from '../lib/caseload'
+import type { Caseload } from '../lib/caseload'
 import { followRun, startRun, waitingLabel } from '../lib/agent'
 import type { RunState } from '../lib/agent'
 import { markSeen, persistMessage, useLive } from '../lib/live'
@@ -26,6 +28,55 @@ import { documentsFor, eventsFor, strategiesFor } from '../data/db'
  * only reassuring if you can open all three — and in a clinical setting an
  * unsourced confident sentence is a liability rather than a feature.
  */
+
+/**
+ * One answer about everybody, rather than a confident answer about one.
+ *
+ * Counts and reasons only — the same thing the server was willing to send.
+ * Where a patient has narrowed what this person may see, that is said out
+ * loud, because a caseload summary that quietly omits half a record reads as
+ * though it covered all of it.
+ */
+function acrossCaseload(
+  data: Caseload,
+  base: string,
+): [string, Source[], { detail?: string; actions?: LocalAction[] }] {
+  const flags = needsAttention(data)
+  const lapsing = lapsingSoon(data)
+  const total = data.patients.length
+  const partial = data.patients.filter((p) => p.active_strategies === null || p.open_requests === null)
+
+  const text = flags.length
+    ? `${flags.length} of your ${total} need something. ${flags[0].row.name} first — ${flags[0].reason}.`
+    : `Nothing needs you across ${total} ${total === 1 ? 'person' : 'people'}: no decisions waiting, no unanswered questions, nothing gone quiet.`
+
+  const detail = [
+    ...flags.map((f) => `${f.row.name}\n${f.reason}`),
+    lapsing.length
+      ? `Consent review\n${lapsing.map((p) => `${p.name} — due ${String(p.review_due).slice(0, 10)}`).join('; ')}`
+      : null,
+    partial.length
+      ? `Partial view\n${partial.length} of them have shared only part of their record with you, so this cannot speak for all of it.`
+      : null,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+
+  return [
+    text,
+    flags.slice(0, 3).map((f) => ({
+      label: f.row.name,
+      detail: f.reason,
+      to: `${base}/patients/${f.row.patient_id}`,
+    })),
+    {
+      detail: detail || undefined,
+      actions: flags.length
+        ? [{ label: `Open ${flags[0].row.name}`, to: `${base}/patients/${flags[0].row.patient_id}` }]
+        : undefined,
+    },
+  ]
+}
 
 /** Every class written out, so the build can find them. */
 const COPILOT_TONE = {
@@ -86,6 +137,9 @@ export function Copilot({
   const patientId = 'pt-ananya'
 
   const stored = useLive<ConversationData>('conversation', patientId, 8000)
+  // Kept warm so a caseload question is answered from something already in
+  // hand rather than starting a fetch the person has to wait through.
+  const caseload = useLive<Caseload>('caseload', null, 45000)
   const [thread, setThread] = useState<
     {
       id: string
@@ -179,6 +233,15 @@ export function Copilot({
     setThread((t) => [...t, { id: `y-${Date.now()}`, from: 'you', text: trimmed }])
     persistMessage(patientId, option?.personId ?? '', trimmed, 'person')
     clearDraft()
+
+    // "Which of my patients is stuck?" is not a question about this record.
+    // It was being answered as though it were, from whichever patient the rail
+    // happened to be open beside — which is both wrong and the sort of wrong
+    // that reads as confident.
+    if (!force && asksAboutCaseload(trimmed) && caseload.data?.patients.length) {
+      orca(...acrossCaseload(caseload.data, option?.home ?? ''))
+      return
+    }
 
     const local = directReply(trimmed, patientId, role ?? null)
     // Forcing asks for thought, not for a document. The workflow is told so.

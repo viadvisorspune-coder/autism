@@ -18,6 +18,7 @@ import { MyDay } from '../../components/MyDay'
 import { WhatOrcaRemembers } from '../../components/Remembers'
 import { Shortcuts } from '../../components/Shortcuts'
 import { ActionBar } from '../../components/ActionBar'
+import { CaseloadAttention } from '../../components/Caseload'
 import { StatRow } from '../../components/ui'
 import {
   TODAY,
@@ -121,6 +122,8 @@ export default function ClinicalDashboard() {
       />
 
       <ActionBar />
+
+      <CaseloadAttention />
 
       <SinceYouWereHere />
 
