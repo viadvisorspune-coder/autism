@@ -13,7 +13,8 @@ import type { ConversationData } from '../../lib/live'
 import type { RunState } from '../../lib/agent'
 import { RunProgress } from '../../components/RunProgress'
 import { useDraft } from '../../lib/draft'
-import { offlineReply } from '../../lib/answer'
+import { directReply } from '../../lib/answer'
+import { laneFor, startedLine, type Lane } from '../../lib/route'
 import { useMaturity } from '../../state/maturity'
 import {
   ContextBanner,
@@ -117,9 +118,28 @@ export default function PatientGuide() {
     persistMessage('pt-ananya', option?.personId ?? 'u-ananya', text, 'orca')
   }
 
-  const send = (text: string) => {
+  /**
+   * Send, and let the front decide what that means.
+   *
+   * The order here is the whole change. Every message used to go straight to
+   * the workflow service and the person waited — for a question the record in
+   * this tab could have answered in a hundred milliseconds, and which came
+   * back, minutes later, as a PDF. Now the browser answers first, every time,
+   * and the workflow is started underneath only when the message asks for
+   * something to actually happen: a letter written, a request sent, somebody
+   * else told.
+   *
+   * Nothing about that machinery reaches the conversation. No step names, no
+   * vendor, no queue position. If the run needs a decision from this person
+   * they hear about the decision; if it produces something they see the thing.
+   * Everything in between is ORCA's problem, not theirs.
+   *
+   * `force` is the one door to the slow path, and only a person opens it: the
+   * button on an unmatched answer that says think this through properly.
+   */
+  const send = (text: string, force = false) => {
     const trimmed = text.trim()
-    if (!trimmed || starting) return
+    if (!trimmed) return
 
     const user: GuideMessage = {
       id: `gm-u-${Date.now()}`,
@@ -138,6 +158,31 @@ export default function PatientGuide() {
       return
     }
 
+    // 1. Answer, from the record, here. This is not a fallback any more.
+    const local = directReply(trimmed, 'pt-ananya', 'patient')
+    const lane: Lane = force ? 'act' : laneFor(trimmed, local.matched !== false)
+    const escalating = lane === 'act'
+
+    const actions: NonNullable<GuideMessage['actions']> = (local.actions ?? []).map((a) => ({
+      label: a.label,
+      href: a.to,
+      ask: a.ask,
+    }))
+    // 2. Nothing matched, and nothing is being started. Offer the slow path
+    //    rather than putting somebody on it: a run takes minutes, and choosing
+    //    to wait is theirs to make.
+    if (lane === 'unsure') {
+      actions.unshift({ label: 'Think this through properly', think: trimmed })
+    }
+
+    say2(escalating ? `${local.text}\n\n${startedLine(verbosity === 'concise')}` : local.text, {
+      detail: local.detail,
+      actions,
+    })
+
+    if (!escalating) return
+
+    // 3. Something has to happen. That part goes to the workflow, quietly.
     setStarting(true)
     setRunError(null)
     setRun(null)
@@ -150,25 +195,18 @@ export default function PatientGuide() {
     void startRun(outbound, 'pt-ananya', option?.personId ?? 'u-ananya').then(({ runId, error }) => {
       setStarting(false)
       if (error || !runId) {
-        // The technical wording — status codes, the support reference — goes to
-        // the panel below, which is where someone debugging this would look.
-        // ORCA itself says one thing, in its own voice.
+        // The status code and the support reference go to the panel below,
+        // which is where somebody maintaining this would look. What ORCA says
+        // is that it could not start, and the answer above still stands.
         setRunError(error ?? 'The workflow could not be started.')
-        const reply = offlineReply(trimmed, 'pt-ananya', 'patient')
-        say2(reply.text, {
-          detail: reply.detail,
-          actions: reply.actions?.map((a) => ({ label: a.label, href: a.to, ask: a.ask })),
-        })
+        say2(
+          'I could not start that part. What I told you above still holds — it came from your record — but nothing has been sent to anyone, and you can try again whenever you like.',
+        )
         return
       }
-      say2(
-        verbosity === 'concise'
-          ? 'Looking. You do not need to wait here.'
-          : 'Let me look at your record. This usually takes a few minutes — you do not need to wait here.',
-      )
 
-      // Every change in the run becomes something ORCA says, so the
-      // conversation is where the work appears rather than a panel beside it.
+      // Only things that concern this person become messages. A step name is
+      // an internal label; it is not news.
       const spoken = new Set<string>()
       stopFollowing.current = followRun(runId, (state) => {
         setRun(state)
@@ -181,12 +219,6 @@ export default function PatientGuide() {
             say2(`I did not do this: ${a.action}.${a.why ? ` ${a.why}` : ''}`)
           })
 
-        const step = state.run.current_step
-        if (step && step !== 'Trigger received' && !spoken.has(`step:${step}`)) {
-          spoken.add(`step:${step}`)
-          say2(narrate(step))
-        }
-
         state.approvals.forEach((a) => {
           if (spoken.has(`ap:${a.request_id}`)) return
           spoken.add(`ap:${a.request_id}`)
@@ -194,13 +226,13 @@ export default function PatientGuide() {
         })
 
         if (isWaitingOnAPerson(state.run.status) && !spoken.has('stopped')) {
-          spoken.add('stopped')
           const waiting = waitingLabel(state.run.waiting_for)
-          say2(
-            waiting.isPerson
-              ? `I have gone as far as I can on my own. ${waiting.text}`
-              : 'I have gone as far as I can on my own. It is with a person now, and nothing will move until they decide.',
-          )
+          // Only when it is genuinely with a *person*. Waiting on machinery is
+          // not something to tell somebody about; it is something to finish.
+          if (waiting.isPerson) {
+            spoken.add('stopped')
+            say2(`I have gone as far as I can on my own. ${waiting.text}`)
+          }
         }
       })
     })
@@ -318,8 +350,15 @@ export default function PatientGuide() {
                       ) : (
                         <button
                           key={action.label}
-                          onClick={() => action.ask && send(action.ask)}
-                          className="rounded-2xl bg-surface-2 px-3 py-2 text-[0.84rem] text-ink hover:bg-brand-tint"
+                          onClick={() => {
+                            if (action.think) send(action.think, true)
+                            else if (action.ask) send(action.ask)
+                          }}
+                          className={`rounded-2xl px-3 py-2 text-[0.84rem] ${
+                            action.think
+                              ? 'bg-brand-tint text-brand-ink hover:bg-brand hover:text-white'
+                              : 'bg-surface-2 text-ink hover:bg-brand-tint'
+                          }`}
                         >
                           {action.label}
                         </button>
@@ -342,10 +381,21 @@ export default function PatientGuide() {
         <div ref={endRef} />
       </div>
 
-      {starting || run || runError ? (
-        <div className="mt-6">
-          <RunProgress starting={starting} state={run} error={runError} />
-        </div>
+      {/* Behind the fold, deliberately.
+          There is a real machine under this and somebody occasionally wants to
+          see it — but it is not part of anyone's care, and putting its step
+          names in front of a person who asked when their appointment is makes
+          them responsible for understanding an architecture. Closed unless
+          asked for, and never opened by a failure. */}
+      {run || runError ? (
+        <details className="mt-6 rounded-[20px] bg-surface-2 px-5 py-4">
+          <summary className="cursor-pointer text-[0.83rem] font-medium text-ink-2">
+            What ORCA is doing behind this
+          </summary>
+          <div className="mt-3">
+            <RunProgress starting={starting} state={run} error={runError} />
+          </div>
+        </details>
       ) : null}
 
       <ContinueAsRequest lastSaid={lastSaid} />
@@ -380,8 +430,8 @@ export default function PatientGuide() {
           <Button onClick={() => say('Attach a document — the file picker is not wired up in this prototype.')}>
             Attach
           </Button>
-          <Button type="submit" variant="primary" disabled={starting}>
-            {starting ? 'Sending…' : 'Send'}
+          <Button type="submit" variant="primary">
+            Send
           </Button>
         </form>
         {restored && draft ? (
@@ -402,28 +452,6 @@ function asGuideMessage(m: { id: string; author: string; text: string; created_a
     time: relativeDay(m.created_at),
     text: m.text,
   }
-}
-
-/**
- * A step name is a label for the agent that produced it, not a sentence for the
- * person waiting on it. This says what each one means to them.
- */
-function narrate(step: string): string {
-  const map: Record<string, string> = {
-    'Access, Purpose and Data Scope':
-      'I am checking what can be shared here, and with whom. This is the part that decides what I am allowed to say.',
-    'Longitudinal Context Retrieval':
-      'I am reading back through your record — what you have told me, what your clinicians have documented, and what you have already tried.',
-    'Evidence, Provenance and Uncertainty Analysis':
-      'I am working out how solid each piece of this is, and where I am not certain.',
-    'Current Need and Goal Formulation':
-      'I am trying to state clearly what you actually need here, so the rest follows from that rather than from my guess.',
-    'Clarification and Information Gap Resolution':
-      'There is something I do not know yet, and I would rather ask than assume.',
-    'Consequence and Authority Decision':
-      'I am checking who has the authority to decide this. It may not be me, and it may not be them.',
-  }
-  return map[step] ?? `Working on: ${step.toLowerCase()}.`
 }
 
 /* -------------------------------------------------------------- canned replies */

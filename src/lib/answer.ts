@@ -12,28 +12,25 @@ import {
 } from '../data/db'
 
 /**
- * Answering from the record, without the agent.
+ * Answering from the record. The first thing that happens, not the last.
  *
- * ORCA's full reply is a multi-step workflow run on Yoxa: it reads the record,
- * weighs evidence, works out who has authority, and stops where a person is
- * needed. When that service is unavailable — which, as of writing, it is —
- * the interface used to say so and stop.
+ * This began as a fallback for when the workflow service was down, and it was
+ * a good fallback — but building it made the real problem obvious. Nearly
+ * everything people actually ask ORCA is a question about their own record,
+ * and their own record is already in this tab. Sending "who is Tejas?" to a
+ * remote reasoning pipeline, waiting three minutes and answering with a PDF is
+ * not a richer answer to that question. It is a worse one, delivered late.
  *
- * That is the wrong failure. "The workflow service returned 500" is true and
- * completely useless to someone who has just typed out a difficult week. The
- * record is right here in the browser; most of what people actually ask can be
- * answered from it directly, and refusing to because a remote service is down
- * is the software protecting its own architecture rather than the person.
+ * So this is now the front door. Every message is answered from here first,
+ * instantly, with sources. The workflow runs behind it only when something has
+ * to actually happen — a letter written, a request sent, another person told —
+ * because those need consent checks, authority checks and an audit trail that
+ * have no business running in a browser.
  *
- * So this is the floor: a grounded, sourced answer built by matching the
- * question against what is actually in this person's record. It is honest
- * about what it is — the caller says plainly that the agent did not run and
- * this is a direct read — and it deliberately does not attempt the parts that
- * need the agent. It will not weigh conflicting evidence, will not decide
- * anything, and will not act. It reports.
- *
- * The rule it must never break: everything it says is drawn from a record it
- * can name. It has no model behind it and must never sound like it does.
+ * What it deliberately will not do: weigh conflicting evidence, decide
+ * anything, or act. It reports. And the rule it must never break is that
+ * everything it says is drawn from a record it can name. There is no model
+ * behind it and it must never sound like there is.
  */
 
 export interface LocalSource {
@@ -47,6 +44,12 @@ export interface LocalAction {
   /** Where it goes, or what to ask ORCA next. One or the other, never both. */
   to?: string
   ask?: string
+  /**
+   * The same words again, but on the slow path — where ORCA reasons about them
+   * instead of looking them up. The only door to the workflow that a question
+   * can open, and only a person opens it.
+   */
+  think?: string
 }
 
 export interface LocalAnswer {
@@ -342,106 +345,55 @@ export function looksLikeFeeling(text: string): boolean {
 }
 
 /**
- * One reply, in ORCA's voice, when the reasoning service is unavailable.
+ * The ordinary reply. Not a fallback.
  *
- * Replaces three separate bubbles — a technical error, a meta-explanation, and
- * a data dump — with a single message, because three consecutive machine
- * noises is not how anyone would answer a person.
+ * This is now the first thing that happens to every message, before anything
+ * is sent anywhere, because the record is already in this tab and a question
+ * about it should be answered at the speed of a question about it. The
+ * workflow is what runs *behind* this when something has to actually happen —
+ * it is not what produces the sentence a person reads.
  *
- * What it will not do:
- *
- *   · Show a support reference to a patient. That number exists for whoever
- *     maintains this software. Ananya does not have a support desk, and a
- *     hexadecimal string in a conversation about a bad week is noise at
- *     precisely the wrong moment. It stays in the diagnostic panel.
- *   · Interpret a feeling. It acknowledges, states what it cannot do, and
- *     offers a person — which is the same rule the agent follows when it is
- *     working: where something belongs to a human, stop and say so.
- *   · Lead with the record. When somebody says they feel unhappy, what is in
- *     their file comes second, offered rather than delivered.
+ * The difference from `offlineReply` is one of posture and it matters. That
+ * one is answering while apologising, because something the person did not ask
+ * about has failed. This one is just answering. It says nothing about services,
+ * availability or architecture, because on this path nothing has gone wrong and
+ * there is nothing to explain.
  */
-/**
- * Whether this conversation has already been told the agent is unavailable.
- *
- * Said once. Repeating it on every message buries the answer under forty words
- * of apology the person read the first time and now has to scroll past — which
- * is how "who is Tejas?" ended up with its two-line answer at the bottom of a
- * paragraph about ORCA's internal architecture. Nobody needs to be told twice
- * that a service is down; they need to be told once and then answered.
- */
-let toldThisSession = false
-
-export function resetOfflineNotice() {
-  toldThisSession = false
+export function directReply(question: string, patientId: string, role: string | null): LocalAnswer {
+  const forPatient = role === 'patient' || role === 'trusted'
+  if (forPatient && looksLikeFeeling(question)) return feelingReply(patientId, null)
+  return answerFromRecord(question, patientId)
 }
 
-export function offlineReply(
-  question: string,
-  patientId: string,
-  role: string | null,
-): LocalAnswer {
-  const forPatient = role === 'patient' || role === 'trusted'
-  const first = !toldThisSession
-  toldThisSession = true
-
-  if (!forPatient) {
-    const answer = answerFromRecord(question, patientId)
-    return {
-      ...answer,
-      text: first
-        ? `${answer.text}\n\nRead directly from the record — the workflow service is unreachable, so this is a lookup rather than analysis.`
-        : answer.text,
-    }
-  }
-
-  if (looksLikeFeeling(question)) {
-    const clinician = careContact(patientId)
-    const waiting = whatIsWaiting(patientId)
-    return {
-      text: 'Thank you for telling me. I am not going to try to interpret that — you know how you feel better than I do.',
-      detail: [
-        first
-          ? 'I also cannot reach the part of me that works things through at the moment, so I have not started anything and I have not told anyone.'
-          : null,
-        waiting.line ? `In case one of these is the thing sitting on you: ${waiting.line}` : null,
-        clinician
-          ? `${clinician.name} is connected to your record, if you would rather talk to a person than to me.`
-          : null,
-        'You do not have to do anything with any of this today.',
-      ]
-        .filter(Boolean)
-        .join('\n\n'),
-      actions: [
-        { label: 'Message someone', to: '/patient/care/team' },
-        { label: 'What is unfinished?', ask: 'What is still open and waiting on someone?' },
-      ],
-      sources: waiting.sources,
-    }
-  }
-
-  const answer = answerFromRecord(question, patientId)
-  if (!first) return answer
-
-  // The answer goes first, and the caveat goes last.
-  //
-  // Every reply used to open by announcing its own condition — "I cannot
-  // reach the part of me that works things through" — before saying anything
-  // to the person who had asked a question. That is a machine describing
-  // itself to somebody who wanted to know when their appointment is, and no
-  // amount of polite wording fixes the order. Somebody who does not care that
-  // a service is degraded can now stop reading after the first line and will
-  // have lost nothing.
-  if (answer.matched === false) {
-    // Nothing was read, so it must not claim to have read anything.
-    return {
-      ...answer,
-      text: `${answer.text}\n\nI am also working without the part of me that thinks things through at the moment, so I can look things up but not reason about them.`,
-    }
-  }
+/**
+ * Somebody has said how they are, rather than asked something.
+ *
+ * Acknowledge, decline to interpret, offer a person. What is open in the
+ * record is offered rather than delivered, and it goes behind the fold: an
+ * inventory is the last thing this moment needs. `note` is for the one caller
+ * that has something true to add about its own condition.
+ */
+function feelingReply(patientId: string, note: string | null): LocalAnswer {
+  const clinician = careContact(patientId)
+  const waiting = whatIsWaiting(patientId)
 
   return {
-    ...answer,
-    text: `${answer.text}\n\nThat is read straight from your record rather than thought through — the part of me that does the thinking is unavailable just now. Nothing was started and nobody was contacted.`,
+    text: 'Thank you for telling me. I am not going to try to interpret that — you know how you feel better than I do.',
+    detail: [
+      note,
+      waiting.line ? `In case one of these is the thing sitting on you: ${waiting.line}` : null,
+      clinician
+        ? `${clinician.name} is connected to your record, if you would rather talk to a person than to me.`
+        : null,
+      'You do not have to do anything with any of this today.',
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+    actions: [
+      { label: 'Message someone', to: '/patient/care/team' },
+      { label: 'What is unfinished?', ask: 'What is still open and waiting on someone?' },
+    ],
+    sources: waiting.sources,
   }
 }
 
@@ -473,20 +425,4 @@ function careContact(patientId: string): { name: string } | null {
   const next = appointmentsFor(patientId).filter((a) => a.status !== 'Completed')[0]
   if (next) return { name: personName(next.professionalId) }
   return null
-}
-
-/**
- * What ORCA says before a direct read, so nobody mistakes it for the agent.
- *
- * It names the failure without making the person carry it, and it is explicit
- * about the difference: this is a lookup, not a piece of reasoning, and the
- * things that need the agent have not happened.
- */
-export function fallbackPreamble(): string {
-  return (
-    'I cannot reach the part of me that works things through right now, so nothing has been ' +
-    'started and nobody has been contacted. I can still read your record directly, which is ' +
-    'what follows — it is a straight lookup rather than me thinking about it, and I have said ' +
-    'where each part comes from.'
-  )
 }

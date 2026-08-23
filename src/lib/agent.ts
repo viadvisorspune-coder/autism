@@ -132,6 +132,7 @@ export async function startRun(
   triggerText: string,
   patientId: string,
   actorId: string,
+  lane: string = 'act',
 ): Promise<StartResult> {
   if (!isSupabaseConfigured) {
     return { runId: null, error: 'This build has no backend, so nothing was sent.' }
@@ -146,6 +147,9 @@ export async function startRun(
           trigger_text: triggerText,
           patient_id: patientId,
           actor_id: actorId,
+          // What the app already decided this is. The workflow used to have to
+          // guess, and guessed "everything" every time.
+          lane,
           idempotency_key: crypto.randomUUID(),
         },
       }),

@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom'
 import { useSession } from '../state/session'
 import { useMaturity } from '../state/maturity'
 import { useDraft } from '../lib/draft'
-import { offlineReply } from '../lib/answer'
+import { directReply } from '../lib/answer'
+import type { LocalAction } from '../lib/answer'
+import { laneFor, startedLine, type Lane } from '../lib/route'
 import { followRun, startRun, waitingLabel } from '../lib/agent'
 import type { RunState } from '../lib/agent'
 import { markSeen, persistMessage, useLive } from '../lib/live'
@@ -91,7 +93,7 @@ export function Copilot({
       text: string
       sources?: Source[]
       detail?: string
-      actions?: { label: string; to?: string; ask?: string }[]
+      actions?: LocalAction[]
     }[]
   >([])
   const [loaded, setLoaded] = useState(false)
@@ -153,7 +155,7 @@ export function Copilot({
   const orca = (
     text: string,
     sources?: Source[],
-    extra?: { detail?: string; actions?: { label: string; to?: string; ask?: string }[] },
+    extra?: { detail?: string; actions?: LocalAction[] },
   ) => {
     setThread((t) => [
       ...t,
@@ -162,34 +164,47 @@ export function Copilot({
     persistMessage(patientId, option?.personId ?? '', text, 'orca')
   }
 
-  async function send(text: string) {
+  /**
+   * Answer here; start work only when work is what was asked for.
+   *
+   * The old order sent every message to the workflow and narrated the wait —
+   * so "who is Tejas?" produced "Reading the record", then a line about the
+   * platform, and eventually a PDF. The record is in this tab. It answers now,
+   * and the workflow runs underneath only when something has to happen.
+   */
+  async function send(text: string, force = false) {
     const trimmed = text.trim()
-    if (!trimmed || busy) return
+    if (!trimmed) return
 
     setThread((t) => [...t, { id: `y-${Date.now()}`, from: 'you', text: trimmed }])
     persistMessage(patientId, option?.personId ?? '', trimmed, 'person')
     clearDraft()
-    setBusy(true)
 
+    const local = directReply(trimmed, patientId, role ?? null)
+    const lane: Lane = force ? 'act' : laneFor(trimmed, local.matched !== false)
+
+    const actions: LocalAction[] = [...(local.actions ?? [])]
+    if (lane === 'unsure') actions.unshift({ label: 'Think this through properly', think: trimmed })
+
+    orca(
+      lane === 'act' ? `${local.text}\n\n${startedLine(verbosity === 'concise')}` : local.text,
+      local.sources.length ? local.sources : sourcesFor(trimmed, patientId),
+      { detail: local.detail, actions },
+    )
+
+    if (lane !== 'act') return
+
+    setBusy(true)
     const { runId, error } = await startRun(trimmed, patientId, option?.personId ?? '')
     setBusy(false)
 
     if (error || !runId) {
-      // One reply, not three. A technical line, a meta-explanation and a data
-      // dump in sequence is not how a person would answer a person — and for
-      // a patient the first of those three should never have been said aloud.
       if (error) console.warn('workflow trigger failed:', error)
-      const reply = offlineReply(trimmed, patientId, role ?? null)
-      orca(reply.text, reply.sources, { detail: reply.detail, actions: reply.actions })
+      orca(
+        'I could not start that part. What I said above came from the record and still holds — but nothing has been sent to anyone.',
+      )
       return
     }
-
-      orca(
-      verbosity === 'concise'
-        ? 'Reading the record.'
-        : 'Looking through the record. I will show you what I used.',
-      sourcesFor(trimmed, patientId),
-    )
 
     const spoken = new Set<string>()
     stopFollowing.current = followRun(runId, (state: RunState) => {
@@ -275,8 +290,15 @@ export function Copilot({
                       ) : (
                         <button
                           key={a.label}
-                          onClick={() => a.ask && void send(a.ask)}
-                          className="rounded-full bg-surface px-2.5 py-1 text-[0.78rem] text-ink hover:bg-canvas"
+                          onClick={() => {
+                            if (a.think) void send(a.think, true)
+                            else if (a.ask) void send(a.ask)
+                          }}
+                          className={`rounded-full px-2.5 py-1 text-[0.78rem] ${
+                            a.think
+                              ? 'bg-brand-tint text-brand-ink hover:bg-brand hover:text-white'
+                              : 'bg-surface text-ink hover:bg-canvas'
+                          }`}
                         >
                           {a.label}
                         </button>

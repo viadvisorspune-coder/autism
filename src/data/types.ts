@@ -308,8 +308,12 @@ export interface GuideMessage {
   options?: { label: string; detail: string }[]
   /** Everything a person might want next, behind one press. Never shown first. */
   detail?: string
-  /** `href` navigates; `ask` sends a follow-up question to ORCA. */
-  actions?: { label: string; href?: string; ask?: string }[]
+  /**
+   * `href` navigates; `ask` sends a follow-up question to ORCA; `think` sends
+   * the same words again but takes the slow path, where ORCA reasons about
+   * them rather than looking them up.
+   */
+  actions?: { label: string; href?: string; ask?: string; think?: string }[]
 }
 
 export interface SessionNote {

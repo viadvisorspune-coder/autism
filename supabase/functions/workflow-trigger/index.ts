@@ -112,6 +112,22 @@ Deno.serve(async (req) => {
   // would be a worse bug than the block.
   const relationship = await relationshipTo(patientId, actor.id)
 
+  // What kind of request this is, decided in the app before it was sent.
+  //
+  // The workflow was running all fifteen steps on everything, including "who
+  // is Kavita?", because nothing upstream ever told it what it had been handed
+  // and its own classification step classified nothing anything could read. It
+  // is told now, by the only party that actually knows: the app only triggers
+  // at all when a message asks for something to *happen*, so by the time a run
+  // exists the lane is already settled.
+  //
+  // `answered_in_app` matters as much as the lane. The person is not sitting
+  // there waiting to be told what is in their own record — they have already
+  // read that, in the app, before this request left the browser. What is
+  // wanted here is the thing being asked for, not a restatement of the record
+  // it will be built from.
+  const lane = str(body.lane) ?? 'act'
+
   const payload = JSON.stringify({
     trigger_text: triggerText,
     metadata: {
@@ -123,6 +139,14 @@ Deno.serve(async (req) => {
       authorisation: 'Platform verified this actor may act on this record before triggering.',
       identity_verified: Deno.env.get('ORCA_DEMO_MODE') !== 'true',
       local_workflow_run_id: run.id,
+      lane,
+      answered_in_app: true,
+      instruction:
+        'This request reached the workflow because it asks for something to be done — ' +
+        'produced, sent, or arranged. Anything the requester merely wanted to know has ' +
+        'already been answered in the app from the record, so do not repeat the record ' +
+        'back to them. Run only the steps this lane needs; steps that are not relevant ' +
+        'should say so in one line and stop.',
     },
   })
 
