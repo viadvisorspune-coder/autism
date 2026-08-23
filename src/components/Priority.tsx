@@ -48,8 +48,27 @@ interface InboxData {
   people: Record<string, { name: string }>
 }
 
+type Kind = 'share' | 'access' | 'stopped' | 'authority' | 'question' | 'other'
+
+/**
+ * How much is at stake, so the list can lead with it.
+ *
+ * Information leaving the record is the only irreversible thing here. Once it
+ * has gone to an employer it has gone, and no later decision takes it back.
+ * Everything else can be revisited.
+ */
+const WEIGHT: Record<Kind, number> = {
+  share: 0,
+  access: 1,
+  question: 2,
+  authority: 3,
+  stopped: 4,
+  other: 5,
+}
+
 interface Row {
   key: string
+  kind: Kind
   title: string
   detail: string
   /** Null when it is this person's turn. Otherwise who it is with. */
@@ -66,6 +85,7 @@ export function WorkStream({ patientId = 'pt-ananya' }: { patientId?: string }) 
   const { say } = useUI()
   const { data, refresh } = useLive<InboxData>('inbox', patientId)
   const [busy, setBusy] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
 
   const reviews = data?.reviews ?? []
   const access = (data?.access_requests ?? []).filter((r) => r.status === 'Pending')
@@ -99,7 +119,8 @@ export function WorkStream({ patientId = 'pt-ananya' }: { patientId?: string }) 
     access.forEach((r) =>
       rows.push({
         key: r.id,
-        title: `${nameOf(r.requested_by)} has asked to see your record`,
+        kind: 'access',
+        title: `${nameOf(r.requested_by)} wants to see part of your record`,
         detail: r.purpose,
         with: null,
         actions: [
@@ -110,25 +131,42 @@ export function WorkStream({ patientId = 'pt-ananya' }: { patientId?: string }) 
     )
   }
 
+  // Deduped before anything else. The policy layer raises one review per
+  // proposed action, so asking ORCA the same thing four times produces four
+  // rows that are word-for-word identical. Seven of those is not seven
+  // decisions; it is one decision printed seven times, and it is why the page
+  // felt like a pile rather than a list.
+  const distinct = new Map<string, { review: Review; count: number }>()
   reviews
     .filter((r) => OPEN.has(r.status))
     .forEach((r) => {
-      const mine = r.assigned_to.includes(role ?? '')
-      rows.push({
-        key: r.id,
-        title: r.title,
-        detail: r.reason,
-        with: mine ? null : r.assigned_to.join(' or '),
-        since: r.raised_on,
-        actions: mine
-          ? [
-              { label: 'Approve', run: () => decide(r.id, 'Approved'), primary: true },
-              { label: 'Approve with changes', run: () => decide(r.id, 'Approved with changes') },
-              { label: 'Decline', run: () => decide(r.id, 'Declined') },
-            ]
-          : undefined,
-      })
+      const key = `${r.title}|${r.reason}`
+      const seen = distinct.get(key)
+      if (seen) seen.count += 1
+      else distinct.set(key, { review: r, count: 1 })
     })
+
+  distinct.forEach(({ review: r, count }) => {
+    const mine = r.assigned_to.includes(role ?? '')
+    const shape = classify(r, role ?? '')
+
+    rows.push({
+      key: r.id,
+      kind: shape.kind,
+      title: count > 1 ? `${shape.title} (${count} times)` : shape.title,
+      detail: shape.detail,
+      with: shape.yours && mine ? null : shape.withWhom ?? r.assigned_to.join(' or '),
+      since: r.raised_on,
+      actions:
+        shape.yours && mine
+          ? shape.choices.map((c, i) => ({
+              label: c.label,
+              run: () => decide(r.id, c.decision),
+              primary: i === 0,
+            }))
+          : undefined,
+    })
+  })
 
   // One row per request, never two. A request with an unanswered question is
   // your turn; the same request also being with an employer is the same fact
@@ -141,6 +179,7 @@ export function WorkStream({ patientId = 'pt-ananya' }: { patientId?: string }) 
 
     rows.push({
       key: `r-${r.id}`,
+      kind: 'question',
       title: r.title,
       detail: unanswered
         ? `${r.destination} asked a question that has not been answered.`
@@ -151,15 +190,23 @@ export function WorkStream({ patientId = 'pt-ananya' }: { patientId?: string }) 
     })
   })
 
-  // Your turn first. Within each half, oldest first: a thing that has been
+  // Consequence first, then whose turn, then age. The old sort put "your
+  // turn" above everything, which is right until seven things are all your
+  // turn — at which point it says nothing and the one that matters is
+  // wherever it happens to fall.: a thing that has been
   // waiting longest is the thing most likely to have been forgotten.
   rows.sort((a, b) => {
     if (!a.with !== !b.with) return a.with ? 1 : -1
+    if (WEIGHT[a.kind] !== WEIGHT[b.kind]) return WEIGHT[a.kind] - WEIGHT[b.kind]
     return (a.since ?? '').localeCompare(b.since ?? '')
   })
 
   const yours = rows.filter((r) => !r.with).length
   const appointments = appointmentsFor(patientId).filter((a) => a.status !== 'Completed')
+  // Four at a time. Beyond that a list stops being read and starts being
+  // skimmed, and the sort has already put the ones that matter at the top —
+  // so the fifth onwards are, by construction, the ones that can wait.
+  const shown = expanded ? rows : rows.slice(0, 4)
 
   if (!rows.length && !appointments.length) return null
 
@@ -181,7 +228,7 @@ export function WorkStream({ patientId = 'pt-ananya' }: { patientId?: string }) 
           <Card className="mb-6">
             <CardBody className="p-0">
               <ul className="divide-y divide-line">
-                {rows.map((r) => (
+                {shown.map((r) => (
                   <li key={r.key} className="px-5 py-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -218,6 +265,15 @@ export function WorkStream({ patientId = 'pt-ananya' }: { patientId?: string }) 
                   </li>
                 ))}
               </ul>
+
+              {rows.length > shown.length ? (
+                <button
+                  onClick={() => setExpanded(true)}
+                  className="w-full px-5 py-3 text-left text-[0.85rem] font-medium text-brand hover:bg-canvas"
+                >
+                  Show {rows.length - shown.length} more
+                </button>
+              ) : null}
             </CardBody>
           </Card>
         </>
@@ -274,3 +330,113 @@ function TurnChip({ with: withWhom }: { with: string | null }) {
 
 /** Kept so existing imports do not break while screens are converted. */
 export const PriorityStack = WorkStream
+
+
+/**
+ * What this review actually is, in the person's terms.
+ *
+ * The policy layer raises everything under one title — "Action needs human
+ * review" — with one set of buttons: Approve, Approve with changes, Decline.
+ * That is accurate about the mechanism and useless about the decision. Asked
+ * to approve something, the first question anyone has is "approve what?", and
+ * the interface did not answer it.
+ *
+ * So the reason the policy layer recorded is read back and turned into the
+ * decision it actually represents:
+ *
+ *   share      — something would leave the record. The only irreversible one
+ *                here, so it sorts first and its buttons name the outcome:
+ *                share it, share less, do not share. "Approve" does not say
+ *                what happens; "Share it" does.
+ *   stopped    — ORCA stopped itself before making a clinical claim. This is
+ *                not the patient's to approve. Asking somebody to sign off a
+ *                clinical statement about themselves is the opposite of the
+ *                safeguard it came from, so it is shown as what it is: a stop
+ *                that a clinician is looking at.
+ *   authority  — a determination outside this platform's authority. Also not
+ *                hers, and also shown rather than asked.
+ *
+ * When the reason matches nothing known, it keeps the original wording rather
+ * than inventing a friendlier one. A confident label over an unrecognised
+ * decision is worse than a plain one.
+ */
+function classify(
+  review: Review,
+  role: string,
+): {
+  kind: Kind
+  title: string
+  detail: string
+  yours: boolean
+  withWhom?: string
+  choices: { label: string; decision: string }[]
+} {
+  const reason = review.reason.toLowerCase()
+  const isPatient = role === 'patient'
+
+  if (reason.includes('leave the patient') || reason.includes('boundary')) {
+    return {
+      kind: 'share',
+      title: isPatient
+        ? 'Something would be shared outside your record'
+        : 'Disclosure needs the patient’s approval',
+      detail: isPatient
+        ? 'Nothing has gone anywhere. You decide what leaves, and to whom — this is the one thing here that cannot be taken back afterwards.'
+        : review.reason,
+      yours: isPatient,
+      withWhom: isPatient ? undefined : 'the patient',
+      choices: [
+        { label: 'Share it', decision: 'Approved' },
+        { label: 'Share less than asked', decision: 'Approved with changes' },
+        { label: 'Do not share', decision: 'Declined' },
+      ],
+    }
+  }
+
+  if (reason.includes('clinical claim') || reason.includes('diagnose')) {
+    return {
+      kind: 'stopped',
+      title: 'ORCA stopped itself before saying something clinical',
+      detail:
+        'It was about to make a clinical statement, which is not its to make. Nothing was said and nothing was recorded. A clinician is looking at it.',
+      yours: false,
+      withWhom: 'your psychologist',
+      choices: [],
+    }
+  }
+
+  if (reason.includes('statutory') || reason.includes('authority') || reason.includes('employment determination')) {
+    return {
+      kind: 'authority',
+      title: 'This is not ORCA’s decision to make',
+      detail:
+        'It touches an employment or statutory judgement, which belongs to a person with the authority to make it. It has gone to one.',
+      yours: false,
+      withWhom: 'your clinical team',
+      choices: [],
+    }
+  }
+
+  if (reason.includes('risk of harm')) {
+    return {
+      kind: 'share',
+      title: 'A person has been asked to look at this now',
+      detail: 'This is not something a workflow should handle. Somebody has been told.',
+      yours: false,
+      withWhom: 'your clinical team',
+      choices: [],
+    }
+  }
+
+  return {
+    kind: 'other',
+    title: review.title,
+    detail: review.reason,
+    yours: true,
+    choices: [
+      { label: 'Approve', decision: 'Approved' },
+      { label: 'Approve with changes', decision: 'Approved with changes' },
+      { label: 'Decline', decision: 'Declined' },
+    ],
+  }
+}
