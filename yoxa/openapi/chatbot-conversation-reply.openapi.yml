@@ -1,0 +1,94 @@
+openapi: 3.1.0
+info:
+  title: ORCA Conversation Reply
+  version: 1.0.0
+  description: >-
+    Lets a workflow answer in words, in the conversation the person is already
+    reading. Everything else a run can do to this record is structured — state
+    updates, reviews, clarifications, documents. This is the one operation that
+    simply says something.
+servers:
+  - url: https://zievqdkhxenenpyxqese.supabase.co
+paths:
+  /functions/v1/conversation-reply:
+    post:
+      operationId: sendConversationReply
+      summary: Send the reply into the person’s own conversation
+      description: >-
+        Writes your reply where the person is already reading.
+
+        Call it on every run. Send patient_id and actor_id from the metadata, and workflow_run_id from metadata.local_workflow_run_id — that exact key, there is no metadata.workflow_run_id. It is optional in the schema, so omitting it returns 200 and looks correct while leaving the reply untraceable and the run open forever.
+
+        Two to four sentences, addressed to the person, drawn only from what the previous step retrieved. Say where the record is silent rather than rounding up.
+
+
+        Send patient_id, actor_id and text from the metadata, plus
+        workflow_run_id.
+
+
+        Call this on every run. A run that produces only a file has answered
+        nobody.
+
+
+        Two to four sentences. Say what you found or did. Let any document
+        carry the detail.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [patient_id, actor_id, text]
+              properties:
+                patient_id:
+                  type: string
+                  description: The record this conversation is about.
+                actor_id:
+                  type: string
+                  description: >-
+                    Who is being spoken to. The patient's own user id for their
+                    thread, or a connected professional's id for theirs.
+                text:
+                  type: string
+                  maxLength: 4000
+                  description: >-
+                    The message, in plain language addressed to that person.
+                    Name what it is drawn from, and say where you are uncertain
+                    rather than rounding up. Keep it to the answer; put the
+                    working into a document artefact.
+                workflow_run_id:
+                  type: string
+                  description: The run this reply came from, kept for provenance.
+      responses:
+        '200':
+          description: The message was written into the conversation.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - message_id
+                  - conversation_id
+                  - created_at
+                  - delivered_to
+                  - note
+                properties:
+                  message_id:
+                    type: string
+                  conversation_id:
+                    type: string
+                  created_at:
+                    type: string
+                  delivered_to:
+                    type: string
+                  note:
+                    type: string
+components:
+  securitySchemes:
+    orcaConnectorBearer:
+      type: http
+      scheme: bearer
+security:
+  - orcaConnectorBearer: []
