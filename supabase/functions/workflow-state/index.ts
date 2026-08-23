@@ -5,7 +5,7 @@
  * step that needs a person stays open until that person acts, which is why
  * "waiting_for" is always a named human or organisation, never a component.
  */
-import { admin, guard, json, recordAudit, str } from '../_shared/yoxa.ts'
+import { admin, guard, json, list, recordAudit, str } from '../_shared/yoxa.ts'
 
 type Purpose = 'route' | 'sufficiency' | 'define_goal' | 'governance_route' | 'execution_status' | 'close'
 
@@ -112,7 +112,50 @@ Deno.serve(
         .single()
       if (error) return json({ error: error.message }, 400)
       run = data
-    } else if (purpose !== 'route') {
+    } else if (purpose === 'route') {
+      /**
+       * Routing that leaves something behind.
+       *
+       * This branch used to do nothing. `purpose: route` read the run and
+       * returned it, so the tool named "Workflow Routing" — whose whole job is
+       * to establish which steps are required — could not record the answer
+       * anywhere a later step might find it. The decision evaporated the
+       * moment it was made, which is why every step ran on everything.
+       *
+       * Now the plan is written into the run. Two things follow from that and
+       * both matter. Later steps calling this endpoint get the plan back in
+       * `steps`, so standing down becomes a fact they can read rather than an
+       * instruction they might have missed. And ORCA's own interface already
+       * renders `steps`, so the routing decision becomes visible to the person
+       * waiting — they can see what was planned for them, which is a better
+       * answer to "what is happening" than a spinner.
+       *
+       * Called without a plan it still just reads, exactly as before.
+       */
+      const plan = list(body.plan)
+      const lane = str(body.lane)
+
+      if (plan.length) {
+        const steps = plan.map((label, i) => ({
+          label,
+          state: i === 0 ? 'current' : 'todo',
+          detail: i === 0 && lane ? `Planned for the ${lane} lane.` : null,
+        }))
+
+        const { data, error } = await admin
+          .from('workflow_runs')
+          .update({
+            current_step: plan[0],
+            steps,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', run.id as string)
+          .select('*')
+          .single()
+        if (error) return json({ error: error.message }, 400)
+        run = data
+      }
+    } else {
       const steps = Array.isArray(run.steps) ? [...(run.steps as Record<string, unknown>[])] : []
       const previous = steps.find((s) => s.state === 'current')
       if (previous && step && previous.label !== step) {
@@ -161,6 +204,11 @@ Deno.serve(
       workflowRunId: run.id as string,
     })
 
+    // What was planned, so every later caller reads the same list.
+    const planned = (Array.isArray(run.steps) ? run.steps : []).map((x: Record<string, unknown>) =>
+      String(x.label ?? ''),
+    ).filter(Boolean)
+
     return json({
       workflow_run_id: run.id,
       patient_id: run.patient_id,
@@ -171,7 +219,9 @@ Deno.serve(
       blocked_on_human: blocked,
       next_action: blocked
         ? `Waiting for ${run.waiting_for ?? 'a person'}. No further step may run until they decide.`
-        : 'Continue to the next workflow step.',
+        : planned.length
+          ? `Planned steps: ${planned.join(', ')}. A step not on this list is not needed for this request — say so in one line and stop.`
+          : 'Continue to the next workflow step.',
       steps: (Array.isArray(run.steps) ? run.steps : []).map((s: Record<string, unknown>) => ({
         label: String(s.label ?? ''),
         state: String(s.state ?? 'todo'),

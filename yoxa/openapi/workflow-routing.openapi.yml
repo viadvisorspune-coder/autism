@@ -8,10 +8,21 @@ paths:
   /functions/v1/workflow-state:
     post:
       operationId: routeWorkflow
-      summary: Establish which workflow steps are required and what happens next
-      description: Creates a run when none is supplied, otherwise records the step that has just completed
-        and the one now in progress. Reports whether the run is blocked on a named human, which no agent
-        may bypass.
+      summary: Decide which steps this request needs, and record the decision
+      description: >-
+        Call this once, first, before any other step runs. Send the lane and the
+        list of steps this request actually needs. The plan is written into the
+        run, returned to every later step in `steps`, and shown to the person
+        waiting in their own interface.
+
+
+        A step that is not on the plan is not needed for this request. An agent
+        whose step is absent should say so in one line and stop rather than
+        calling any tool.
+
+
+        Called without a plan this only reads the current state, which is what
+        later steps do when they want to know what was decided.
       requestBody:
         required: true
         content:
@@ -28,6 +39,28 @@ paths:
                   enum:
                   - route
                   description: 'Fixed for this connector. Send exactly: route'
+                lane:
+                  type: string
+                  enum:
+                  - answer
+                  - make
+                  - send
+                  description: >-
+                    Which lane this request is in. Copy it from the LANE line at
+                    the top of the trigger text — the application has already
+                    decided it. answer means reply in words and produce nothing.
+                    make means build a document that stays inside ORCA. send
+                    means it also goes to somebody outside, which needs an
+                    approval.
+                plan:
+                  type: array
+                  description: >-
+                    The steps this request needs, in order, named exactly as
+                    they appear in the workflow. Fewer is the correct answer,
+                    not a shortcut. Omit to read the existing plan instead of
+                    setting one.
+                  items:
+                    type: string
                 patient_id:
                   type: string
                   description: 'Patient the run belongs to, for example pt-ananya. Required: a run is
