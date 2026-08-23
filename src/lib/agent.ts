@@ -105,7 +105,13 @@ export function isWaitingOnAPerson(status: string): boolean {
  * role is named. When it is genuinely with someone, "they" is correct and the
  * sentence means what it says.
  */
-const NOT_A_PERSON = /yoxa|workflow|system|engine|queue|http|unreachable|returned \d/i
+// `Processing` is what this platform writes into `waiting_for` the moment a
+// run starts, and it slipped through the first version of this list — so the
+// copilot announced "This is now with Processing, and nothing will move until
+// they decide", which names a verb as though it were a colleague. Anything
+// that is a state rather than somebody stays on this list.
+const NOT_A_PERSON =
+  /yoxa|workflow|system|engine|queue|http|unreachable|returned \d|processing|pending|starting|trigger|in progress/i
 
 export function waitingLabel(waitingFor: string | null): { text: string; isPerson: boolean } {
   if (!waitingFor || NOT_A_PERSON.test(waitingFor)) {

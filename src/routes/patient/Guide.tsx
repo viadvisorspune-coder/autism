@@ -175,9 +175,17 @@ export default function PatientGuide() {
       actions.unshift({ label: 'Think this through properly', think: trimmed })
     }
 
-    say2(escalating ? `${local.text}\n\n${startedLine(verbosity === 'concise')}` : local.text, {
-      detail: local.detail,
-      actions,
+    // Pressing "think this through properly" is a reply to the shrug, not a
+    // reason to repeat it. Somebody who has just been told nothing matched
+    // does not need telling twice in the same breath.
+    const opener =
+      force && local.matched === false
+        ? 'Let me think about this one properly.'
+        : local.text
+
+    say2(escalating ? `${opener}\n\n${startedLine(verbosity === 'concise')}` : opener, {
+      detail: force && local.matched === false ? undefined : local.detail,
+      actions: force && local.matched === false ? [] : actions,
     })
 
     if (!escalating) return
