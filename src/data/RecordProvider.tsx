@@ -38,9 +38,17 @@ export function RecordProvider({ children }: { children: ReactNode }) {
     started = true
 
     let cancelled = false
-    hydrate(3000).then((result) => {
-      if (!cancelled) setStatus(result)
-    })
+    // Three seconds was measured against a warm function. A Supabase Edge
+    // Function that has not been called for a while takes longer than that to
+    // start, so the first visit of the morning fell back to example data and
+    // told the person their own record had not answered — which is both wrong
+    // and alarming. Ten seconds, and one retry, because being slow once is a
+    // far smaller problem than showing somebody a record that is not theirs.
+    hydrate(10000)
+      .then((result) => (result === 'mock' && !cancelled ? hydrate(10000) : result))
+      .then((result) => {
+        if (!cancelled) setStatus(result)
+      })
     return () => {
       cancelled = true
     }

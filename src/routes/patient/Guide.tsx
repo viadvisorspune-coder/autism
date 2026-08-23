@@ -7,7 +7,7 @@ import type { GuideMessage } from '../../data/types'
 import { useUI } from '../../state/ui'
 import { useSession } from '../../state/session'
 import { isSupabaseConfigured } from '../../lib/supabase'
-import { followRun, isWaitingOnAPerson, startRun } from '../../lib/agent'
+import { followRun, isWaitingOnAPerson, startRun, waitingLabel } from '../../lib/agent'
 import { markSeen, persistMessage, useLive } from '../../lib/live'
 import type { ConversationData } from '../../lib/live'
 import type { RunState } from '../../lib/agent'
@@ -195,8 +195,11 @@ export default function PatientGuide() {
 
         if (isWaitingOnAPerson(state.run.status) && !spoken.has('stopped')) {
           spoken.add('stopped')
+          const waiting = waitingLabel(state.run.waiting_for)
           say2(
-            `I have gone as far as I can on my own. This is now waiting for ${state.run.waiting_for ?? 'a person'}, and nothing will move until they decide.`,
+            waiting.isPerson
+              ? `I have gone as far as I can on my own. ${waiting.text}`
+              : 'I have gone as far as I can on my own. It is with a person now, and nothing will move until they decide.',
           )
         }
       })

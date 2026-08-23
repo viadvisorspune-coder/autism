@@ -4,7 +4,7 @@ import { useSession } from '../state/session'
 import { useMaturity } from '../state/maturity'
 import { useDraft } from '../lib/draft'
 import { offlineReply } from '../lib/answer'
-import { followRun, startRun } from '../lib/agent'
+import { followRun, startRun, waitingLabel } from '../lib/agent'
 import type { RunState } from '../lib/agent'
 import { markSeen, persistMessage, useLive } from '../lib/live'
 import type { ConversationData } from '../lib/live'
@@ -201,9 +201,12 @@ export function Copilot({
           orca(`I did not do this: ${a.action}.${a.why ? ` ${a.why}` : ''}`)
         })
 
-      if (state.run.waiting_for && !spoken.has('waiting')) {
+      // Only announce a wait that a person could act on. "Still processing"
+      // is not news, and the vendor's name is not hers to learn.
+      const waiting = waitingLabel(state.run.waiting_for)
+      if (waiting.isPerson && !spoken.has('waiting')) {
         spoken.add('waiting')
-        orca(`This is now with ${state.run.waiting_for}. It will not move until they decide.`)
+        orca(waiting.text)
       }
     })
   }

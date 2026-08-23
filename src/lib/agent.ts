@@ -86,6 +86,37 @@ export function isWaitingOnAPerson(status: string): boolean {
   return WAITING.has(status)
 }
 
+/**
+ * What "waiting for" means to the person reading it.
+ *
+ * `waiting_for` is an engineering field. It holds whatever the run is blocked
+ * on, which includes the name of the platform the workflow runs on and, when
+ * something fails, a bare HTTP status. Ananya saw "This is now with Yoxa. It
+ * will not move until they decide."
+ *
+ * Two things wrong with that. She has never heard of Yoxa and has no reason
+ * to: the machinery ORCA is built on is not part of her care, and naming a
+ * vendor in her conversation makes her responsible for understanding an
+ * architecture. And nothing is *deciding* — a queue is not a person, and
+ * saying it will not move until "they" decide invites her to wait on a
+ * judgement that nobody is making.
+ *
+ * So a machine is described as work in progress, and only an actual person or
+ * role is named. When it is genuinely with someone, "they" is correct and the
+ * sentence means what it says.
+ */
+const NOT_A_PERSON = /yoxa|workflow|system|engine|queue|http|unreachable|returned \d/i
+
+export function waitingLabel(waitingFor: string | null): { text: string; isPerson: boolean } {
+  if (!waitingFor || NOT_A_PERSON.test(waitingFor)) {
+    return { text: 'I am still working on this. Nothing needs you yet.', isPerson: false }
+  }
+  return {
+    text: `This is now with ${waitingFor}, and nothing will move until they decide.`,
+    isPerson: true,
+  }
+}
+
 export function isFinished(status: string): boolean {
   return status === 'Completed' || status === 'Cancelled' || status === 'Blocked'
 }
@@ -303,7 +334,9 @@ async function readErrorBody(error: unknown): Promise<string | null> {
         )
       }
       if (status === 403 || status === 401) {
-        return 'The workflow service refused the request. Either the deployment is not active, or the deployment secret here does not match the one in Yoxa.'
+        // Actionable without naming the vendor: whoever maintains this knows
+        // which service it is, and the person reading it does not need to.
+        return 'The workflow service refused the request. Either the deployment is not active, or its secret does not match the one set here.'
       }
       if (status === 404) {
         return 'The workflow service does not recognise this deployment. Its address may have changed.'
@@ -311,7 +344,7 @@ async function readErrorBody(error: unknown): Promise<string | null> {
       return `The workflow service refused the request (HTTP ${status}).${ref}`
     }
     if (record.error === 'yoxa_unreachable') {
-      return 'Yoxa could not be reached. Nothing was sent.'
+      return 'The workflow service could not be reached. Nothing was sent.'
     }
     if (record.error === 'not_permitted') {
       return typeof record.reason === 'string' ? record.reason : 'You do not have access to this record.'

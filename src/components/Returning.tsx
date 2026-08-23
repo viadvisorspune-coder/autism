@@ -70,9 +70,14 @@ export function SinceYouWereHere({ patientId = 'pt-ananya' }: { patientId?: stri
               <span className="text-ink">{d.title}</span> — {d.decision ?? 'decided'}
             </li>
           ))}
-          {runs.map((r) => (
-            <li key={r.id} className="text-[0.87rem] leading-relaxed text-ink-2">
-              <span className="text-ink">{r.type}</span> moved to {r.current_step.toLowerCase()}
+          {/* Runs are collapsed by what they are and where they got to. Two
+              messages sent a minute apart produce two runs at the same step,
+              and listing both says the same thing twice while telling nobody
+              anything. "Trigger received" is also a label for the engine, not
+              a sentence for the person waiting on it. */}
+          {collapseRuns(runs).map((r) => (
+            <li key={r.key} className="text-[0.87rem] leading-relaxed text-ink-2">
+              {r.line}
             </li>
           ))}
           {events.map((e) => (
@@ -84,6 +89,35 @@ export function SinceYouWereHere({ patientId = 'pt-ananya' }: { patientId?: stri
       </CardBody>
     </Card>
   )
+}
+
+/**
+ * Runs, said once and in words.
+ *
+ * The raw fields are a type and a step name, both written for whoever is
+ * debugging the engine. "End-to-end support coordination moved to trigger
+ * received" is four words of jargon around one fact: ORCA started looking at
+ * something. Said twice, it reads like a fault.
+ */
+function collapseRuns(
+  runs: { id: string; type: string; status: string; current_step: string }[],
+): { key: string; line: string }[] {
+  const seen = new Map<string, number>()
+  runs.forEach((r) => {
+    const key = `${r.type}|${r.current_step}`
+    seen.set(key, (seen.get(key) ?? 0) + 1)
+  })
+
+  return [...seen.entries()].map(([key, count]) => {
+    const step = key.split('|')[1]
+    const started = /trigger received/i.test(step)
+    return {
+      key,
+      line: started
+        ? `ORCA started looking at ${count === 1 ? 'something you asked' : `${count} things you asked`}`
+        : `Work in progress: ${step.toLowerCase()}`,
+    }
+  })
 }
 
 /* ------------------------------------------------------------ suggestions */
