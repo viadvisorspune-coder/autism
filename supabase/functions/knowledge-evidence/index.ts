@@ -7,6 +7,7 @@
  * creates a memory *candidate*, never a fact. Nothing an agent infers becomes
  * part of the record here — a person confirms it elsewhere.
  */
+import { inferFromRecentRun } from '../_shared/whoami.ts'
 import { admin, guard, json, list, recordAudit, str } from '../_shared/yoxa.ts'
 
 type Purpose =
@@ -23,13 +24,26 @@ type Purpose =
 Deno.serve(
   guard(async (_req, { body }) => {
     const purpose = (str(body.purpose) ?? 'retrieve_context') as Purpose
-    const patientId = str(body.patient_id)
-    const actorId = str(body.actor_id)
+    const rawPatientId = str(body.patient_id)
+    const rawActorId = str(body.actor_id)
     const since = str(body.since)
     const categories = list(body.categories)
     const workflowRunId = str(body.workflow_run_id)
     const limit = Math.min(Number(body.limit ?? 25) || 25, 100)
 
+    // Same fallback as the reply endpoint: an agent that never saw the ids
+    // sends empty strings, and refusing the read means the reply that follows
+    // is ungrounded — which is the failure this whole endpoint exists to
+    // prevent. See _shared/whoami.ts for the bound and the refusal case.
+    let patientId = rawPatientId
+    let actorId = rawActorId
+    if (!patientId || !actorId) {
+      const guess = await inferFromRecentRun()
+      if (guess) {
+        patientId = patientId || guess.patientId
+        actorId = actorId || guess.actorId
+      }
+    }
     if (!patientId) return json({ error: 'patient_id is required' }, 400)
 
     // A memory candidate is the one thing this endpoint writes.
