@@ -119,6 +119,114 @@ const PLACES: Destination[] = [
 ]
 
 /**
+ * Everything that has moved, assembled into something readable.
+ *
+ * The question before a session is never "tell me about this person" — it is
+ * "what has changed since I last saw them, and is anything working". Both are
+ * arithmetic over the record: how many entries, over what span, from how many
+ * people; which strategies are running and what their check-ins said; what is
+ * open and whose desk it is on.
+ *
+ * Nothing here is interpreted. It counts, dates and quotes. Where a clinician
+ * wants the meaning rather than the material, that is the slow path, and the
+ * answer ends by saying so rather than pretending to have done it.
+ */
+function catchUp(patientId: string): LocalAnswer | null {
+  const events = eventsFor(patientId)
+  const strategies = strategiesFor(patientId)
+  const open = requestsFor(patientId).filter((r) => r.status !== 'Completed' && r.status !== 'Cancelled')
+  const next = appointmentsFor(patientId).filter((a) => a.status !== 'Completed')[0]
+  if (!events.length && !strategies.length) return null
+
+  const recent = events.slice(0, 5)
+  const voices = new Set(recent.map((e) => e.sourceId).filter(Boolean))
+  const running = strategies.filter((s) => s.status === 'Active')
+  const helped = strategies.filter((s) => s.outcome?.effectiveness === 'Helped')
+  const didnt = strategies.filter((s) => s.outcome?.effectiveness === 'Did not help')
+
+  const lead = [
+    recent.length
+      ? `${recent.length} ${recent.length === 1 ? 'entry' : 'entries'} since ${say(recent[recent.length - 1].date)}${voices.size > 1 ? `, from ${voices.size} people` : ''}.`
+      : null,
+    running.length
+      ? `${running.length} ${running.length === 1 ? 'strategy is' : 'strategies are'} running.`
+      : 'Nothing is currently being tried.',
+    open.length ? `${open.length} open with ${open[0].currentOwner}.` : null,
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  const detail = [
+    recent.length
+      ? `What has gone in\n${recent.map((e) => `${say(e.date)} — ${e.title} (${personName(e.sourceId)})`).join('\n')}`
+      : null,
+    strategies.length
+      ? `Where the strategies stand\n${strategies
+          .map((x) => {
+            const last = [...x.checkIns].sort((a, b) => a.date.localeCompare(b.date)).pop()
+            return `${x.title} — ${x.status.toLowerCase()}${
+              last ? `. Last check-in ${say(last.date)}: it ${last.helpfulness.toLowerCase()}. ${last.note}` : '. No check-ins yet.'
+            }`
+          })
+          .join('\n')}`
+      : null,
+    helped.length || didnt.length
+      ? `What the record says works\n${[
+          helped.length ? `Helped: ${helped.map((s) => s.title.toLowerCase()).join('; ')}` : null,
+          didnt.length ? `Did not: ${didnt.map((s) => s.title.toLowerCase()).join('; ')}` : null,
+        ]
+          .filter(Boolean)
+          .join('\n')}`
+      : null,
+    open.length
+      ? `Still open\n${open.map((r) => `${r.title} — with ${r.currentOwner} since ${say(r.raised)}`).join('\n')}`
+      : null,
+    next ? `Next appointment\n${say(next.datetime)} — ${next.purpose}. Brief is ${next.preparationStatus.toLowerCase()}.` : null,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+
+  return {
+    text: `${lead}\n\nThis is counted from the record, not interpreted. Ask me to think it through if you want what it means.`,
+    detail,
+    actions: [
+      { label: 'Open the timeline', to: '/patient/story' },
+      { label: 'What does this mean?', think: `What is the pattern across this record, and what should change?` },
+    ],
+    sources: recent.slice(0, 3).map((e) => ({
+      label: e.title,
+      detail: `${personName(e.sourceId)} · ${say(e.date)}`,
+      to: `/patient/story/${e.id}`,
+    })),
+  }
+}
+
+/**
+ * One document, named well enough to be sure which.
+ *
+ * Requires a word of asking plus enough of the title to be unambiguous. Two
+ * matches means the person has not said which, and answering with the first is
+ * a guess presented as a fact — so it declines and lets the topic search offer
+ * both.
+ */
+function documentIn(question: string, patientId: string) {
+  if (!/\b(show|open|get|find|send|give|where is|bring up|i want|need)\b/i.test(question)) return null
+
+  const q = question.toLowerCase()
+  const hits = documentsFor(patientId).filter((d) => {
+    const words = d.title
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length > 3)
+    // At least two distinctive words from the title, or one long rare one.
+    const found = words.filter((w) => q.includes(w))
+    return found.length >= 2 || found.some((w) => w.length >= 8)
+  })
+
+  return hits.length === 1 ? hits[0] : null
+}
+
+/**
  * Asking to be taken somewhere, rather than asking about it.
  *
  * "Show me my story" wants the page. "What is in my story" wants an answer.
@@ -361,6 +469,34 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
         actions: [{ label: 'Edit or remove any of it', to: '/patient/profile' }],
         sources: [{ label: 'My profile', detail: 'Everything recorded about you', to: '/patient/profile' }],
       }
+    }
+  }
+
+  /* --------------------------------------------------------- catch me up */
+  // What a clinician asks for in the ninety seconds before a session, and the
+  // one thing that genuinely needs assembling rather than looking up. Computed
+  // here rather than sent away, because every part of it is arithmetic over
+  // the record — counts, dates, what helped — and none of it needs reasoning.
+  if (has(question, 'summarise', 'summarize', 'summary', 'catch me up', 'brief me', 'bring me up to speed', 'where are we', 'where are they')) {
+    const brief = catchUp(patientId)
+    if (brief) return brief
+  }
+
+  /* ------------------------------------------------- a particular document */
+  // "Show me the OT report" names a thing that already exists. Producing a new
+  // document in answer to that would be absurd, and describing it is not much
+  // better — the honest reply is the document.
+  const wanted = documentIn(question, patientId)
+  if (wanted) {
+    return {
+      text: `${wanted.title} — ${wanted.category.toLowerCase()}, added ${say(wanted.date)}${
+        wanted.status === 'Awaiting review' ? '. You have not checked what was read out of it yet.' : '.'
+      }`,
+      detail: wanted.extracted.length
+        ? wanted.extracted.map((x) => `${x.label}\n${x.value}`).join('\n\n')
+        : undefined,
+      actions: [{ label: 'Open it', to: `/patient/documents/${wanted.id}` }],
+      sources: [{ label: wanted.title, detail: say(wanted.date), to: `/patient/documents/${wanted.id}` }],
     }
   }
 
