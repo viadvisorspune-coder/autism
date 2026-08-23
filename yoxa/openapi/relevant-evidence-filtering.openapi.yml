@@ -1,0 +1,248 @@
+openapi: 3.1.0
+info:
+  title: ORCA Relevant Evidence Filtering
+  version: 1.0.0
+servers:
+- url: https://zievqdkhxenenpyxqese.supabase.co
+paths:
+  /functions/v1/knowledge-evidence:
+    post:
+      operationId: filterRelevantEvidence
+      summary: Select only what this recipient and this purpose need
+      description: >-
+        Returns the subset of the record that bears on one stated purpose and one named recipient.
+
+        Call it before drafting anything that leaves ORCA. Minimum necessary is a rule about content, and this is where the content is chosen.
+
+        Keep the provenance on everything selected. A filtered extract that loses its sources cannot be checked by the person it is about.
+
+
+        The only source of real information about them. Call it before stating
+        any finding; anything written without it is invented.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - purpose
+              - patient_id
+              properties:
+                purpose:
+                  type: string
+                  enum:
+                  - evidence_filter
+                  description: Which retrieval the workflow step needs. Use memory_update only to propose
+                    a candidate.
+                patient_id:
+                  type: string
+                  description: Patient whose record is being read, for example pt-ananya.
+                actor_id:
+                  type: string
+                  description: User on whose behalf the retrieval runs.
+                since:
+                  type: string
+                  format: date
+                  description: Only return events recorded on or after this date.
+                categories:
+                  type: array
+                  description: Restrict to these event categories, for example Work or Functional.
+                  items:
+                    type: string
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  description: Maximum events to return. Defaults to 25.
+                workflow_run_id:
+                  type: string
+                  description: Workflow run this retrieval belongs to.
+                candidate:
+                  type: object
+                  additionalProperties: false
+                  required:
+                  - proposal
+                  description: The proposed longitudinal update. Required when purpose is memory_update.
+                  properties:
+                    proposal:
+                      type: string
+                      description: The pattern in one sentence, in plain language.
+                    confidence:
+                      type: number
+                      minimum: 0
+                      maximum: 1
+                      description: How strongly the evidence supports it, 0 to 1. Below 0.5 is weak.
+                    related_history:
+                      type: string
+                      description: Earlier events this pattern connects to.
+                    raised_for:
+                      type: array
+                      items:
+                        type: string
+                      description: Roles who should review it, for example patient, psychologist.
+                    evidence:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties: false
+                        required:
+                        - source
+                        - detail
+                        properties:
+                          source:
+                            type: string
+                            description: Who the evidence came from — the patient, or a named professional.
+                          detail:
+                            type: string
+                            description: What that source actually reported, in one line.
+                          date:
+                            type: string
+                            description: When that piece of evidence was recorded.
+      responses:
+        '200':
+          description: Authorised context, with provenance and a sufficiency assessment.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                - patient_id
+                - purpose
+                - records
+                - strategies
+                - sufficiency
+                properties:
+                  patient_id:
+                    type: string
+                  purpose:
+                    type: string
+                  records:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                      - id
+                      - title
+                      - summary
+                      - category
+                      - recorded_on
+                      - evidence_status
+                      - source
+                      - source_role
+                      properties:
+                        id:
+                          type: string
+                        title:
+                          type: string
+                        summary:
+                          type: string
+                        category:
+                          type: string
+                        recorded_on:
+                          type: string
+                        occurred_on:
+                          type:
+                          - string
+                          - 'null'
+                        evidence_status:
+                          type: string
+                          enum:
+                          - Reported
+                          - Professionally documented
+                          - Validated
+                          - AI interpretation
+                        source:
+                          type: string
+                          description: Who the evidence came from — the patient, or a named professional.
+                        source_role:
+                          type: string
+                  strategies:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                      - id
+                      - title
+                      - goal
+                      - status
+                      - phase
+                      properties:
+                        id:
+                          type: string
+                        title:
+                          type: string
+                        goal:
+                          type: string
+                        status:
+                          type: string
+                        phase:
+                          type: string
+                        review_date:
+                          type:
+                          - string
+                          - 'null'
+                        effectiveness:
+                          type:
+                          - string
+                          - 'null'
+                        outcome_summary:
+                          type:
+                          - string
+                          - 'null'
+                  profile:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                      - id
+                      - section
+                      - text
+                      - evidence_status
+                      - recorded_on
+                      properties:
+                        id:
+                          type: string
+                        section:
+                          type: string
+                        text:
+                          type: string
+                        evidence_status:
+                          type: string
+                        recorded_on:
+                          type: string
+                  sufficiency:
+                    type: object
+                    additionalProperties: false
+                    required:
+                    - status
+                    - missing
+                    - note
+                    properties:
+                      status:
+                        type: string
+                        enum:
+                        - sufficient
+                        - insufficient
+                      missing:
+                        type: array
+                        items:
+                          type: string
+                      note:
+                        type: string
+                  memory_candidate_id:
+                    type:
+                    - string
+                    - 'null'
+components:
+  securitySchemes:
+    orcaConnectorBearer:
+      type: http
+      scheme: bearer
+security:
+- orcaConnectorBearer: []

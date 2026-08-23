@@ -1,0 +1,84 @@
+openapi: 3.1.0
+info:
+  title: ORCA Strategy Safety & Authority Validation
+  version: 1.0.0
+servers:
+  - url: https://zievqdkhxenenpyxqese.supabase.co
+paths:
+  /functions/v1/safety-authority-review:
+    post:
+      operationId: validateStrategySafety
+      summary: Check a proposed strategy is within the system’s authority
+      description: >-
+        Checks whether a proposed strategy is safe, appropriate and within what ORCA may propose.
+
+        Call it before any plan reaches a person. Suggesting an accommodation is different from committing an employer to one, and this is where that line is held.
+
+        Flag anything needing professional or institutional sign-off rather than softening it into something that does not.
+
+
+        Everything else proceeds without asking. A question about someone
+        already connected to this record is not a privacy incident.
+
+
+        When you do stop, give one sentence a worried person can read.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [purpose, patient_id]
+              properties:
+                purpose:
+                  type: string
+                  enum: [reasoning_boundary, strategy_validation, consequence_gate]
+                  description: Which gate is being applied at this workflow step.
+                patient_id:
+                  type: string
+                  description: Patient the proposed action concerns.
+                proposed_action:
+                  type: string
+                  description: What the workflow is about to do, in one sentence.
+                content:
+                  type: string
+                  description: The text that would be produced, stored or sent.
+                recipient_role:
+                  type: string
+                  description: >-
+                    Role that would receive the content. Anything other than
+                    patient means information would leave the patient's boundary.
+                workflow_run_id:
+                  type: string
+                  description: Workflow run this gate belongs to.
+      responses:
+        '200':
+          description: Gate decision.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [decision, risk_level, requires_human_review, findings, reason, permitted_next_step]
+                properties:
+                  decision:
+                    type: string
+                    enum: [PROCEED, ASK, WAIT, STOP, ESCALATE]
+                  risk_level:
+                    type: string
+                    enum: [low, medium, high]
+                  requires_human_review: { type: boolean }
+                  review_item_id: { type: [string, 'null'] }
+                  findings:
+                    type: array
+                    items: { type: string }
+                  reason: { type: string }
+                  permitted_next_step: { type: string }
+components:
+  securitySchemes:
+    orcaConnectorBearer:
+      type: http
+      scheme: bearer
+security:
+  - orcaConnectorBearer: []

@@ -1,0 +1,88 @@
+openapi: 3.1.0
+info:
+  title: ORCA Follow-Up & Outcome Tracking
+  version: 1.0.0
+servers:
+  - url: https://zievqdkhxenenpyxqese.supabase.co
+paths:
+  /functions/v1/stakeholder-communication:
+    post:
+      operationId: trackFollowUp
+      summary: Arrange and chase the outcome of something already done
+      description: >-
+        Schedules a follow-up and records who owes the outcome.
+
+        Call it only when something external actually happened. A follow-up on a private note nobody was asked about is a reminder about nothing.
+
+        Name the person who owes the answer and when it is due.
+
+
+        Only after a human approved this exact content and this exact
+        recipient. Never call it to tell someone about progress.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [purpose, patient_id]
+              properties:
+                purpose:
+                  type: string
+                  enum: [clarification, follow_up]
+                patient_id:
+                  type: string
+                  description: Patient the question concerns.
+                recipient_role:
+                  type: string
+                  enum:
+                    - patient
+                    - psychologist
+                    - psychiatrist
+                    - therapist
+                    - ot
+                    - gp
+                    - clinic
+                    - employer
+                    - university
+                    - trusted
+                    - admin
+                  description: Who should answer. Defaults to the patient.
+                question:
+                  type: string
+                  description: The single question to ask. Required for a clarification.
+                request_id:
+                  type: string
+                  description: Attach the question to this request so the thread stays with it.
+                due:
+                  type: string
+                  format: date
+                  description: When an answer is needed by.
+                workflow_run_id:
+                  type: string
+      responses:
+        '200':
+          description: Clarification or follow-up raised.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [notification_id, purpose, recipient_role, status, created_at, note]
+                properties:
+                  notification_id: { type: string }
+                  purpose: { type: string }
+                  recipient_role: { type: string }
+                  question: { type: [string, 'null'] }
+                  due: { type: [string, 'null'] }
+                  status: { type: string }
+                  created_at: { type: string }
+                  note: { type: string }
+components:
+  securitySchemes:
+    orcaConnectorBearer:
+      type: http
+      scheme: bearer
+security:
+  - orcaConnectorBearer: []

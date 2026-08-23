@@ -1,0 +1,178 @@
+openapi: 3.1.0
+info:
+  title: ORCA Context Sufficiency Check
+  version: 1.0.0
+servers:
+- url: https://zievqdkhxenenpyxqese.supabase.co
+paths:
+  /functions/v1/workflow-state:
+    post:
+      operationId: checkContextSufficiency
+      summary: Decide whether enough has been read to continue
+      description: >-
+        Records whether the retrieved context is enough for the task, and routes to clarification if not.
+
+        Call it after retrieval and before reasoning. Proceeding on thin context produces a confident answer about a person nobody has read properly.
+
+        Saying it is insufficient is a valid outcome and costs less than a wrong answer.
+
+
+        Use it to know what was planned. A step not on the plan is not needed —
+        say so in one line and stop.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - purpose
+              - patient_id
+              properties:
+                purpose:
+                  type: string
+                  enum:
+                  - sufficiency
+                  description: Which routing decision this step is making.
+                patient_id:
+                  type: string
+                  description: 'Patient the run belongs to, for example pt-ananya. Required: a run is
+                    always about one person.'
+                workflow_run_id:
+                  type: string
+                  description: Existing run to advance. Omit to start a new run.
+                workflow_type:
+                  type: string
+                  description: Human-readable run type, for example Workplace accommodation.
+                stakeholder:
+                  type: string
+                  description: Who this run is being carried out for.
+                current_step:
+                  type: string
+                  description: The step now in progress.
+                status:
+                  type: string
+                  enum:
+                  - Draft
+                  - Active
+                  - Awaiting information
+                  - Awaiting approval
+                  - Awaiting professional review
+                  - Awaiting stakeholder
+                  - In progress
+                  - Completed
+                  - Requires adaptation
+                  - Escalated
+                  - Blocked
+                  - Cancelled
+                  description: Status to set. Ignored when closing.
+                waiting_for:
+                  type: string
+                  description: The named person or organisation the run is waiting on.
+                note:
+                  type: string
+                  description: Short detail shown against the step in the interface.
+                closure_reason:
+                  type: string
+                  description: Why the run closed. Used when purpose is close.
+                goal:
+                  type: object
+                  additionalProperties: false
+                  description: Goal brief to store against the run when purpose is define_goal.
+                  properties:
+                    current_need:
+                      type: string
+                      description: What the person needs right now, in their own terms.
+                    desired_outcome:
+                      type: string
+                      description: What a good result looks like.
+                    stakeholders:
+                      type: array
+                      description: Roles involved in reaching the outcome.
+                      items:
+                        type: string
+                    constraints:
+                      type: array
+                      description: Limits the plan must respect, including stated preferences.
+                      items:
+                        type: string
+                    required_output:
+                      type: string
+                      description: The artefact or action the goal calls for, if any.
+                    goal_statement:
+                      type: string
+                      description: The goal in one sentence.
+                    success_criteria:
+                      type: array
+                      description: Observable criteria. Avoid clinical targets.
+                      items:
+                        type: string
+      responses:
+        '200':
+          description: Current workflow state.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                - workflow_run_id
+                - type
+                - status
+                - current_step
+                - blocked_on_human
+                - next_action
+                - steps
+                properties:
+                  workflow_run_id:
+                    type: string
+                  patient_id:
+                    type:
+                    - string
+                    - 'null'
+                  type:
+                    type: string
+                  status:
+                    type: string
+                  current_step:
+                    type: string
+                  waiting_for:
+                    type:
+                    - string
+                    - 'null'
+                  blocked_on_human:
+                    type: boolean
+                  next_action:
+                    type: string
+                  steps:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                      - label
+                      - state
+                      properties:
+                        label:
+                          type: string
+                        state:
+                          type: string
+                          enum:
+                          - done
+                          - current
+                          - todo
+                        detail:
+                          type:
+                          - string
+                          - 'null'
+                          description: Short note shown against this step, if any.
+                  updated_at:
+                    type: string
+components:
+  securitySchemes:
+    orcaConnectorBearer:
+      type: http
+      scheme: bearer
+security:
+- orcaConnectorBearer: []
