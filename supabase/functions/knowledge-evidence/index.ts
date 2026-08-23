@@ -91,7 +91,30 @@ Deno.serve(
     if (since) events = events.gte('recorded_on', since)
     if (categories.length) events = events.in('category', categories)
 
-    const [{ data: eventRows }, { data: strategyRows }, { data: profileRows }] = await Promise.all([
+    /**
+     * Documents, folded into the same list rather than a field of their own.
+     *
+     * This endpoint never read the documents table, so every agent in both
+     * workflows was blind to the most visible half of the record — the OT's
+     * workplace observation, HR's adjustment request, the sister's note about
+     * what a hard day looks like. A retrieval that returns a person's history
+     * and none of the documents written about them is not the record.
+     *
+     * They arrive as ordinary records with category "Documents". That is
+     * deliberate: the connector contract fixes the response shape, so a new
+     * top-level field would have meant re-uploading eight files. A document
+     * fits the record shape exactly, and an agent reading a chronology does
+     * not need to know which table a line came from.
+     */
+    const { data: actorRow } = actorId
+      ? await admin.from('app_users').select('role').eq('id', actorId).maybeSingle()
+      : { data: null }
+    // Unresolvable actor gets the narrowest useful scope rather than the
+    // widest. Asserted identity is thin enough already.
+    const viewerRole = (actorRow?.role as string) ?? 'patient'
+
+    const [{ data: eventRows }, { data: strategyRows }, { data: profileRows }, { data: docRows }] =
+      await Promise.all([
       events,
       admin
         .from('strategies')
@@ -103,9 +126,19 @@ Deno.serve(
         .select('id, section, text, evidence, recorded_on, outdated')
         .eq('patient_id', patientId)
         .eq('outdated', false),
+      admin
+        .from('documents')
+        .select('id, title, category, source_id, source_label, recorded_on, status, extracted, access')
+        .eq('patient_id', patientId)
+        .contains('access', [viewerRole])
+        .order('recorded_on', { ascending: false }),
     ])
 
-    const sourceIds = [...new Set((eventRows ?? []).map((e) => e.source_id).filter(Boolean))] as string[]
+    const sourceIds = [
+      ...new Set(
+        [...(eventRows ?? []), ...(docRows ?? [])].map((e) => e.source_id).filter(Boolean),
+      ),
+    ] as string[]
     const { data: sources } = sourceIds.length
       ? await admin.from('app_users').select('id, name, role').in('id', sourceIds)
       : { data: [] as { id: string; name: string; role: string }[] }
@@ -124,6 +157,26 @@ Deno.serve(
       source: nameOf(e.source_id, e.source_label),
       source_role: sources?.find((s) => s.id === e.source_id)?.role ?? 'system',
     }))
+
+    // What ORCA found in each file, or an honest note that it has not read it.
+    // A document listed as though its contents were known, when nothing has
+    // parsed it, is the invented-finding failure in a different costume.
+    const documents = (docRows ?? []).map((d) => {
+      const found = (d.extracted as { label?: string; value?: string }[] | null) ?? []
+      return {
+        id: String(d.id),
+        title: String(d.title),
+        summary: found.length
+          ? found.map((x) => `${x.label}: ${x.value}`).join(' · ')
+          : `${d.status}. Nothing has been read from this file yet.`,
+        category: 'Documents',
+        recorded_on: d.recorded_on,
+        occurred_on: null,
+        evidence_status: 'Professionally documented',
+        source: nameOf(d.source_id as string | null, d.source_label as string | null),
+        source_role: sources?.find((x) => x.id === d.source_id)?.role ?? 'system',
+      }
+    })
 
     const strategies = (strategyRows ?? []).map((s) => ({
       id: s.id,
@@ -162,7 +215,11 @@ Deno.serve(
     return json({
       patient_id: patientId,
       purpose,
-      records,
+      // Newest first across both, so an agent reading down gets a chronology
+      // rather than events then documents.
+      records: [...records, ...documents].sort((a, b) =>
+        String(b.recorded_on).localeCompare(String(a.recorded_on)),
+      ),
       strategies,
       profile: (profileRows ?? []).map((p) => ({
         id: p.id,

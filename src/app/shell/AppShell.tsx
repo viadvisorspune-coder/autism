@@ -48,6 +48,14 @@ export default function AppShell() {
   const unread = notificationsFor(role).filter((n) => n.unread).length
 
   const close = () => setPanel('none')
+  // A patient gets the full Guide — attachments, run progress, the whole
+  // conversation — because that is their main screen. Everyone else gets the
+  // rail, beside the record rather than instead of it.
+  const open = () => {
+    setNavOpen(false)
+    if (role === 'patient') navigate('/patient/guide')
+    else setCopilot(true)
+  }
 
   return (
     <div className="min-h-screen">
@@ -199,26 +207,13 @@ export default function AppShell() {
             </div>
           ))}
 
-          {/* The way in, in the navigation where it was asked for. One control
-              per surface: this on a desktop, the centre tab on a phone, where
-              the sidebar is behind a drawer and two taps from a thumb. */}
-          <button
-            onClick={() => {
-              setNavOpen(false)
-              if (role === 'patient') navigate('/patient/guide')
-              else setCopilot(true)
-            }}
-            className={`mt-5 block w-full rounded-[20px] ${accent.bg} px-4 py-4 text-left text-white hover:opacity-95`}
-          >
-            <span className="flex items-center gap-2 text-[0.95rem] font-semibold">
-              <span aria-hidden>✦</span> Ask ORCA
-            </span>
-            <span className="mt-1 block text-[0.79rem] leading-relaxed text-white/85">
-              {role === 'patient'
-                ? 'Describe what is happening in your own words. It answers from your record, and stops to ask you before anything is shared.'
-                : 'Ask about this record, or your whole caseload. It answers from what you are allowed to see.'}
-            </span>
-          </button>
+          {/* Below xl the right rail does not exist, so the way in lives here.
+              Above xl it moves to the rail, where the screen has room going
+              spare and the answer arrives beside the record it is about. One
+              control per surface, still — never both at once. */}
+          <div className="xl:hidden">
+            <AskOrcaCard role={role} accent={accent} onOpen={open} />
+          </div>
 
           <p className="mt-6 px-3 text-[0.72rem] leading-relaxed text-muted">
             ORCA supports decisions. It does not diagnose, and it never shares anything without
@@ -234,19 +229,28 @@ export default function AppShell() {
           <Outlet />
         </main>
 
-        {/* A rail, not an overlay: the record stays readable beside the answer,
-            which is the whole reason a clinician would use it mid-conversation. */}
-        {copilot ? (
-          <div className="hidden w-[24rem] shrink-0 xl:block">
-            <div className="sticky top-14 h-[calc(100vh-3.5rem)]">
+        {/* The right rail.
+            
+            On a wide screen this column was empty — the page ran to a fixed
+            width and left a third of the display doing nothing, while the one
+            thing the product is for sat in the bottom corner of the opposite
+            side. Now the rail is always there: the way in when nothing is
+            open, the assistant itself when something is. The record stays
+            readable beside the answer, which is the whole reason a clinician
+            would use it mid-conversation. */}
+        <div className="hidden w-[24rem] shrink-0 px-4 py-6 xl:block">
+          <div className="sticky top-14 h-[calc(100vh-4.5rem)]">
+            {copilot ? (
               <Copilot
                 onClose={() => setCopilot(false)}
                 question={pendingQuestion}
                 onQuestionUsed={() => setPendingQuestion(null)}
               />
-            </div>
+            ) : (
+              <AskOrcaCard role={role} accent={accent} onOpen={open} rail />
+            )}
           </div>
-        ) : null}
+        </div>
       </div>
 
       {/* Below xl there is no room beside the record, so it becomes a panel. */}
@@ -285,6 +289,43 @@ export default function AppShell() {
   )
 }
 
+
+/**
+ * The one way in to the assistant.
+ *
+ * Defined once and rendered in exactly one place at a time: the rail on a wide
+ * screen, the navigation below that, the centre tab on a phone. Four separate
+ * controls reached this once, two of them opening different surfaces.
+ */
+function AskOrcaCard({
+  role,
+  accent,
+  onOpen,
+  rail = false,
+}: {
+  role: string
+  accent: { bg: string }
+  onOpen: () => void
+  rail?: boolean
+}) {
+  return (
+    <button
+      onClick={onOpen}
+      className={`block w-full rounded-[20px] ${accent.bg} px-5 py-5 text-left text-white hover:opacity-95 ${
+        rail ? 'shadow-lg' : 'mt-5'
+      }`}
+    >
+      <span className="flex items-center gap-2 text-[1rem] font-semibold">
+        <span aria-hidden>✦</span> Ask ORCA
+      </span>
+      <span className="mt-1.5 block text-[0.82rem] leading-relaxed text-white/85">
+        {role === 'patient'
+          ? 'Describe what is happening in your own words. It answers from your record, and stops to ask you before anything is shared.'
+          : 'Ask about this record, or your whole caseload. It answers from what you are allowed to see.'}
+      </span>
+    </button>
+  )
+}
 
 /**
  * Said once, at the top of every screen, rather than repeated per card.
