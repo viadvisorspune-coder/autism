@@ -14,10 +14,12 @@
  * matters to the person waiting:
  *
  *   answer — the record can say this. Said here, now, with sources.
- *   act    — this asks for something to happen. Answered here, and the
+ *   ask    — the record could not, and the person has asked for it to be
+ *            thought about. A small, cheap workflow that only writes words.
+ *   act    — this asks for something to happen. Answered here, and the big
  *            workflow is started quietly behind it.
  *   unsure — nothing in the record matched. Said plainly, and the person is
- *            offered the slow path rather than put on it.
+ *            offered `ask` rather than put on it.
  *
  * The classifier is deliberately conservative about `act`. Getting it wrong in
  * that direction starts work nobody asked for, which is the failure this whole
@@ -26,7 +28,7 @@
  * it to or with — a recipient, or an artefact.
  */
 
-export type Lane = 'answer' | 'act' | 'unsure'
+export type Lane = 'answer' | 'ask' | 'act' | 'unsure'
 
 /** Doing something, rather than knowing something. */
 const ACT_VERB =
@@ -65,7 +67,16 @@ export function laneFor(text: string, matched: boolean): Lane {
  * nothing has left ORCA yet — which is the thing they actually want to know
  * before a message goes to their employer.
  */
-export function startedLine(concise: boolean): string {
+export function startedLine(concise: boolean, lane: Lane = 'act'): string {
+  // Thinking and doing are different promises. "Nothing has been sent to
+  // anyone" is the reassurance somebody wants before a letter goes to their
+  // employer; said about a question, it raises a worry that was not there.
+  if (lane === 'ask') {
+    return concise
+      ? 'Thinking. It will appear here.'
+      : 'Let me think about that properly and come back to you here. It usually takes a minute or two, and you do not need to wait on this screen.'
+  }
+
   return concise
     ? 'I have started that. It will appear here — you do not have to wait.'
     : 'I have started working on that. It will turn up here when there is something to see, so you do not need to wait on this screen. Nothing has been sent to anyone yet — you will see it before they do.'

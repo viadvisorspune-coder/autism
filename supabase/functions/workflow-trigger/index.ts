@@ -46,6 +46,36 @@ Deno.serve(async (req) => {
   const secret = Deno.env.get('YOXA_DEPLOYMENT_SECRET')
   if (!triggerUrl || !secret) return json({ error: 'trigger_not_configured' }, 503)
 
+  // What kind of request this is, decided in the app before it was sent.
+  //
+  // The workflow was running all fifteen steps on everything, including "who
+  // is Kavita?", because nothing upstream ever told it what it had been handed
+  // and its own classification step classified nothing anything could read. It
+  // is told now, by the only party that actually knows: the app only triggers
+  // at all when a message asks for something to *happen*, so by the time a run
+  // exists the lane is already settled.
+  //
+  // `answered_in_app` matters as much as the lane. The person is not sitting
+  // there waiting to be told what is in their own record — they have already
+  // read that, in the app, before this request left the browser. What is
+  // wanted here is the thing being asked for, not a restatement of the record
+  // it will be built from.
+  const lane = str(body.lane) ?? 'act'
+  const asking = lane === 'ask'
+
+  // The lane in the workflow's own vocabulary, so the orchestrator has a value
+  // to copy rather than a judgement to make.
+  const laneWord = asking ? 'answer' : lane === 'act' ? 'make' : lane
+  const laneInstruction = asking
+    ? 'LANE: answer. This person asked a question and wants it thought about. ' +
+      'Reply to them in words, in their conversation, using the conversation-reply ' +
+      'connector. Do not produce a document. Do not send anything to anyone. Do not ' +
+      'open an approval. The reply itself is the whole output.'
+    : 'LANE: make. This request asks for something to be produced or sent. Anything ' +
+      'the requester merely wanted to know has already been answered in the app from ' +
+      'the record, so do not repeat the record back to them. Run only the steps this ' +
+      'lane needs; a step that is not relevant should say so in one line and stop.'
+
   // A new key per real user action. Reusing one is only correct when retrying
   // that same action with an identical payload.
   const idempotencyKey = str(body.idempotency_key) ?? crypto.randomUUID()
@@ -56,7 +86,7 @@ Deno.serve(async (req) => {
     .from('workflow_runs')
     .insert({
       patient_id: patientId,
-      type: 'End-to-end support coordination',
+      type: asking ? 'Question' : 'End-to-end support coordination',
       stakeholder: actor.role === 'patient' ? 'Patient' : actor.name,
       current_step: 'Trigger received',
       status: 'In progress',
@@ -112,24 +142,11 @@ Deno.serve(async (req) => {
   // would be a worse bug than the block.
   const relationship = await relationshipTo(patientId, actor.id)
 
-  // What kind of request this is, decided in the app before it was sent.
-  //
-  // The workflow was running all fifteen steps on everything, including "who
-  // is Kavita?", because nothing upstream ever told it what it had been handed
-  // and its own classification step classified nothing anything could read. It
-  // is told now, by the only party that actually knows: the app only triggers
-  // at all when a message asks for something to *happen*, so by the time a run
-  // exists the lane is already settled.
-  //
-  // `answered_in_app` matters as much as the lane. The person is not sitting
-  // there waiting to be told what is in their own record — they have already
-  // read that, in the app, before this request left the browser. What is
-  // wanted here is the thing being asked for, not a restatement of the record
-  // it will be built from.
-  const lane = str(body.lane) ?? 'act'
-
   const payload = JSON.stringify({
-    trigger_text: triggerText,
+    // The lane leads the text as well as the metadata. Some agents read only
+    // the trigger text; putting it in one place and hoping was how the last
+    // routing decision got lost.
+    trigger_text: `${laneInstruction}\n\n${triggerText}`,
     metadata: {
       patient_id: patientId,
       actor_id: actor.id,
@@ -139,14 +156,10 @@ Deno.serve(async (req) => {
       authorisation: 'Platform verified this actor may act on this record before triggering.',
       identity_verified: Deno.env.get('ORCA_DEMO_MODE') !== 'true',
       local_workflow_run_id: run.id,
-      lane,
+      lane: laneWord,
       answered_in_app: true,
-      instruction:
-        'This request reached the workflow because it asks for something to be done — ' +
-        'produced, sent, or arranged. Anything the requester merely wanted to know has ' +
-        'already been answered in the app from the record, so do not repeat the record ' +
-        'back to them. Run only the steps this lane needs; steps that are not relevant ' +
-        'should say so in one line and stop.',
+      reply_in_conversation: asking,
+      instruction: laneInstruction,
     },
   })
 

@@ -181,7 +181,8 @@ export function Copilot({
     clearDraft()
 
     const local = directReply(trimmed, patientId, role ?? null)
-    const lane: Lane = force ? 'act' : laneFor(trimmed, local.matched !== false)
+    // Forcing asks for thought, not for a document. The workflow is told so.
+    const lane: Lane = force ? 'ask' : laneFor(trimmed, local.matched !== false)
 
     const actions: LocalAction[] = [...(local.actions ?? [])]
     if (lane === 'unsure') actions.unshift({ label: 'Think this through properly', think: trimmed })
@@ -192,15 +193,17 @@ export function Copilot({
     const opener = shrugged ? 'Let me think about this one properly.' : local.text
 
     orca(
-      lane === 'act' ? `${opener}\n\n${startedLine(verbosity === 'concise')}` : opener,
+      lane === 'ask' || lane === 'act'
+        ? `${opener}\n\n${startedLine(verbosity === 'concise', lane)}`
+        : opener,
       shrugged ? [] : local.sources.length ? local.sources : sourcesFor(trimmed, patientId),
       { detail: shrugged ? undefined : local.detail, actions: shrugged ? [] : actions },
     )
 
-    if (lane !== 'act') return
+    if (lane !== 'ask' && lane !== 'act') return
 
     setBusy(true)
-    const { runId, error } = await startRun(trimmed, patientId, option?.personId ?? '')
+    const { runId, error } = await startRun(trimmed, patientId, option?.personId ?? '', lane)
     setBusy(false)
 
     if (error || !runId) {

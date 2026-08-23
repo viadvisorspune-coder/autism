@@ -160,8 +160,10 @@ export default function PatientGuide() {
 
     // 1. Answer, from the record, here. This is not a fallback any more.
     const local = directReply(trimmed, 'pt-ananya', 'patient')
-    const lane: Lane = force ? 'act' : laneFor(trimmed, local.matched !== false)
-    const escalating = lane === 'act'
+    // Pressing "think this through properly" asks for thinking, not for a
+    // letter. Same workflow, different lane — and the workflow is told which.
+    const lane: Lane = force ? 'ask' : laneFor(trimmed, local.matched !== false)
+    const escalating = lane === 'ask' || lane === 'act'
 
     const actions: NonNullable<GuideMessage['actions']> = (local.actions ?? []).map((a) => ({
       label: a.label,
@@ -183,7 +185,7 @@ export default function PatientGuide() {
         ? 'Let me think about this one properly.'
         : local.text
 
-    say2(escalating ? `${opener}\n\n${startedLine(verbosity === 'concise')}` : opener, {
+    say2(escalating ? `${opener}\n\n${startedLine(verbosity === 'concise', lane)}` : opener, {
       detail: force && local.matched === false ? undefined : local.detail,
       actions: force && local.matched === false ? [] : actions,
     })
@@ -200,7 +202,7 @@ export default function PatientGuide() {
     // had typed it. What it contains is on screen above, verbatim.
     const outbound = mode === 'previous' && recap.preamble ? `${recap.preamble}${trimmed}` : trimmed
 
-    void startRun(outbound, 'pt-ananya', option?.personId ?? 'u-ananya').then(({ runId, error }) => {
+    void startRun(outbound, 'pt-ananya', option?.personId ?? 'u-ananya', lane).then(({ runId, error }) => {
       setStarting(false)
       if (error || !runId) {
         // The status code and the support reference go to the panel below,
@@ -208,7 +210,9 @@ export default function PatientGuide() {
         // is that it could not start, and the answer above still stands.
         setRunError(error ?? 'The workflow could not be started.')
         say2(
-          'I could not start that part. What I told you above still holds — it came from your record — but nothing has been sent to anyone, and you can try again whenever you like.',
+          lane === 'ask'
+            ? 'I could not get to the thinking part just now. What I said above came from your record and still holds. Try again whenever you like.'
+            : 'I could not start that part. What I told you above still holds — it came from your record — but nothing has been sent to anyone, and you can try again whenever you like.',
         )
         return
       }
