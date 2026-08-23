@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ActionBar } from '../../components/ActionBar'
 import { Link, useParams } from 'react-router-dom'
 import {
   Button,
@@ -43,6 +44,8 @@ export function OrgDashboard() {
         title="Dashboard"
         description={`${organisation} — requests for workplace or study adjustments, what they require, and when they are due.`}
       />
+
+      <ActionBar />
 
       <Callout tone="info" title="What you can see here">
         Requests describe what someone needs in order to do their {isUni ? 'course' : 'job'}. They do

@@ -28,6 +28,7 @@ import { PatientRequest, PatientRequests } from '../routes/patient/Requests'
 import PatientProgress from '../routes/patient/Progress'
 
 import Calendar from '../routes/shared/Calendar'
+import AddInformation from '../routes/shared/AddInformation'
 import ClinicalDashboard from '../routes/clinical/Dashboard'
 import {
   ClinicalAppointments,
@@ -119,6 +120,7 @@ function clinicalRoutes() {
       <Route path="timeline" element={<ClinicalTimeline />} />
       <Route path="appointments" element={<ClinicalAppointments />} />
       <Route path="calendar" element={<Calendar scope="mine" />} />
+      <Route path="add" element={<AddInformation />} />
       <Route path="coordination" element={<CareCoordination />} />
       <Route path="referrals" element={<Referrals />} />
     </>
@@ -216,6 +218,7 @@ export default function App() {
         {/* ------------------------------------------ organisation experiences */}
         <Route path="/clinic">
           <Route index element={<ClinicDashboard />} />
+          <Route path="add" element={<AddInformation />} />
           <Route path="patients" element={<ClinicPatients />} />
           <Route path="patients/:patientId" element={<ClinicPatientCoordination />} />
           <Route path="appointments" element={<ClinicAppointments />} />
@@ -228,6 +231,7 @@ export default function App() {
 
         <Route path="/employer">
           <Route index element={<OrgDashboard />} />
+          <Route path="add" element={<AddInformation />} />
           <Route path="employees" element={<OrgPeople />} />
           <Route path="requests" element={<OrgRequests />} />
           <Route path="requests/:requestId" element={<OrgRequestDetail />} />
@@ -239,6 +243,7 @@ export default function App() {
 
         <Route path="/university">
           <Route index element={<OrgDashboard />} />
+          <Route path="add" element={<AddInformation />} />
           <Route path="students" element={<OrgPeople />} />
           <Route path="requests" element={<OrgRequests />} />
           <Route path="requests/:requestId" element={<OrgRequestDetail />} />
@@ -251,6 +256,7 @@ export default function App() {
         {/* ------------------------------------------------- trusted person */}
         <Route path="/trusted">
           <Route index element={<TrustedHome />} />
+          <Route path="add" element={<AddInformation />} />
           <Route path="shared" element={<TrustedShared />} />
           <Route path="support" element={<TrustedSupport />} />
           <Route path="observation" element={<TrustedObservation />} />

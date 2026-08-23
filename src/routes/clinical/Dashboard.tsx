@@ -17,6 +17,7 @@ import { PrepareSessionButton } from '../../components/PrepareSession'
 import { MyDay } from '../../components/MyDay'
 import { WhatOrcaRemembers } from '../../components/Remembers'
 import { Shortcuts } from '../../components/Shortcuts'
+import { ActionBar } from '../../components/ActionBar'
 import { StatRow } from '../../components/ui'
 import {
   TODAY,
@@ -118,6 +119,8 @@ export default function ClinicalDashboard() {
           },
         ]}
       />
+
+      <ActionBar />
 
       <SinceYouWereHere />
 

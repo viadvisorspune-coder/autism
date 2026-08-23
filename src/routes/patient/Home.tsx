@@ -55,8 +55,11 @@ export default function PatientHome() {
       <Card>
         <CardBody>
           <label htmlFor="guide-input" className="block text-[1.05rem] font-medium text-ink">
-            What do you need help with today?
+            Talk to ORCA
           </label>
+          <p className="mt-0.5 text-[0.86rem] text-ink-2">
+            What do you need help with today?
+          </p>
           <form
             onSubmit={(e) => {
               e.preventDefault()
@@ -99,6 +102,35 @@ export default function PatientHome() {
           </div>
         </CardBody>
       </Card>
+
+      {/* ------------------------------------------------ the four things */}
+      {/* Under the conversation rather than above it, because the sentence
+          somebody arrives wanting to type is the fastest route to any of
+          these — and because four tiles at the top of a page is a menu, which
+          is what this product is trying not to be. They are here for the days
+          when the words do not come. */}
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        <Workflow
+          to="/patient/story"
+          title="Tell ORCA something"
+          detail="A hard day, something that helped, anything worth keeping."
+        />
+        <Workflow
+          to="/patient/support"
+          title="Get support"
+          detail="Try something new, or add how the current one is going."
+        />
+        <Workflow
+          to="/patient/work"
+          title="Prepare or share"
+          detail="Ask for an adjustment, or get ready for an appointment."
+        />
+        <Workflow
+          to="/patient/progress"
+          title="Review progress"
+          detail="What has changed, and whether any of it is working."
+        />
+      </div>
 
       <div className="mt-8">
         <OrcaSuggests />
@@ -192,6 +224,25 @@ export default function PatientHome() {
   )
 }
 
+
+/**
+ * One of the four things somebody actually comes here to do.
+ *
+ * Named as verbs, because "My Support" is a filing cabinet and "Get support"
+ * is a thing you can decide to do. Quiet by design — the conversation above is
+ * the primary route, and these must not compete with it.
+ */
+function Workflow({ to, title, detail }: { to: string; title: string; detail: string }) {
+  return (
+    <Link
+      to={to}
+      className="rounded-[20px] bg-surface px-4 py-3.5 shadow-sm hover:bg-brand-tint"
+    >
+      <span className="block text-[0.94rem] font-semibold text-ink">{title}</span>
+      <span className="mt-0.5 block text-[0.83rem] leading-relaxed text-ink-2">{detail}</span>
+    </Link>
+  )
+}
 
 function FollowUp({ to, text, due }: { to: string; text: string; due: string }) {
   return (

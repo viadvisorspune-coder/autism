@@ -74,6 +74,7 @@ export const navByRole: Record<Role, NavGroup[]> = {
     {
       title: 'Caseload',
       items: [
+      { label: 'Add session', to: '/psychologist/add' },
       { label: 'Patients', to: '/psychologist/patients' },
       { label: 'Session Workspace', to: '/psychologist/session' },
       { label: 'Calendar', to: '/psychologist/calendar' },
@@ -112,6 +113,7 @@ export const navByRole: Record<Role, NavGroup[]> = {
     {
       title: 'Caseload',
       items: [
+      { label: 'Add clinical entry', to: '/psychiatrist/add' },
       { label: 'Patients', to: '/psychiatrist/patients' },
       { label: 'Calendar', to: '/psychiatrist/calendar' },
       { label: 'Clinical Overview', to: '/psychiatrist/clinical' },
@@ -150,6 +152,7 @@ export const navByRole: Record<Role, NavGroup[]> = {
     {
       title: 'Caseload',
       items: [
+      { label: 'Record session', to: '/therapist/add' },
       { label: 'Patients', to: '/therapist/patients' },
       { label: 'Session Workspace', to: '/therapist/session' },
       { label: 'Calendar', to: '/therapist/calendar' },
@@ -181,6 +184,7 @@ export const navByRole: Record<Role, NavGroup[]> = {
     {
       title: 'Caseload',
       items: [
+      { label: 'Add observation', to: '/ot/add' },
       { label: 'Patients', to: '/ot/patients' },
       { label: 'Calendar', to: '/ot/calendar' },
       ],
@@ -217,6 +221,7 @@ export const navByRole: Record<Role, NavGroup[]> = {
     {
       title: 'Caseload',
       items: [
+      { label: 'Add visit', to: '/gp/add' },
       { label: 'Patients', to: '/gp/patients' },
       { label: 'Calendar', to: '/gp/calendar' },
       { label: 'Relevant Health Summary', to: '/gp/summary' },
@@ -247,6 +252,7 @@ export const navByRole: Record<Role, NavGroup[]> = {
     {
       title: 'People',
       items: [
+      { label: 'Add patient event', to: '/clinic/add' },
       { label: 'Patients', to: '/clinic/patients' },
       ],
     },
@@ -293,6 +299,7 @@ export const navByRole: Record<Role, NavGroup[]> = {
     {
       title: 'Adjustments',
       items: [
+      { label: 'Update case', to: '/employer/add' },
       { label: 'Accommodation Requests', to: '/employer/requests' },
       { label: 'Active Accommodations', to: '/employer/active' },
       ],
@@ -327,6 +334,7 @@ export const navByRole: Record<Role, NavGroup[]> = {
     {
       title: 'Adjustments',
       items: [
+      { label: 'Update case', to: '/university/add' },
       { label: 'Accommodation Requests', to: '/university/requests' },
       { label: 'Approved Accommodations', to: '/university/active' },
       { label: 'Academic Support', to: '/university/support' },
@@ -355,6 +363,7 @@ export const navByRole: Record<Role, NavGroup[]> = {
     {
       title: 'What is shared',
       items: [
+      { label: 'Share an observation', to: '/trusted/add' },
       { label: 'Shared Information', to: '/trusted/shared' },
       ],
     },

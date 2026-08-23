@@ -27,6 +27,7 @@ type Action =
   | 'add_user'
   | 'update_user'
   | 'set_user_active'
+  | 'add_entry'
 
 /** Only these roles may be asked to decide something clinical. */
 const DECIDING_ROLES = new Set([
@@ -518,6 +519,121 @@ Deno.serve(async (req) => {
       })
     }
 
+    /**
+     * A professional putting something into the record.
+     *
+     * The platform read in one direction until now. A psychologist finishing a
+     * session had nowhere to write it up, which meant the thing this record
+     * most needs — what a clinician actually observed, in the week it happened
+     * — arrived late, second-hand, or not at all.
+     *
+     * Three rules hold here and none of them is negotiable.
+     *
+     * It is attributed. `source_id` is the person who wrote it and
+     * `source_label` says so in words, so nothing in a patient's history is
+     * ever anonymous.
+     *
+     * Its standing depends on who wrote it. A clinician's note is
+     * professionally documented; a trusted person's observation is reported.
+     * Flattening those two into one confidence level is how a family member's
+     * impression ends up quoted back as a clinical finding.
+     *
+     * And it does not change the patient's own profile. Writing a note is not
+     * a decision about somebody. If the author asks for the longer picture to
+     * be revisited, that becomes a *proposal* a human still has to accept —
+     * the same rule that governs every other route into this record.
+     */
+    case 'add_entry': {
+      const kind = str(body.kind)
+      const kindLabel = str(body.kind_label) ?? 'Entry'
+      const fields = (body.fields ?? {}) as Record<string, unknown>
+      if (!kind) return json({ error: 'kind is required' }, 400)
+
+      // Written by a professional means professionally documented. Written by
+      // somebody close to them means reported. Both are worth having; they are
+      // not worth the same.
+      const evidence = actor.role === 'trusted' ? 'Reported' : 'Professionally documented'
+      const category = CATEGORY_FOR[actor.role] ?? 'Clinical'
+
+      // The first substantial thing they wrote is the summary. Better than a
+      // generated one: it is their sentence, and they can see it above.
+      const written = Object.entries(fields)
+        .filter(([name, value]) => !SKIP_IN_SUMMARY.has(name) && typeof value === 'string' && value.trim())
+        .map(([name, value]) => `${label(name)}: ${String(value).trim()}`)
+
+      if (!written.length) return json({ error: 'nothing was written' }, 400)
+
+      const { data: event, error } = await admin
+        .from('timeline_events')
+        .insert({
+          id: `ev-${crypto.randomUUID().slice(0, 8)}`,
+          patient_id: patientId,
+          occurred_on: str(body.occurred_on) ?? null,
+          title: `${kindLabel} — ${actor.name}`,
+          category,
+          source_id: actor.id,
+          source_label: `${actor.name}${actor.role ? `, ${actor.role}` : ''}`,
+          summary: written.slice(0, 3).join('\n'),
+          context: written.length > 3 ? written.slice(3).join('\n') : null,
+          evidence,
+          status: 'Recorded',
+          visible_to: VISIBLE_TO[actor.role] ?? ['patient'],
+        })
+        .select('id')
+        .single()
+
+      if (error) return json({ error: error.message }, 400)
+
+      // Asked for, never assumed. And it is a proposal: what somebody wrote
+      // this afternoon does not get to rewrite who a person is.
+      let proposed = false
+      if (body.propose === true) {
+        const { error: proposalError } = await admin.from('memory_candidates').insert({
+          patient_id: patientId,
+          proposal: `From ${actor.name}'s ${kindLabel.toLowerCase()}: ${written[0]}`,
+          confidence: 0.5,
+          evidence: [{ label: kindLabel, source: actor.name, event_id: event.id }],
+          related_history: 'Added from a professional entry; not yet checked against the rest of the record.',
+          raised_for: ['patient'],
+          status: 'Pending',
+        })
+        proposed = !proposalError
+      }
+
+      let followUp = false
+      if (body.follow_up === true) {
+        const { error: taskError } = await admin.from('tasks').insert({
+          patient_id: patientId,
+          title: `Follow up: ${kindLabel.toLowerCase()} of ${str(body.occurred_on) ?? 'today'}`,
+          detail: str(fields.follow_up) ?? written[0],
+          for_roles: [actor.role],
+          status: 'Active',
+        })
+        followUp = !taskError
+      }
+
+      await recordAudit({
+        actorId: actor.id,
+        actorLabel: actor.name,
+        actorRole: actor.role,
+        patientId,
+        action: `Added a ${kindLabel.toLowerCase()} to the record`,
+        record: `Event ${event.id}`,
+        accessType: 'Write',
+        why: written[0].slice(0, 200),
+        result: 'Allowed',
+      })
+
+      return json({
+        event_id: event.id,
+        proposed,
+        follow_up: followUp,
+        note: proposed
+          ? 'Saved under your name. ORCA will propose what it changes about the longer picture; nothing is added to their profile until somebody agrees to it.'
+          : 'Saved under your name.',
+      })
+    }
+
     // Stamped when someone leaves, so next time ORCA can say what changed
     // rather than making them re-read a page they have already read.
     case 'mark_seen': {
@@ -535,6 +651,55 @@ Deno.serve(async (req) => {
       return json({ error: 'unknown_action', action }, 400)
   }
 })
+
+/**
+ * Which shelf a role's entries belong on.
+ *
+ * An OT's observation is functional, an employer's is about work. Filing them
+ * all as "Clinical" would make a patient's timeline read as though every part
+ * of their life were a medical event, which is the exact framing this product
+ * exists to avoid.
+ */
+const CATEGORY_FOR: Record<string, string> = {
+  psychologist: 'Clinical',
+  psychiatrist: 'Clinical',
+  therapist: 'Support',
+  ot: 'Functional',
+  gp: 'Clinical',
+  clinic: 'Appointments',
+  employer: 'Work',
+  university: 'University',
+  trusted: 'Personal',
+}
+
+/**
+ * Who can see it, decided by who wrote it.
+ *
+ * An employer writes about a workplace adjustment and that is between them and
+ * the person; it does not join the clinical record. The patient is on every
+ * list, always, because it is their record and there is no entry here they are
+ * not entitled to read.
+ */
+const VISIBLE_TO: Record<string, string[]> = {
+  psychologist: ['patient', 'psychologist', 'psychiatrist', 'therapist', 'ot', 'gp'],
+  psychiatrist: ['patient', 'psychologist', 'psychiatrist', 'gp'],
+  therapist: ['patient', 'psychologist', 'therapist', 'ot'],
+  ot: ['patient', 'psychologist', 'therapist', 'ot'],
+  gp: ['patient', 'gp', 'psychologist', 'psychiatrist'],
+  clinic: ['patient', 'clinic', 'psychologist'],
+  employer: ['patient', 'employer'],
+  university: ['patient', 'university'],
+  trusted: ['patient', 'trusted'],
+}
+
+/** Structural fields. Repeating them in the summary tells nobody anything. */
+const SKIP_IN_SUMMARY = new Set(['patient', 'date', 'stage'])
+
+/** `patient_reported` is a column name. "Patient reported" is a sentence. */
+function label(name: string): string {
+  const words = name.replace(/_/g, ' ')
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
 
 /** A decision nobody is told about is a decision nobody acts on. */
 async function notify(
