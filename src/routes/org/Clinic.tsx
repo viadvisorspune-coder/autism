@@ -25,6 +25,7 @@ import {
   requests,
   workflowRuns,
 } from '../../data/db'
+import { PersonLink } from '../../components/shared'
 import { useUI } from '../../state/ui'
 
 /** 27.1 Clinic dashboard. */
@@ -55,7 +56,7 @@ export function ClinicDashboard() {
               key: a.id,
               to: `/clinic/patients/${a.patientId}`,
               cells: [
-                patientName(a.patientId),
+                <PersonLink key="p" patientId={a.patientId} />,
                 personName(a.professionalId),
                 formatDateTime(a.datetime),
                 a.purpose,
@@ -263,7 +264,7 @@ export function ClinicPending() {
             key: w.id,
             cells: [
               w.type,
-              patientName(w.patientId),
+              <PersonLink key="p" patientId={w.patientId} />,
               w.currentStep,
               w.waitingFor,
               formatDate(w.started),
@@ -293,7 +294,7 @@ export function ClinicAccess() {
               key: c.id,
               cells: [
                 personName(c.personId),
-                patientName(c.patientId),
+                <PersonLink key="p" patientId={c.patientId} />,
                 c.accessScope.join(', '),
                 formatDate(c.consentGiven),
                 formatDate(c.reviewDue),

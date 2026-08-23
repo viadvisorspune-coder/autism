@@ -10,7 +10,7 @@ import {
   Table,
   formatDate,
 } from '../../components/ui'
-import { AiProvenance, WhyButton } from '../../components/shared'
+import { AiProvenance, WhyButton, PersonLink } from '../../components/shared'
 import { patientName, personName, strategies } from '../../data/db'
 import { useSession } from '../../state/session'
 import { useUI } from '../../state/ui'
@@ -34,7 +34,7 @@ export function StrategyHistory() {
             to: `${base}/strategies/${s.id}`,
             cells: [
               s.title,
-              patientName(s.patientId),
+              <PersonLink key="p" patientId={s.patientId} />,
               s.environment ?? s.conditions,
               formatDate(s.start),
               s.outcome?.effectiveness ?? `${s.checkIns.length} check-ins`,
@@ -221,7 +221,7 @@ export function OutcomesView() {
             to: `${base}/strategies/${s.id}`,
             cells: [
               s.title,
-              patientName(s.patientId),
+              <PersonLink key="p" patientId={s.patientId} />,
               s.outcome?.effectiveness,
               s.outcome?.summary,
               s.outcome?.proposedAdaptation ?? '—',

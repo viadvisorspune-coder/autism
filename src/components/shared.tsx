@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
+import { patientName } from '../data/db'
+import { useSession } from '../state/session'
 import { Button, Callout, Card, CardBody, CardHead, StatusPill, WorkflowSteps, formatDate } from './ui'
 import type { ReadState } from '../lib/orca'
 import { useUI } from '../state/ui'
@@ -375,5 +378,23 @@ export function RecordSource({ state, reason }: { state: ReadState; reason?: str
     <p className="mb-4 text-[0.78rem] text-state-good">
       Live record · read through the permission layer, scoped to your role.
     </p>
+  )
+}
+
+/**
+ * A person's name, wherever it appears, leading to their record.
+ *
+ * Names were printed as plain text in a dozen tables — a clinician reading
+ * "Farida Qureshi · awaiting clarification" had to go back to the caseload and
+ * find her again. Every stakeholder now has one destination per person, so a
+ * name should always be the way there.
+ */
+export function PersonLink({ patientId, name }: { patientId: string; name?: string }) {
+  const { option } = useSession()
+  const base = option?.home ?? '/psychologist'
+  return (
+    <Link to={`${base}/patients/${patientId}`} className="font-medium text-ink hover:underline">
+      {name ?? patientName(patientId)}
+    </Link>
   )
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Button, Card, CardBody, PageHeader, formatDate } from '../../components/ui'
 import { actOnRecord, useLive } from '../../lib/live'
+import { useRecordId } from '../../state/record'
 import { useSession } from '../../state/session'
 import { useUI } from '../../state/ui'
 
@@ -71,9 +72,13 @@ export default function Calendar({
 }) {
   const { role, option } = useSession()
   const { say } = useUI()
+  // Whose diary, when it is a record's rather than an actor's. The fallback
+  // used to be the demo patient outright, so a second patient signing in read
+  // the first one's appointments.
+  const record = useRecordId(patientId)
   // A diary read is keyed on the person, not the record: `null` tells the
   // server to answer with what this actor is party to.
-  const readFor = scope === 'mine' ? null : (patientId ?? 'pt-ananya')
+  const readFor = scope === 'mine' ? null : record
   const { data, refresh } = useLive<CalendarData>('calendar', readFor, 15000)
   const [busy, setBusy] = useState<string | null>(null)
   const [proposing, setProposing] = useState(false)
@@ -177,7 +182,7 @@ export default function Calendar({
 
       {proposing ? (
         <Propose
-          patientId={mine ? null : (patientId ?? 'pt-ananya')}
+          patientId={mine ? null : record}
           choices={mine ? (data?.patients ?? {}) : {}}
           day={picked}
           onDone={() => {

@@ -25,11 +25,13 @@ import {
   appointments,
   memoryCandidates,
   patients,
+  patientsFor,
   requests,
   requestsFor,
   reviewItems,
   strategiesFor,
 } from '../../data/db'
+import { whatChanged } from '../../lib/record'
 import { useSession } from '../../state/session'
 import { useUI } from '../../state/ui'
 import type { Role } from '../../data/types'
@@ -67,11 +69,25 @@ export default function ClinicalDashboard() {
   const intro = INTRO[role] ?? { title: 'Dashboard', description: '' }
   // The soonest appointment that has not happened, which is the one the
   // "prepare" button in the header is about.
+  const mine = patientsFor(role ?? 'psychologist', option?.personId)
+  const ids = new Set(mine.map((p) => p.id))
+  // Both of these read the whole platform: a clinician's "prepare for your next
+  // appointment" button pointed at whichever appointment in the system happened
+  // to be soonest, and the escalation count included requests raised by people
+  // they have never met.
   const next = appointments
-    .filter((a) => a.status !== 'Completed' && a.datetime >= '2026-08-19')
+    .filter((a) => a.status !== 'Completed' && a.datetime >= TODAY && ids.has(a.patientId))
     .sort((a, b) => a.datetime.localeCompare(b.datetime))[0]
   const memory = memoryCandidates.filter((m) => m.raisedFor.includes(role))
-  const escalations = requests.filter((r) => r.clarifications.some((c) => !c.answer))
+  const escalations = requests.filter(
+    (r) => ids.has(r.patientId) && r.clarifications.some((c) => !c.answer),
+  )
+  // One line each, from that person's own rows. Two names used to be written
+  // into this card, so every clinical role opened it and read the same two
+  // patients — including roles holding no connection to either of them.
+  const summary: { id: string; name: string; line: string }[] = mine
+    .map((p) => ({ id: p.id, name: p.name, line: whatChanged(p.id, role ?? 'psychologist')[0] ?? '' }))
+    .filter((p) => p.line)
   const reviews = reviewItems.filter((r) => r.assignedTo.includes(role))
 
   return (
@@ -149,48 +165,41 @@ export default function ClinicalDashboard() {
         <Card>
           <CardHead
             title="Prepared by ORCA"
-            meta="Significant changes and unresolved issues"
+            meta="Significant changes across your caseload"
             action={
               <WhyButton
                 title="Caseload summary"
                 bundle={{
-                  input: 'Changes across your caseload since 12 August 2026.',
-                  relevantHistory: [
-                    'Ananya Rao — advance-notice strategy under review',
-                    'Rohan Mehta — first post-diagnostic session held 19 August',
-                    'Farida Qureshi — university clarification outstanding',
-                  ],
-                  supporting: [
-                    'Two failed check-ins reported by Ananya Rao',
-                    'Employer clarification request received 19 August',
-                  ],
-                  conflicting: ['Earlier check-ins for the same strategy reported benefit'],
+                  input: `Changes across the ${mine.length} ${mine.length === 1 ? 'person' : 'people'} connected to you.`,
+                  relevantHistory: summary.map((p) => `${p.name} — ${p.line}`),
+                  supporting: ['Strategy check-ins', 'Open requests', 'Recent timeline entries'],
+                  conflicting: [],
                   interpretation:
-                    'One strategy needs adapting; two workflows are waiting on people outside the clinic.',
+                    'Each line is the most recent movement on that record, read from the record itself.',
                   uncertainty:
-                    'Patient-reported check-ins only. No independent measure of lost working time.',
+                    'Derived from what has been written down. Nothing here is a clinical judgement.',
                   sources: ['Patient check-ins', 'Workflow states', 'Session notes'],
                 }}
               />
             }
           />
           <CardBody>
-            <ul className="space-y-3 text-[0.87rem] leading-relaxed text-ink">
-              <li>
-                <span className="font-medium">Ananya Rao</span> — advance-notice strategy is
-                effective for planned changes only. An adaptation is proposed and waiting on review.
-              </li>
-              <li>
-                <span className="font-medium">Farida Qureshi</span> — university has asked whether
-                extra time applies to all assessments.
-              </li>
-              {escalations.length ? (
-                <li>
-                  <span className="font-medium">{escalations.length} workflow(s)</span> waiting on an
-                  external stakeholder.
-                </li>
-              ) : null}
-            </ul>
+            {summary.length ? (
+              <ul className="space-y-3 text-[0.87rem] leading-relaxed text-ink">
+                {summary.map((p) => (
+                  <li key={p.id}>
+                    <Link to={`${base}/patients/${p.id}`} className="font-medium hover:underline">
+                      {p.name}
+                    </Link>{' '}
+                    — {p.line}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[0.86rem] text-muted">
+                Nothing has moved on any of your records in the last six weeks.
+              </p>
+            )}
             <AiProvenance />
           </CardBody>
         </Card>

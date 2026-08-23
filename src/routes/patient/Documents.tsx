@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   Button,
-  Callout,
   Card,
   CardBody,
   CardHead,
@@ -14,6 +13,7 @@ import {
   formatDate,
 } from '../../components/ui'
 import { documents, documentsFor, personName, timeline } from '../../data/db'
+import { UploadPanel } from '../../components/Upload'
 import { useUI } from '../../state/ui'
 import { useRecordId } from '../../state/record'
 
@@ -211,77 +211,21 @@ export function PatientDocument() {
 
 /** 10.3 Document upload. */
 export function PatientDocumentUpload() {
-  const { say } = useUI()
-  const stages = ['Uploaded', 'Analysing', 'Extracting', 'Your review', 'Saved']
-  const [stage, setStage] = useState(-1)
+  const patientId = useRecordId()
 
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader
         title="Upload a document"
-        description="PDF, Word, image or a structured document. ORCA will read it and show you what it found — nothing is added to your record automatically."
+        description="PDF, Word, image or anything else. It goes onto your record and shows on your story — nothing is shared with anybody by uploading it."
         breadcrumbs={[
           { label: 'Home', to: '/patient' },
           { label: 'Documents', to: '/patient/documents' },
           { label: 'Upload' },
         ]}
       />
-
-      <Card className="mb-6">
-        <CardBody>
-          <div className="flex flex-col items-center justify-center rounded-[20px]  border-dashed border-line-strong bg-surface-2 px-6 py-10 text-center">
-            <p className="text-[0.92rem] font-medium text-ink">Drop a file here, or choose one</p>
-            <p className="mt-1 text-[0.83rem] text-muted">PDF · DOCX · Image · Structured document</p>
-            <Button
-              variant="primary"
-              className="mt-4"
-              onClick={() => {
-                setStage(0)
-                say('Upload started.')
-                ;[1, 2, 3].forEach((s, i) => window.setTimeout(() => setStage(s), (i + 1) * 900))
-              }}
-            >
-              Choose a file
-            </Button>
-          </div>
-        </CardBody>
-      </Card>
-
-      {stage >= 0 ? (
-        <Card className="mb-6">
-          <CardHead title="Processing" meta="employer-handbook-extract.docx" />
-          <CardBody>
-            <ol className="flex flex-wrap gap-2">
-              {stages.map((s, i) => (
-                <li
-                  key={s}
-                  className={`rounded-full  px-3 py-1.5 text-[0.8rem] ${
-                    i < stage
-                      ? 'bg-state-good-tint text-state-good'
-                      : i === stage
-                        ? 'border-brand bg-brand-tint text-brand-ink'
-                        : 'border-line text-muted'
-                  }`}
-                >
-                  {s}
-                </li>
-              ))}
-            </ol>
-            {stage >= 3 ? (
-              <div className="mt-4">
-                <LinkButton to="/patient/documents/doc-3" variant="primary">
-                  Review what ORCA found
-                </LinkButton>
-              </div>
-            ) : null}
-          </CardBody>
-        </Card>
-      ) : null}
-
-      <Callout tone="info" title="Extracted information waits for you">
-        ORCA does not put anything from a document into your record on its own. You decide, item by
-        item, what becomes part of your story.
-      </Callout>
+      <UploadPanel patientId={patientId} />
+      <LinkButton to="/patient/documents">Back to documents</LinkButton>
     </div>
   )
 }

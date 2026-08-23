@@ -17,6 +17,7 @@ import {
   formatDate,
 } from '../../components/ui'
 import { TODAY, patientName, patientsFor, requests, strategiesFor } from '../../data/db'
+import { PersonLink } from '../../components/shared'
 import { useSession } from '../../state/session'
 import { useUI } from '../../state/ui'
 import type { RequestRecord, Role } from '../../data/types'
@@ -141,7 +142,7 @@ export function OrgRequests() {
           rows={mine.map((r) => ({
             key: r.id,
             to: `${base}/requests/${r.id}`,
-            cells: [patientName(r.patientId), r.title, formatDate(r.raised), <StatusPill key="s" status={r.status} />, r.currentOwner],
+            cells: [<PersonLink key="p" patientId={r.patientId} />, r.title, formatDate(r.raised), <StatusPill key="s" status={r.status} />, r.currentOwner],
           }))}
         />
       </Card>

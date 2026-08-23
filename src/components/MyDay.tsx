@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Card, CardBody, formatDate } from './ui'
 import { PrepareSessionButton } from './PrepareSession'
+import { PersonLink } from './shared'
 import { useSession } from '../state/session'
 import {
   TODAY,
@@ -72,7 +73,7 @@ export function MyDay() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-[0.89rem] font-medium text-ink">
-                        {a.datetime.slice(11, 16)} · {patientName(a.patientId)}
+                        {a.datetime.slice(11, 16)} · <PersonLink patientId={a.patientId} />
                       </p>
                       <p className="text-[0.83rem] leading-relaxed text-ink-2">{a.purpose}</p>
                       <p className="text-[0.78rem] text-muted">
