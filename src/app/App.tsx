@@ -27,6 +27,7 @@ import { PatientPrivacy, PatientSharingHistory } from '../routes/patient/Privacy
 import { PatientRequest, PatientRequests } from '../routes/patient/Requests'
 import PatientProgress from '../routes/patient/Progress'
 
+import Calendar from '../routes/shared/Calendar'
 import ClinicalDashboard from '../routes/clinical/Dashboard'
 import {
   ClinicalAppointments,
@@ -117,6 +118,7 @@ function clinicalRoutes() {
       <Route path="permissions" element={<ClinicalPermissions />} />
       <Route path="timeline" element={<ClinicalTimeline />} />
       <Route path="appointments" element={<ClinicalAppointments />} />
+      <Route path="calendar" element={<Calendar />} />
       <Route path="coordination" element={<CareCoordination />} />
       <Route path="referrals" element={<Referrals />} />
     </>
@@ -165,6 +167,7 @@ export default function App() {
           <Route path="support" element={<PatientSupport />} />
           <Route path="support/:strategyId" element={<PatientStrategy />} />
           <Route path="care" element={<PatientCare />} />
+          <Route path="calendar" element={<Calendar />} />
           <Route path="care/team" element={<PatientCareTeam />} />
           <Route path="care/appointments/:appointmentId" element={<PatientAppointment />} />
           <Route path="care/appointments/:appointmentId/prepare" element={<PatientAppointmentPrep />} />

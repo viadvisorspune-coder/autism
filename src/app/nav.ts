@@ -45,6 +45,7 @@ export const navByRole: Record<Role, NavGroup[]> = {
       items: [
       { label: 'My Support', to: '/patient/support' },
       { label: 'My Care', to: '/patient/care' },
+      { label: 'Calendar', to: '/patient/calendar' },
       { label: 'Progress', to: '/patient/progress' },
       ],
     },
@@ -75,6 +76,7 @@ export const navByRole: Record<Role, NavGroup[]> = {
       items: [
       { label: 'Patients', to: '/psychologist/patients' },
       { label: 'Session Workspace', to: '/psychologist/session' },
+      { label: 'Calendar', to: '/psychologist/calendar' },
       ],
     },
     {
@@ -111,6 +113,7 @@ export const navByRole: Record<Role, NavGroup[]> = {
       title: 'Caseload',
       items: [
       { label: 'Patients', to: '/psychiatrist/patients' },
+      { label: 'Calendar', to: '/psychiatrist/calendar' },
       { label: 'Clinical Overview', to: '/psychiatrist/clinical' },
       { label: 'Timeline', to: '/psychiatrist/timeline' },
       ],
@@ -149,6 +152,7 @@ export const navByRole: Record<Role, NavGroup[]> = {
       items: [
       { label: 'Patients', to: '/therapist/patients' },
       { label: 'Session Workspace', to: '/therapist/session' },
+      { label: 'Calendar', to: '/therapist/calendar' },
       ],
     },
     {
@@ -178,6 +182,7 @@ export const navByRole: Record<Role, NavGroup[]> = {
       title: 'Caseload',
       items: [
       { label: 'Patients', to: '/ot/patients' },
+      { label: 'Calendar', to: '/ot/calendar' },
       ],
     },
     {
@@ -213,6 +218,7 @@ export const navByRole: Record<Role, NavGroup[]> = {
       title: 'Caseload',
       items: [
       { label: 'Patients', to: '/gp/patients' },
+      { label: 'Calendar', to: '/gp/calendar' },
       { label: 'Relevant Health Summary', to: '/gp/summary' },
       ],
     },

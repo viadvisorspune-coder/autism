@@ -28,16 +28,17 @@ type Resource =
   | 'audit'
   | 'approvals'
   | 'workflow_runs'
+  | 'calendar'
 
 /** What each role may ever receive, before per-patient consent narrows it. */
 const ROLE_MAY_READ: Record<string, Resource[]> = {
-  patient: ['bundle', 'run', 'inbox', 'conversation', 'privacy', 'timeline', 'requests', 'profile', 'strategies', 'audit', 'approvals', 'workflow_runs'],
-  psychologist: ['bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'strategies', 'requests', 'approvals'],
-  psychiatrist: ['bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'requests'],
-  therapist: ['bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies'],
-  ot: ['bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies'],
-  gp: ['bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile'],
-  clinic: ['bundle', 'run', 'inbox', 'conversation', 'requests', 'workflow_runs'],
+  patient: ['bundle', 'run', 'inbox', 'conversation', 'privacy', 'timeline', 'requests', 'profile', 'strategies', 'audit', 'approvals', 'workflow_runs', 'calendar'],
+  psychologist: ['calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'strategies', 'requests', 'approvals'],
+  psychiatrist: ['calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'requests'],
+  therapist: ['calendar', 'bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies'],
+  ot: ['calendar', 'bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies'],
+  gp: ['calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile'],
+  clinic: ['calendar', 'bundle', 'run', 'inbox', 'conversation', 'requests', 'workflow_runs'],
   employer: ['bundle', 'run', 'inbox', 'conversation', 'requests'],
   university: ['bundle', 'run', 'inbox', 'conversation', 'requests'],
   trusted: ['bundle', 'run', 'inbox', 'conversation', 'profile'],
@@ -192,6 +193,28 @@ async function read(
           runs: runs.data ?? [],
         },
       }
+    }
+
+    // Everything scheduled, agreed or merely proposed, in one place.
+    //
+    // Proposals and confirmed times live in the same table and the same list,
+    // because from the point of view of somebody planning a week they are the
+    // same kind of object — a thing that may happen on Tuesday. What differs
+    // is whether it is settled, and that is a property of the row, not a
+    // reason to keep two lists.
+    case 'calendar': {
+      if (!patientId) return null
+      const { data: appointments } = await admin
+        .from('appointments')
+        .select('*')
+        .eq('patient_id', patientId)
+        .order('scheduled_for', { ascending: true })
+
+      const people = await peopleById(
+        (appointments ?? []).map((a) => String(a.professional_id ?? '')),
+      )
+
+      return { appointments: appointments ?? [], people }
     }
 
     // One run, with anything a person waiting on it would want to know: where

@@ -15,6 +15,9 @@ import { admin, cors, json, list, recordAudit, str } from '../_shared/yoxa.ts'
 import { actorFromRequest, forbidden, mayActOnPatient, unauthorised } from '../_shared/app.ts'
 
 type Action =
+  | 'propose_appointment'
+  | 'answer_appointment'
+  | 'edit_appointment'
   | 'raise_review'
   | 'decide_review'
   | 'decide_access_request'
@@ -379,6 +382,140 @@ Deno.serve(async (req) => {
         .eq('id', conversationId)
 
       return json({ message: data, conversation_id: conversationId })
+    }
+
+    // ------------------------------------------------------- appointments
+
+    /**
+     * Propose a time. Not book one.
+     *
+     * Either side can propose and either side must agree, which is the only
+     * arrangement that reflects how this actually works: a clinic offering a
+     * slot has not booked the person, and a person asking for one has not
+     * booked the clinician. Everything starts as a proposal and becomes real
+     * only when the other party accepts.
+     *
+     * A proposed time carries who proposed it, so the person looking at it
+     * knows whether they are being asked or being told.
+     */
+    case 'propose_appointment': {
+      const scheduledFor = str(body.scheduled_for)
+      const purpose = str(body.purpose)
+      const withWhom = str(body.professional_id)
+      if (!scheduledFor) return json({ error: 'scheduled_for is required' }, 400)
+      if (!purpose) return json({ error: 'purpose is required' }, 400)
+
+      const { data, error } = await admin
+        .from('appointments')
+        .insert({
+          id: `ap-${crypto.randomUUID().slice(0, 8)}`,
+          patient_id: patientId,
+          professional_id: withWhom ?? (actor.role === 'patient' ? null : actor.id),
+          scheduled_for: scheduledFor,
+          purpose,
+          location: str(body.location) ?? 'To be confirmed',
+          // Proposed, not booked. The status language is shared across the
+          // whole system, and "awaiting stakeholder" is what this is.
+          status: 'Awaiting stakeholder',
+          preparation_status: 'Not started',
+          questions: [],
+        })
+        .select('*')
+        .single()
+      if (error) return json({ error: error.message }, 400)
+
+      await recordAudit({
+        actorId: actor.id,
+        actorLabel: actor.name,
+        actorRole: actor.role,
+        patientId,
+        action: 'Proposed an appointment',
+        record: `Appointment ${data.id}`,
+        accessType: 'Write',
+        why: purpose,
+        result: 'Allowed',
+      })
+
+      return json({ appointment: data, note: 'Proposed. It is not booked until the other person agrees.' })
+    }
+
+    /** Accept, decline, or suggest a different time. */
+    case 'answer_appointment': {
+      const appointmentId = str(body.appointment_id)
+      const answer = str(body.answer)
+      if (!appointmentId) return json({ error: 'appointment_id is required' }, 400)
+      if (!answer || !['accept', 'decline', 'reschedule'].includes(answer)) {
+        return json({ error: 'answer must be accept, decline or reschedule' }, 400)
+      }
+
+      const patch: Record<string, unknown> =
+        answer === 'accept'
+          ? { status: 'Active' }
+          : answer === 'decline'
+            ? { status: 'Cancelled' }
+            : { status: 'Awaiting stakeholder', scheduled_for: str(body.scheduled_for) }
+
+      if (answer === 'reschedule' && !str(body.scheduled_for)) {
+        return json({ error: 'scheduled_for is required to suggest a different time' }, 400)
+      }
+
+      const { data, error } = await admin
+        .from('appointments')
+        .update(patch)
+        .eq('id', appointmentId)
+        .eq('patient_id', patientId)
+        .select('*')
+        .single()
+      if (error) return json({ error: error.message }, 400)
+
+      await recordAudit({
+        actorId: actor.id,
+        actorLabel: actor.name,
+        actorRole: actor.role,
+        patientId,
+        action: `Appointment ${answer === 'accept' ? 'accepted' : answer === 'decline' ? 'declined' : 'moved'}`,
+        record: `Appointment ${appointmentId}`,
+        accessType: 'Write',
+        why: str(body.reason) ?? '',
+        result: 'Allowed',
+      })
+
+      return json({ appointment: data })
+    }
+
+    /** Change the details of one already agreed. Time changes go back to proposal. */
+    case 'edit_appointment': {
+      const appointmentId = str(body.appointment_id)
+      if (!appointmentId) return json({ error: 'appointment_id is required' }, 400)
+
+      const patch: Record<string, unknown> = {}
+      if (str(body.purpose)) patch.purpose = str(body.purpose)
+      if (str(body.location)) patch.location = str(body.location)
+      if (Array.isArray(body.questions)) patch.questions = body.questions
+      // Moving a time un-agrees it. Somebody who agreed to Tuesday has not
+      // agreed to Thursday, and silently sliding it would be the kind of
+      // unannounced change this whole record exists to prevent.
+      if (str(body.scheduled_for)) {
+        patch.scheduled_for = str(body.scheduled_for)
+        patch.status = 'Awaiting stakeholder'
+      }
+      if (!Object.keys(patch).length) return json({ error: 'nothing to change' }, 400)
+
+      const { data, error } = await admin
+        .from('appointments')
+        .update(patch)
+        .eq('id', appointmentId)
+        .eq('patient_id', patientId)
+        .select('*')
+        .single()
+      if (error) return json({ error: error.message }, 400)
+
+      return json({
+        appointment: data,
+        note: patch.scheduled_for
+          ? 'The time changed, so it needs agreeing again.'
+          : 'Updated.',
+      })
     }
 
     // Stamped when someone leaves, so next time ORCA can say what changed
