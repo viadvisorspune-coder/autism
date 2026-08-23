@@ -134,12 +134,13 @@ async function read(
     case 'conversation': {
       if (!patientId || !actorId) return null
 
-      const { data: conversation } = await admin
+      const { data: conversation, error: convErr } = await admin
         .from('conversations')
         .select('id, started_at, last_message_at')
         .eq('patient_id', patientId)
         .eq('actor_id', actorId)
         .maybeSingle()
+      if (convErr) console.error('app-read conversation:', convErr.message)
 
       const { data: messages } = conversation
         ? await admin
@@ -209,10 +210,11 @@ async function read(
 
       const attachments: Record<string, unknown>[] = []
       if (runIds.length) {
-        const { data: docs } = await admin
+        const { data: docs, error: docsErr } = await admin
           .from('documents')
           .select('id, title, file_type, category, storage_path, workflow_run_id, recorded_on')
           .in('workflow_run_id', runIds)
+        if (docsErr) console.error('app-read documents:', docsErr.message)
 
         for (const doc of docs ?? []) {
           let url: string | null = null
@@ -275,7 +277,8 @@ async function read(
       const query = admin.from('appointments').select('*').order('scheduled_for', { ascending: true })
 
       if (patientId) {
-        const { data: appointments } = await query.eq('patient_id', patientId)
+        const { data: appointments, error: apptErr } = await query.eq('patient_id', patientId)
+        if (apptErr) console.error('app-read appointments:', apptErr.message)
         const rows = appointments ?? []
         return {
           appointments: rows,
@@ -297,7 +300,8 @@ async function read(
       const ids = (links ?? []).map((l) => String(l.patient_id))
       if (!ids.length) return { appointments: [], people: {}, patients: {} }
 
-      const { data: appointments } = await query.in('patient_id', ids).eq('professional_id', actorId)
+      const { data: appointments, error: apptErr2 } = await query.in('patient_id', ids).eq('professional_id', actorId)
+      if (apptErr2) console.error('app-read appointments (caseload):', apptErr2.message)
       const rows = appointments ?? []
 
       return {

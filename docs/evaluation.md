@@ -224,6 +224,87 @@ last resort rather than the default.
 
 ---
 
+---
+
+## 9. A failed read that looked like an empty record
+
+**How it was found.** Checking whether the backend was finished, by asking it for
+a timeline.
+
+**What happened.** `{"events": []}`. Twelve events sat in the table.
+
+**Diagnosis.** The read asked for a column called `evidence_status`. The column
+is `evidence`. PostgREST rejected the whole select, and the error was discarded
+by a destructure that took only `data` — so the caller received an empty array
+and rendered it faithfully. Every patient's story and profile read "nothing
+recorded yet" on the deployed app. The frontend held the mirror image: it
+mapped `evidence_status` off a bundle that returns `evidence`, so every event
+arrived with no evidence status — the one field separating something a person
+mentioned once from something a clinician documented.
+
+**Change.** Both column names corrected; those two reads now return the error
+instead of swallowing it, and the four other reads that render primary content
+log theirs. A sweep of every field the frontend reads against the actual schema
+found three more dead reads, since fixed or derived.
+
+**Wider lesson.** This is the most dangerous bug shape in the system, and it is
+worth naming precisely: a failure that renders as an empty record. Nobody
+reports it, because an empty record is a plausible thing to have. A screen that
+cannot tell "nothing happened" from "the question failed" will always be
+believed when it says nothing happened.
+
+---
+
+## 10. The agent that had nothing to work with, and said so
+
+**How it was found.** A run completed both steps and the person got no answer.
+
+**What happened.** The reply tool was called with:
+
+```json
+{"actor_id":"","patient_id":"","text":"the record was not retrieved because
+ required patient metadata was unavailable","workflow_run_id":null}
+```
+
+The API returned 400, correctly — both ids are required so a reply cannot be
+written into nobody's conversation.
+
+**Diagnosis.** The workflow platform's public trigger carries a single field.
+The metadata object sent beside it never reaches the agents. An agent asked for
+a patient id therefore had nothing to give, and sent an empty string — which
+satisfies the connector schema and fails at the API.
+
+**Change.** The ids now lead the trigger text, where the agent actually reads.
+The backend also resolves them when they arrive blank, from the run the
+application created moments earlier.
+
+**What the agent got right.** Asked what medication to take, with no record, it
+did not invent one. It reported that retrieval had failed and why. That is the
+behaviour the whole evidence architecture exists to produce, and it held under
+the worst conditions available — no context at all.
+
+---
+
+## 11. Documents the agents could not see
+
+**How it was found.** Asking whether a newly seeded set of documents would reach
+the workflows.
+
+**Diagnosis.** The retrieval endpoint every agent shares had never queried the
+documents table. Ten stakeholders' contributions — the occupational therapist's
+workplace observation, HR's adjustment request, a sister's note about what a
+hard day looks like — were invisible to every agent in both workflows.
+
+**Change.** Documents are returned inside the existing `records` array with
+category `Documents`, rather than as a field of their own. The connector
+contract fixes the response shape, so a new top-level field would have required
+editing and re-uploading eight files; a document fits the record shape exactly.
+Scoped by each document's own access list, so an employer's agent reads HR's
+request and not the therapist's observation.
+
+**Wider lesson.** A contract you do not control is a constraint on where the
+answer can go, not on whether there is one.
+
 ## Edge cases the system is built to handle
 
 These are designed-for rather than discovered, and each is observable.
@@ -252,6 +333,21 @@ testing section.
   numbers and dates, never content. Opening a record still goes through the
   ordinary per-record checks. This is deliberate, but it means a caseload
   question cannot be answered richly.
+- **A connector call can be resolved by inference.** When an agent sends an
+  empty patient id, the backend falls back to the newest run still open, on the
+  assumption it is the one that just triggered. Under concurrent users this
+  guesses, and a wrong guess writes into the wrong person's record. It is
+  bounded to fifteen minutes, requires the run to be in progress, and refuses
+  outright when more than one candidate exists — but it is a demonstration
+  affordance, not a permission model, and should be deleted rather than kept
+  the day the trigger can carry structured metadata.
+- **Role is asserted, not derived.** The read endpoint takes the caller's role
+  from the request body. Scope is then enforced correctly against that role,
+  but nothing proves the claim. This is the same gap as asserted identity,
+  one level up, and it is the first thing sign-in should close.
+- **Uploaded documents are registered, not read.** Nothing extracts text from a
+  file. The interface says so rather than implying otherwise, and every
+  document with nothing extracted reports that plainly to agents as well.
 - **The agentic workflow is not yet reliable.** One agent produces findings
   without calling the tool that would ground them — the failure mode where a
   language model reports something plausible about a real person from nothing.

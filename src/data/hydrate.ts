@@ -153,7 +153,12 @@ function apply(b: Bundle) {
       pronouns: p.pronouns ?? '',
       age: Number(p.age ?? 0),
       context: p.context ?? '',
-      nextAppointmentId: p.next_appointment_id ?? undefined,
+      // Derived, not stored. There is no next_appointment_id column, so this
+      // read always produced undefined — and a column would go stale the
+      // moment an appointment moved. The diary already knows.
+      nextAppointmentId: (b.appointments ?? [])
+        .filter((a) => a.patient_id === p.id && a.status !== 'Completed')
+        .sort((x, y) => String(x.scheduled_for).localeCompare(String(y.scheduled_for)))[0]?.id,
     })),
   )
 
@@ -242,7 +247,9 @@ function apply(b: Bundle) {
       location: a.location ?? '',
       status: a.status,
       preparationStatus: a.preparation_status,
-      previousBriefId: a.previous_brief_id ?? undefined,
+      // No such column, and nothing renders it. Left undefined rather than
+      // reading a field that does not exist, which reads as though it works.
+      previousBriefId: undefined,
       questions: a.questions ?? [],
     })),
   )
