@@ -94,11 +94,11 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
   const named = personIn(question)
   if (named) {
     const link = connections.find((c) => c.patientId === patientId && c.personId === named.id)
-    const who = `${named.name} — ${named.title ?? named.role}${named.organisation ? `, ${named.organisation}` : ''}.`
+    const who = `${named.name}${named.title ? `, ${named.title.toLowerCase()}` : ''}${named.organisation ? ` at ${named.organisation}` : ''}`
 
     if (!link) {
       return {
-        text: `${who} They are not connected to your record, so they cannot see any of it.`,
+        text: `That is ${who}. They are not connected to your record, so they cannot see any of it.`,
         actions: [{ label: 'See who can', to: '/patient/privacy' }],
         sources: [],
       }
@@ -118,7 +118,7 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
     )
 
     return {
-      text: `${who} Your ${link.relationship.toLowerCase()}${next ? `, seeing you on ${say(next.datetime)}` : ''}.`,
+      text: `That is ${who} — your ${link.relationship.toLowerCase()}.${next ? ` You are seeing them on ${say(next.datetime)}.` : ''}`,
       detail,
       actions: [
         { label: 'What they can see', to: '/patient/privacy' },
@@ -135,7 +135,7 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
     const active = connections.filter((c) => c.patientId === patientId && c.consentStatus === 'Active')
     if (active.length) {
       return {
-        text: `${active.length} people can see part of your record. Each one has a named part and nothing more.`,
+        text: `${active.length} people can see part of your record — each of them a named part of it, and nothing more.`,
         detail: active
           .map(
             (c) =>
@@ -216,7 +216,7 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
     const recent = eventsFor(patientId).slice(0, 5)
     if (recent.length) {
       return {
-        text: `${recent.length} things have gone into your record recently. The most recent: ${recent[0].title}, on ${say(recent[0].date)}.`,
+        text: `${recent.length} things have gone in recently. The latest was ${recent[0].title.toLowerCase()}, on ${say(recent[0].date)}.`,
         detail: recent.map((e) => `${say(e.date)} — ${e.title}\n${e.summary}`).join('\n\n'),
         actions: [{ label: 'Open my story', to: '/patient/story' }],
         sources: recent.slice(0, 3).map((e) => ({ label: e.title, detail: e.category, to: `/patient/story/${e.id}` })),
@@ -231,7 +231,7 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
       const next = soon[0]
       const away = daysFromToday(next.datetime.slice(0, 10))
       return {
-        text: `${personName(next.professionalId)}, ${say(next.datetime)}${away >= 0 ? ` — ${away === 0 ? 'today' : `in ${away} days`}` : ''}. ${next.purpose}.`,
+        text: `You are seeing ${personName(next.professionalId)} on ${say(next.datetime)}${away >= 0 ? `, ${away === 0 ? 'today' : `in ${away} days`}` : ''} — ${next.purpose.toLowerCase()}.`,
         detail: soon
           .map((a) => `${say(a.datetime)} — ${a.purpose} with ${personName(a.professionalId)}.\n${a.location}. Brief is ${a.preparationStatus.toLowerCase()}.`)
           .join('\n\n'),
@@ -388,7 +388,9 @@ export function offlineReply(
     const answer = answerFromRecord(question, patientId)
     return {
       ...answer,
-      text: first ? `Workflow service unreachable — reading the record directly.\n\n${answer.text}` : answer.text,
+      text: first
+        ? `${answer.text}\n\nRead directly from the record — the workflow service is unreachable, so this is a lookup rather than analysis.`
+        : answer.text,
     }
   }
 
@@ -418,16 +420,28 @@ export function offlineReply(
   }
 
   const answer = answerFromRecord(question, patientId)
-
-  // The notice becomes a short line before the answer, and only the first
-  // time. After that the answer stands on its own, which is the whole point.
   if (!first) return answer
+
+  // The answer goes first, and the caveat goes last.
+  //
+  // Every reply used to open by announcing its own condition — "I cannot
+  // reach the part of me that works things through" — before saying anything
+  // to the person who had asked a question. That is a machine describing
+  // itself to somebody who wanted to know when their appointment is, and no
+  // amount of polite wording fixes the order. Somebody who does not care that
+  // a service is degraded can now stop reading after the first line and will
+  // have lost nothing.
+  if (answer.matched === false) {
+    // Nothing was read, so it must not claim to have read anything.
+    return {
+      ...answer,
+      text: `${answer.text}\n\nI am also working without the part of me that thinks things through at the moment, so I can look things up but not reason about them.`,
+    }
+  }
 
   return {
     ...answer,
-    text: answer.matched === false
-      ? `I am working without the part of me that reasons, so I can look things up but not think about them.\n\n${answer.text}`
-      : `${answer.text}\n\nRead straight from your record — I could not reach the part of me that works things through, so nothing was started and nobody was contacted.`,
+    text: `${answer.text}\n\nThat is read straight from your record rather than thought through — the part of me that does the thinking is unavailable just now. Nothing was started and nobody was contacted.`,
   }
 }
 
