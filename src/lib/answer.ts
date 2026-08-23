@@ -274,7 +274,17 @@ function say(iso: string): string {
 
 function has(question: string, ...words: string[]): boolean {
   const q = question.toLowerCase()
-  return words.some((w) => q.includes(w))
+  // Whole words, plus a plural.
+  //
+  // This matched substrings, so "what is quiet workspace?" contained "work"
+  // and was answered with a count of open requests — the same fault as "one"
+  // inside "headphones", in the branch chooser rather than the search. A
+  // keyword that fires from inside a longer word does not route a question,
+  // it hijacks one, and the person gets a confident answer to something they
+  // did not ask.
+  return words.some((w) =>
+    new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:s|es)?\\b`).test(q),
+  )
 }
 
 /**
@@ -927,7 +937,7 @@ export function forgetLastAnswer() {
 
 /** Words that only mean something because of what came before them. */
 const CARRIES_OVER =
-  /^\s*(which(\s+one)?|what about (it|that|those|them)|which of (them|those)|and\??|then\??|why\??|how\??|more|tell me more|go on|say more|that one|the (first|second|third|last) one|explain that|explain)\s*[?.!]*\s*$/i
+  /^\s*(which(\s+one)?|what about (it|that|those|them)|which of (them|those)|and\??|then\??|why\??|how\??|more|tell me more|go on|say more|that one|the (first|second|third|last) one|explain that|explain|(remind me|tell me)( again)?( what (that|it) (was|is))?|what (was|were) (that|those|it)( again)?|say that again|come again)\s*[?.!]*\s*$/i
 
 function continuing(question: string): LocalAnswer | null {
   if (!previous || !CARRIES_OVER.test(question)) return null
