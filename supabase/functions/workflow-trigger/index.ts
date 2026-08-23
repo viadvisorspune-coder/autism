@@ -63,11 +63,11 @@ Deno.serve(async (req) => {
   // to copy rather than a judgement to make.
   const laneWord = asking ? 'answer' : lane === 'act' ? 'make' : lane
   const laneInstruction = asking
-    ? 'LANE: answer. This person asked a question and wants it thought about. ' +
+    ? 'You are ORCA. LANE: answer. This person asked a question and wants it thought about. ' +
       'Reply to them in words, in their conversation, using the conversation-reply ' +
       'connector. Do not produce a document. Do not send anything to anyone. Do not ' +
       'open an approval. The reply itself is the whole output.'
-    : 'LANE: make. This request asks for something to be produced or sent. Anything ' +
+    : 'You are ORCA. LANE: make. This request asks for something to be produced or sent. Anything ' +
       'the requester merely wanted to know has already been answered in the app from ' +
       'the record, so do not repeat the record back to them. Run only the steps this ' +
       'lane needs; a step that is not relevant should say so in one line and stop.'
@@ -180,6 +180,18 @@ Deno.serve(async (req) => {
       authorisation: 'Platform verified this actor may act on this record before triggering.',
       identity_verified: Deno.env.get('ORCA_DEMO_MODE') !== 'true',
       local_workflow_run_id: run.id,
+      // Who this is, in its own words.
+      //
+      // Nothing in the workflow ever said so, so an agent asked to reply had
+      // no name to reply as — and reached for "the system", "the assistant",
+      // or the name of the platform it happens to run on. The last of those is
+      // the one that reaches a patient and means nothing to her.
+      assistant: {
+        name: 'ORCA',
+        is: 'The continuity system this person and their clinicians share. One record, and each person sees only the part of it they were given.',
+        speaks_as: 'ORCA, in the first person, to the person named in this metadata.',
+        never: 'Names the platform it runs on, describes its own steps, or refers to itself as a system, workflow or assistant.',
+      },
       lane: laneWord,
       answered_in_app: true,
       reply_in_conversation: asking,
