@@ -366,12 +366,19 @@ function terms(question: string): string[] {
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, ' ')
     .split(/\s+/)
-    .filter((w) => w.length > 2 && !STOP.has(w))
+    // Three letters is not a topic unless the record has a word for it.
+    .filter((w) => !STOP.has(w) && (w.length > 3 || w in NEARBY))
 
   const out = new Set<string>()
+  const add = (word: string) => {
+    // Hyphens split on both sides or not at all — "open-plan" as one token
+    // could never match a haystack that had already split it in two.
+    for (const part of word.split('-').filter((p) => p.length > 3)) out.add(root(part))
+  }
+
   for (const word of words) {
-    out.add(root(word))
-    for (const near of NEARBY[word] ?? []) out.add(root(near))
+    add(word)
+    for (const near of NEARBY[word] ?? []) add(near)
   }
   return [...out]
 }
@@ -388,9 +395,19 @@ function searchRecord(question: string, patientId: string): Hit[] {
   const want = terms(question)
   if (!want.length) return []
 
+  // Whole words, never substrings. "one" used to match inside "headphones",
+  // which is how a follow-up of two words produced three confident hits about
+  // noise-cancelling headphones.
   const score = (haystack: string) => {
-    const hay = haystack.toLowerCase()
-    return want.filter((t) => hay.includes(t)).length
+    const words = new Set(
+      haystack
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, ' ')
+        .split(/[\s-]+/)
+        .filter(Boolean)
+        .map(root),
+    )
+    return want.filter((t) => words.has(t)).length
   }
 
   const hits: Hit[] = []
@@ -462,22 +479,29 @@ function aboutTopic(question: string, hits: Hit[], patientId: string): LocalAnsw
         ? `, the latest on ${say(dates[dates.length - 1])}`
         : ''
 
-  const running = strategiesFor(patientId).find((s) => s.status === 'Active')
+  // Only a strategy that actually turned up in this search. Naming the first
+  // active one and calling it "something related" was a guess dressed as a
+  // finding: it was related to being active, not to the question.
+  const found = new Set(hits.map((h) => h.to))
+  const running = strategiesFor(patientId).find(
+    (s) => s.status === 'Active' && found.has(`/patient/support/${s.id}`),
+  )
 
   const opening = asksWhy
     ? `I cannot tell you why — that part is yours. What I can say is that ${hits.length} ${hits.length === 1 ? 'thing' : 'things'} in your record touch on this${span}.`
     : `${hits.length} ${hits.length === 1 ? 'thing' : 'things'} in your record touch on that${span}.`
 
-  const second = running
-    ? `You are already trying something related: ${running.title.toLowerCase()}.`
-    : 'Nothing has been tried for it yet.'
+  // Silence when there is nothing true to add. "Nothing has been tried" was
+  // being said about topics where something had been tried and simply had not
+  // matched the words used.
+  const second = running ? ` You are already trying ${running.title.toLowerCase()}.` : ''
 
   const actions: LocalAction[] = [{ label: 'See them together', to: '/patient/story' }]
   if (running) actions.push({ label: 'Open what you are trying', to: `/patient/support/${running.id}` })
   if (asksWhy) actions.push({ label: 'Think this through properly', think: question })
 
   return {
-    text: `${opening} ${second}`,
+    text: `${opening}${second}`,
     detail: hits.map((h) => `${h.label}\n${h.line}`).join('\n\n'),
     actions,
     sources: hits.slice(0, 3).map((h) => ({ label: h.label, detail: say(h.date), to: h.to })),
@@ -551,8 +575,68 @@ export function looksLikeFeeling(text: string): boolean {
  */
 export function directReply(question: string, patientId: string, role: string | null): LocalAnswer {
   const forPatient = role === 'patient' || role === 'trusted'
-  if (forPatient && looksLikeFeeling(question)) return feelingReply(patientId, null)
-  return answerFromRecord(question, patientId)
+
+  // "Which one?" is not a new question. It is the previous one, continued.
+  //
+  // Without this, a two-word follow-up was matched against the whole record as
+  // though it had arrived out of nowhere — which is how "which one" returned a
+  // confident paragraph about headphones. A conversation that forgets its own
+  // last sentence is not a conversation.
+  const carried = continuing(question)
+  if (carried) return carried
+
+  const answer =
+    forPatient && looksLikeFeeling(question)
+      ? feelingReply(patientId, null)
+      : answerFromRecord(question, patientId)
+
+  remember(answer)
+  return answer
+}
+
+/* ------------------------------------------------------------- continuity */
+
+/**
+ * The last thing ORCA said, so the next thing someone says can refer to it.
+ *
+ * One answer deep, deliberately. A record is not a chat model and this is not
+ * a memory system — it is the minimum needed for "which one", "why", "tell me
+ * more" to mean what they obviously mean. Lives for as long as the page does.
+ */
+let previous: LocalAnswer | null = null
+
+function remember(answer: LocalAnswer) {
+  if (answer.matched !== false) previous = answer
+}
+
+export function forgetLastAnswer() {
+  previous = null
+}
+
+/** Words that only mean something because of what came before them. */
+const CARRIES_OVER =
+  /^\s*(which(\s+one)?|what about (it|that|those|them)|which of (them|those)|and\??|then\??|why\??|how\??|more|tell me more|go on|say more|that one|the (first|second|third|last) one|explain that|explain)\s*[?.!]*\s*$/i
+
+function continuing(question: string): LocalAnswer | null {
+  if (!previous || !CARRIES_OVER.test(question)) return null
+
+  // The detail was already assembled and folded away. Asking for more is
+  // exactly the request to unfold it, so unfold it rather than searching
+  // again.
+  if (previous.detail) {
+    const parts = previous.detail.split('\n\n').filter(Boolean)
+    return {
+      text: parts.join('\n\n'),
+      actions: previous.actions,
+      sources: previous.sources,
+    }
+  }
+
+  return {
+    text: 'That is all I have on it. Nothing else in your record touches it.',
+    actions: previous.actions,
+    sources: previous.sources,
+  }
 }
 
 /**
