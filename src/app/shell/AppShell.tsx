@@ -71,22 +71,9 @@ export default function AppShell() {
             {organisation || 'Personal account'}
           </span>
 
-          {/* On a phone this is the middle tab instead. */}
-          <button
-              onClick={() => setCopilot((c) => !c)}
-              aria-pressed={copilot}
-              className={`ml-auto hidden items-center gap-1.5 rounded-2xl px-3 py-1.5 text-[0.82rem] font-medium md:flex ${
-                copilot
-                  ? `${accent.border} ${accent.bg} text-white`
-                  : 'bg-surface-2 text-ink hover:bg-surface-2'
-              }`}
-            >
-              <span aria-hidden>✦</span> ORCA
-          </button>
-
           <button
             onClick={() => setPanel('search')}
-            className="ml-3 hidden w-64 items-center gap-2 rounded-2xl  border-line bg-surface-2 px-3 py-1.5 text-left text-[0.82rem] text-muted md:flex"
+            className="ml-auto hidden w-64 items-center gap-2 rounded-2xl border-line bg-surface-2 px-3 py-1.5 text-left text-[0.82rem] text-muted md:flex"
           >
             Search
           </button>
@@ -210,22 +197,6 @@ export default function AppShell() {
             </div>
           ))}
 
-          {role === 'patient' ? (
-            <Link
-              to="/patient/guide"
-              onClick={() => setNavOpen(false)}
-              className="mt-5 block rounded-[20px] bg-brand px-4 py-4 text-white hover:bg-brand-ink"
-            >
-              <span className="flex items-center gap-2 text-[0.95rem] font-semibold">
-                <span aria-hidden>💬</span> Ask ORCA
-              </span>
-              <span className="mt-1 block text-[0.79rem] leading-relaxed text-white/85">
-                Describe what is happening in your own words. It will use what you have already told
-                it, and stop to ask you before anything is shared.
-              </span>
-            </Link>
-          ) : null}
-
           <p className="mt-6 px-3 text-[0.72rem] leading-relaxed text-muted">
             ORCA supports decisions. It does not diagnose, and it never shares anything without
             explicit approval.
@@ -273,10 +244,16 @@ export default function AppShell() {
         </div>
       ) : null}
 
-      {/* The floating pill sat on top of the text it was meant to help with,
-          at exactly the width where there is least room to spare. Above the
-          tab bar it is redundant; below it, it was in the way. */}
-      {!copilot ? <AskOrcaButton onOpen={() => setCopilot(true)} /> : null}
+      {/* The single way in. There used to be four — a header button, a sidebar
+          card, this pill, and a tab — reaching two different chat surfaces, so
+          "ask ORCA" meant something different depending on where you pressed. */}
+      {/* One button, the right surface behind it. A patient gets the full Guide
+          — attachments, run progress, the whole conversation — because that is
+          their main screen. A professional gets the rail, so the answer arrives
+          beside the record it is about rather than replacing it. */}
+      {!copilot ? (
+        <AskOrcaButton onOpen={() => (role === 'patient' ? navigate('/patient/guide') : setCopilot(true))} />
+      ) : null}
 
       {role === 'patient' ? <MobileTabs onOpenMore={() => setNavOpen(true)} /> : null}
 
@@ -325,21 +302,24 @@ function RecordBanner() {
 
 
 /**
- * The way in to the assistant, from wherever you are.
+ * The one way in to the assistant, from anywhere.
  *
- * It used to be one card in the sidebar, which meant that on any screen where
- * the sidebar was collapsed — every phone, and every desktop once you scrolled
- * — the main thing ORCA can do for a person was invisible. This sits above the
- * page and does not move, because the moment someone needs to ask for help is
- * rarely the moment they are looking at the navigation.
+ * There were four: a card in the sidebar (invisible on every phone and every
+ * scrolled desktop), a button in the header (invisible below md), this pill
+ * (invisible below md), and a tab in the middle of the mobile bar. Three of
+ * them opened a side rail; the fourth navigated to a different chat screen
+ * entirely. So "ask ORCA" meant one of two things depending on which one a
+ * person happened to find, and on a phone the rail was unreachable.
  *
- * It hides itself on the Guide, where it would only be a button leading to the
- * page you are already on.
+ * Now: one control, every role, every width, always in the same corner. It sits
+ * clear of the mobile tab bar rather than on top of it, and it is the only
+ * element in the shell allowed to be this loud — the thing the product is for
+ * should not be the thing hardest to find on the screen.
  */
 function AskOrcaButton({ onOpen }: { onOpen: () => void }) {
   const location = useLocation()
   const { experience } = useSession()
-  // On the Guide itself it would only open a second copy of the same thing.
+  // On the Guide it would only open a second copy of the thing already open.
   if (location.pathname.endsWith('/guide')) return null
 
   const tone = accentByExperience[experience]
@@ -347,13 +327,11 @@ function AskOrcaButton({ onOpen }: { onOpen: () => void }) {
   return (
     <button
       onClick={onOpen}
-      // Hidden below md: the tab bar has a centre button that does this, and
-      // two ways to reach the same place, one of them sitting on top of the
-      // other, is worse than either alone.
-      className={`fixed bottom-5 right-5 z-30 hidden items-center gap-2.5 rounded-full ${tone.bg} px-5 py-3.5 text-white shadow-lg md:flex`}
+      aria-label="Ask ORCA"
+      className={`fixed bottom-[5.5rem] right-4 z-40 flex items-center gap-2.5 rounded-full ${tone.bg} px-5 py-4 text-white shadow-xl ring-4 ring-white/40 transition hover:scale-[1.03] md:bottom-6 md:right-6`}
     >
-      <span aria-hidden className="text-[1.05rem]">💬</span>
-      <span className="text-[0.9rem] font-semibold">Ask ORCA</span>
+      <span aria-hidden className="text-[1.15rem] leading-none">✦</span>
+      <span className="text-[0.92rem] font-semibold tracking-[-0.01em]">Ask ORCA</span>
     </button>
   )
 }

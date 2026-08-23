@@ -21,8 +21,11 @@ import { useRecordId } from '../../state/record'
  * Five tabs, because that is what fits at a legible size, and every one is a
  * destination rather than an action — a tab bar that sometimes navigates and
  * sometimes does something is the fastest way to make people afraid of it.
- * Asking ORCA sits in the middle, raised and coloured, because it is the one
- * thing this product is for and because the centre is where the thumb rests.
+ *
+ * Asking ORCA used to sit in the middle here, which made it the fourth
+ * different control in the app for reaching the assistant and the second that
+ * reached a different one. It has one control now, floating clear of this bar,
+ * so the tabs are five destinations and nothing else.
  *
  * "More" opens the same drawer the desktop uses, so nothing becomes
  * unreachable by being demoted — the shape changes, the map does not.
@@ -61,7 +64,7 @@ export function MobileTabs({
   const tabs: Tab[] = [
     { label: 'Home', to: '/patient', end: true, icon: '⌂' },
     { label: 'My story', to: '/patient/story', icon: '☰' },
-    { label: 'Ask ORCA', to: '/patient/guide', centre: true, icon: '✦' },
+    { label: 'My care', to: '/patient/care', icon: '♡' },
     { label: 'Requests', to: '/patient/requests', badge: yourTurn, icon: '↗' },
     { label: 'More', onPress: onOpenMore, icon: '⋯' },
   ]

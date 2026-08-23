@@ -32,10 +32,10 @@ import AddInformation from '../routes/shared/AddInformation'
 import ClinicalDashboard from '../routes/clinical/Dashboard'
 import {
   ClinicalAppointments,
-  ClinicalPatientOverview,
   ClinicalPatients,
   ClinicalTimeline,
 } from '../routes/clinical/Patients'
+import PatientRecord from '../routes/clinical/Record'
 import SessionWorkspace from '../routes/clinical/Session'
 import MemoryReview from '../routes/clinical/Memory'
 import { OutcomesView, StrategyDetail, StrategyHistory } from '../routes/clinical/Strategies'
@@ -107,7 +107,10 @@ function clinicalRoutes() {
     <>
       <Route index element={<ClinicalDashboard />} />
       <Route path="patients" element={<ClinicalPatients />} />
-      <Route path="patients/:patientId" element={<ClinicalPatientOverview />} />
+      {/* One name, one destination. The tab is in the URL so a link can point
+          at the part of the record it is about. */}
+      <Route path="patients/:patientId" element={<PatientRecord />} />
+      <Route path="patients/:patientId/:tab" element={<PatientRecord />} />
       <Route path="session" element={<SessionWorkspace />} />
       <Route path="memory" element={<MemoryReview />} />
       <Route path="strategies" element={<StrategyHistory />} />
@@ -169,7 +172,7 @@ export default function App() {
           <Route path="support" element={<PatientSupport />} />
           <Route path="support/:strategyId" element={<PatientStrategy />} />
           <Route path="care" element={<PatientCare />} />
-          <Route path="calendar" element={<Calendar patientId="pt-ananya" />} />
+          <Route path="calendar" element={<Calendar />} />
           <Route path="care/team" element={<PatientCareTeam />} />
           <Route path="care/appointments/:appointmentId" element={<PatientAppointment />} />
           <Route path="care/appointments/:appointmentId/prepare" element={<PatientAppointmentPrep />} />
@@ -193,7 +196,7 @@ export default function App() {
 
         <Route path="/psychiatrist">
           {clinicalRoutes()}
-          <Route path="clinical" element={<Navigate to="/psychiatrist/patients/pt-ananya" replace />} />
+          <Route path="clinical" element={<Navigate to="/psychiatrist/patients" replace />} />
         </Route>
 
         <Route path="/therapist">
@@ -211,7 +214,7 @@ export default function App() {
 
         <Route path="/gp">
           {clinicalRoutes()}
-          <Route path="summary" element={<Navigate to="/gp/patients/pt-ananya" replace />} />
+          <Route path="summary" element={<Navigate to="/gp/patients" replace />} />
           <Route path="care-team" element={<CareTeamView />} />
         </Route>
 
@@ -220,7 +223,9 @@ export default function App() {
           <Route index element={<ClinicDashboard />} />
           <Route path="add" element={<AddInformation />} />
           <Route path="patients" element={<ClinicPatients />} />
-          <Route path="patients/:patientId" element={<ClinicPatientCoordination />} />
+          <Route path="patients/:patientId" element={<PatientRecord />} />
+          <Route path="patients/:patientId/:tab" element={<PatientRecord />} />
+          <Route path="patients/:patientId/coordination" element={<ClinicPatientCoordination />} />
           <Route path="appointments" element={<ClinicAppointments />} />
           <Route path="coordination" element={<CareCoordination />} />
           <Route path="referrals" element={<Referrals />} />
