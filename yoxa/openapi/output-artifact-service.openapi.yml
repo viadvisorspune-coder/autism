@@ -44,6 +44,14 @@ paths:
                   description: Roles permitted to open it. Defaults to the patient alone.
                   items:
                     type: string
+                section:
+                  type: string
+                  description: >-
+                    What part of the work this contribution is — for example
+                    "What was tried", "Evidence", "Recommendation". Calls
+                    sharing a workflow_run_id build ONE document, and this is
+                    the heading each part appears under. Omit it and the parts
+                    are numbered instead, which is worse to read.
                 workflow_run_id:
                   type: string
       responses:

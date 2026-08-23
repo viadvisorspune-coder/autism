@@ -46,7 +46,29 @@ Deno.serve(
       }
     }
 
-    const documentId = `doc-${crypto.randomUUID().slice(0, 8)}`
+    // One run, one document.
+    //
+    // Every call used to mint a fresh id, so a workflow that produced an
+    // artefact at three stages left three unrelated part-documents on the
+    // record — none of them the thing anyone wanted, and no way to tell from
+    // the list which was which or that they belonged together. A person
+    // looking for "the letter to my employer" found three files called
+    // Generated artefact.
+    //
+    // A run is one piece of work, so it gets one document, and later calls add
+    // to it rather than starting again. What arrives at the end is the whole
+    // thing: every file the run produced, and every summary it wrote, kept in
+    // the order they were made.
+    const { data: existing } = workflowRunId
+      ? await admin
+          .from('documents')
+          .select('id, title, extracted, storage_path')
+          .eq('workflow_run_id', workflowRunId)
+          .maybeSingle()
+      : { data: null }
+
+    const documentId = existing?.id ?? `doc-${crypto.randomUUID().slice(0, 8)}`
+    const isAddition = Boolean(existing)
     const stored: { file_name: string; content_type: string; size_bytes: number; storage_path: string }[] = []
 
     for (const file of files) {
@@ -65,26 +87,44 @@ Deno.serve(
       })
     }
 
-    const { error: docError } = await admin.from('documents').insert({
-      id: documentId,
+    // Sections accumulate in the order they were written, each labelled with
+    // the stage that produced it. A document that says which part came from
+    // where can be read; one long unattributed blob cannot.
+    const section = str(body.section) ?? str(body.stage)
+    const priorSections = Array.isArray(existing?.extracted)
+      ? (existing!.extracted as { label: string; value: string; accepted: boolean }[])
+      : []
+    const newSection = summary
+      ? [{ label: section ?? (isAddition ? `Part ${priorSections.length + 1}` : 'Summary'), value: summary, accepted: false }]
+      : []
+
+    const row = {
       patient_id: patientId,
-      title,
+      // A later, more specific title wins over the placeholder the first call
+      // used; a placeholder never overwrites a real one.
+      title: isAddition && title === 'Generated artefact' ? existing!.title : title,
       file_type: files[0]?.contentType === 'application/pdf' ? 'PDF' : 'Structured',
       category,
       source_label: 'ORCA workflow',
-      status: files.length ? 'Awaiting review' : 'Draft',
-      extracted: summary ? [{ label: 'Summary', value: summary, accepted: false }] : [],
+      status: files.length || priorSections.length ? 'Awaiting review' : 'Draft',
+      extracted: [...priorSections, ...newSection],
       access,
-      storage_path: stored[0]?.storage_path ?? null,
+      storage_path: existing?.storage_path ?? stored[0]?.storage_path ?? null,
       workflow_run_id: workflowRunId,
-    })
+    }
+
+    const { error: docError } = isAddition
+      ? await admin.from('documents').update(row).eq('id', documentId)
+      : await admin.from('documents').insert({ id: documentId, ...row })
 
     if (docError) return json({ error: docError.message }, 400)
 
     await recordAudit({
       actorLabel: 'ORCA Reasoning, Support & Action agent',
       patientId,
-      action: `Stored generated artefact (${files.length} file${files.length === 1 ? '' : 's'})`,
+      action: isAddition
+        ? `Added to the run's artefact (${files.length} file${files.length === 1 ? '' : 's'})`
+        : `Stored generated artefact (${files.length} file${files.length === 1 ? '' : 's'})`,
       record: `Document ${documentId}`,
       accessType: 'Write',
       why: recipient ? `Prepared for ${recipient}` : 'Workflow output',
