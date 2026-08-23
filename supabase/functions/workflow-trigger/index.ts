@@ -166,11 +166,34 @@ Deno.serve(async (req) => {
   // would be a worse bug than the block.
   const relationship = await relationshipTo(patientId, actor.id)
 
+  /**
+   * The ids travel in the text, because that is the only thing that arrives.
+   *
+   * The public trigger takes one field — trigger_text — and the metadata
+   * object sent beside it never reaches the agents. So a run produced this,
+   * verbatim, and was right to:
+   *
+   *   {"actor_id":"","patient_id":"","text":"the record was not retrieved
+   *    because required patient metadata was unavailable"}
+   *
+   * The agent behaved correctly on nothing. Both its tools require an id it
+   * had no way to see, so the read never happened and the reply was rejected
+   * with a 400. Putting the ids where the agent actually reads costs three
+   * lines and removes an entire class of failure — and it stays in the
+   * metadata too, for any step that does receive it.
+   */
+  const identity = [
+    `PATIENT_ID: ${patientId}`,
+    `ACTOR_ID: ${actor.id}`,
+    `WORKFLOW_RUN_ID: ${run.id}`,
+    'Copy these three values verbatim into every tool call that asks for them.',
+  ].join('\n')
+
   const payload = JSON.stringify({
     // The lane leads the text as well as the metadata. Some agents read only
     // the trigger text; putting it in one place and hoping was how the last
     // routing decision got lost.
-    trigger_text: `${laneInstruction}\n\n${triggerText}`,
+    trigger_text: `${laneInstruction}\n\n${identity}\n\n${triggerText}`,
     metadata: {
       patient_id: patientId,
       actor_id: actor.id,
