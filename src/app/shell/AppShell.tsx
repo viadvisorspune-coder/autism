@@ -171,7 +171,9 @@ export default function AppShell() {
           <Frequent onNavigate={() => setNavOpen(false)} />
           {items.map((group) => (
             <div key={group.title} className="mb-5 last:mb-0">
-              <p className="mb-1.5 px-3 text-[0.68rem] font-semibold uppercase tracking-[0.09em] text-muted">
+              <p
+                className={`mb-1.5 px-3 text-[0.68rem] font-semibold uppercase tracking-[0.09em] ${accent.text}`}
+              >
                 {group.title}
               </p>
               <ul className="space-y-0.5">
@@ -196,6 +198,27 @@ export default function AppShell() {
               </ul>
             </div>
           ))}
+
+          {/* The way in, in the navigation where it was asked for. One control
+              per surface: this on a desktop, the centre tab on a phone, where
+              the sidebar is behind a drawer and two taps from a thumb. */}
+          <button
+            onClick={() => {
+              setNavOpen(false)
+              if (role === 'patient') navigate('/patient/guide')
+              else setCopilot(true)
+            }}
+            className={`mt-5 block w-full rounded-[20px] ${accent.bg} px-4 py-4 text-left text-white hover:opacity-95`}
+          >
+            <span className="flex items-center gap-2 text-[0.95rem] font-semibold">
+              <span aria-hidden>✦</span> Ask ORCA
+            </span>
+            <span className="mt-1 block text-[0.79rem] leading-relaxed text-white/85">
+              {role === 'patient'
+                ? 'Describe what is happening in your own words. It answers from your record, and stops to ask you before anything is shared.'
+                : 'Ask about this record, or your whole caseload. It answers from what you are allowed to see.'}
+            </span>
+          </button>
 
           <p className="mt-6 px-3 text-[0.72rem] leading-relaxed text-muted">
             ORCA supports decisions. It does not diagnose, and it never shares anything without
@@ -247,14 +270,6 @@ export default function AppShell() {
       {/* The single way in. There used to be four — a header button, a sidebar
           card, this pill, and a tab — reaching two different chat surfaces, so
           "ask ORCA" meant something different depending on where you pressed. */}
-      {/* One button, the right surface behind it. A patient gets the full Guide
-          — attachments, run progress, the whole conversation — because that is
-          their main screen. A professional gets the rail, so the answer arrives
-          beside the record it is about rather than replacing it. */}
-      {!copilot ? (
-        <AskOrcaButton onOpen={() => (role === 'patient' ? navigate('/patient/guide') : setCopilot(true))} />
-      ) : null}
-
       {role === 'patient' ? <MobileTabs onOpenMore={() => setNavOpen(true)} /> : null}
 
       {/* Something arriving for you mid-task is worth showing wherever you are,
@@ -297,42 +312,6 @@ function RecordBanner() {
         record. It is not a reading of anyone's information.
       </p>
     </div>
-  )
-}
-
-
-/**
- * The one way in to the assistant, from anywhere.
- *
- * There were four: a card in the sidebar (invisible on every phone and every
- * scrolled desktop), a button in the header (invisible below md), this pill
- * (invisible below md), and a tab in the middle of the mobile bar. Three of
- * them opened a side rail; the fourth navigated to a different chat screen
- * entirely. So "ask ORCA" meant one of two things depending on which one a
- * person happened to find, and on a phone the rail was unreachable.
- *
- * Now: one control, every role, every width, always in the same corner. It sits
- * clear of the mobile tab bar rather than on top of it, and it is the only
- * element in the shell allowed to be this loud — the thing the product is for
- * should not be the thing hardest to find on the screen.
- */
-function AskOrcaButton({ onOpen }: { onOpen: () => void }) {
-  const location = useLocation()
-  const { experience } = useSession()
-  // On the Guide it would only open a second copy of the thing already open.
-  if (location.pathname.endsWith('/guide')) return null
-
-  const tone = accentByExperience[experience]
-
-  return (
-    <button
-      onClick={onOpen}
-      aria-label="Ask ORCA"
-      className={`fixed bottom-[5.5rem] right-4 z-40 flex items-center gap-2.5 rounded-full ${tone.bg} px-5 py-4 text-white shadow-xl ring-4 ring-white/40 transition hover:scale-[1.03] md:bottom-6 md:right-6`}
-    >
-      <span aria-hidden className="text-[1.15rem] leading-none">✦</span>
-      <span className="text-[0.92rem] font-semibold tracking-[-0.01em]">Ask ORCA</span>
-    </button>
   )
 }
 

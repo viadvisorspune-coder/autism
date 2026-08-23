@@ -22,10 +22,10 @@ import { useRecordId } from '../../state/record'
  * destination rather than an action — a tab bar that sometimes navigates and
  * sometimes does something is the fastest way to make people afraid of it.
  *
- * Asking ORCA used to sit in the middle here, which made it the fourth
- * different control in the app for reaching the assistant and the second that
- * reached a different one. It has one control now, floating clear of this bar,
- * so the tabs are five destinations and nothing else.
+ * Asking ORCA sits in the middle, raised and coloured. On a desktop that
+ * control is the card at the foot of the sidebar; here the sidebar is behind
+ * a drawer and two taps from a thumb, so the same one control moves to the
+ * only place a phone has room for it. One per surface, never two on either.
  *
  * "More" opens the same drawer the desktop uses, so nothing becomes
  * unreachable by being demoted — the shape changes, the map does not.
@@ -64,7 +64,7 @@ export function MobileTabs({
   const tabs: Tab[] = [
     { label: 'Home', to: '/patient', end: true, icon: '⌂' },
     { label: 'My story', to: '/patient/story', icon: '☰' },
-    { label: 'My care', to: '/patient/care', icon: '♡' },
+    { label: 'Ask ORCA', to: '/patient/guide', centre: true, icon: '✦' },
     { label: 'Requests', to: '/patient/requests', badge: yourTurn, icon: '↗' },
     { label: 'More', onPress: onOpenMore, icon: '⋯' },
   ]
