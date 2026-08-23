@@ -133,6 +133,33 @@ Deno.serve(
       .update({ last_message_at: new Date().toISOString() })
       .eq('id', conversation.id)
 
+    /**
+     * A run whose only job was to answer is finished once it has answered.
+     *
+     * Otherwise it sits at "In progress · Processing" forever: the person has
+     * their reply on screen while the interface beside it still shows work
+     * happening, which reads as though something else is coming. Closing it
+     * here rather than in a further workflow step means the answer and the
+     * closure cannot come apart — there is no third call left to fail after
+     * the person has already been served.
+     *
+     * Only ever closes a run that is still open, and only a run whose type is
+     * a question. A document-producing run has more to do after it speaks.
+     */
+    if (workflowRunId) {
+      await admin
+        .from('workflow_runs')
+        .update({
+          status: 'Completed',
+          current_step: 'Replied',
+          waiting_for: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', workflowRunId)
+        .eq('type', 'Question')
+        .eq('status', 'In progress')
+    }
+
     await recordAudit({
       actorId,
       actorLabel: 'ORCA',
