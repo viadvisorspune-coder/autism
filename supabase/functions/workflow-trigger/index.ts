@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
       stakeholder: actor.role === 'patient' ? 'Patient' : actor.name,
       current_step: 'Trigger received',
       status: 'In progress',
-      waiting_for: 'Yoxa',
+      waiting_for: 'Processing',
       idempotency_key: idempotencyKey,
       trigger_text: triggerText,
       steps: [{ label: 'Trigger received', state: 'current' }],
@@ -95,12 +95,33 @@ Deno.serve(async (req) => {
     ? `Bearer ${secret}`
     : secret
 
+  // What the agent needs in order not to block on identity.
+  //
+  // The safety step was holding ordinary questions — "who is Kavita?" — as
+  // privacy incidents, on the grounds that the requester was unauthenticated
+  // and the relationship unresolved. It was right about what it could see: the
+  // metadata carried an id and nothing else, so it had no way to know that
+  // this function had already checked the person's relationship to the record
+  // before calling out.
+  //
+  // So it is told. `relationship` is the connection this platform verified;
+  // `authorisation` says exactly which check ran. And `identity_verified` is
+  // reported honestly as false in demo mode, because it is: the actor is
+  // asserted by the caller and not proven by a session. An agent that blocks
+  // on that is behaving correctly, and lying to it to make the block go away
+  // would be a worse bug than the block.
+  const relationship = await relationshipTo(patientId, actor.id)
+
   const payload = JSON.stringify({
     trigger_text: triggerText,
     metadata: {
       patient_id: patientId,
       actor_id: actor.id,
       actor_role: actor.role,
+      actor_name: actor.name,
+      relationship,
+      authorisation: 'Platform verified this actor may act on this record before triggering.',
+      identity_verified: Deno.env.get('ORCA_DEMO_MODE') !== 'true',
       local_workflow_run_id: run.id,
     },
   })
@@ -257,4 +278,35 @@ function isRetryable(response: Response, body: string): boolean {
   } catch {
     return true
   }
+}
+
+
+/**
+ * How this person stands to this record, in words the agent can use.
+ *
+ * "Self" and "occupational therapist, for workplace environment and
+ * adaptation" are answerable facts. An id on its own is not, which is why a
+ * question about a colleague turned into an authority hold.
+ */
+async function relationshipTo(patientId: string, actorId: string): Promise<string> {
+  const { data: patient } = await admin
+    .from('patients')
+    .select('user_id')
+    .eq('id', patientId)
+    .maybeSingle()
+  if (patient?.user_id === actorId) return 'Self — this is their own record.'
+
+  const { data: connection } = await admin
+    .from('connections')
+    .select('relationship, purpose, access_scope, consent_status, review_due')
+    .eq('patient_id', patientId)
+    .eq('person_id', actorId)
+    .maybeSingle()
+
+  if (!connection) return 'No connection to this record.'
+  return (
+    `${connection.relationship}, connected for: ${connection.purpose}. ` +
+    `Consent ${String(connection.consent_status).toLowerCase()}, review due ${connection.review_due}. ` +
+    `Scope: ${(connection.access_scope as string[] | null)?.join(', ') ?? 'unspecified'}.`
+  )
 }
