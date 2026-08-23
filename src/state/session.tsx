@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { Experience, Role } from '../data/types'
-import { people } from '../data/db'
+import { patientForPerson, people } from '../data/db'
 
 export interface RoleOption {
   role: Role
@@ -158,6 +158,15 @@ interface SessionValue {
   signedIn: boolean
   role: Role | null
   option: RoleOption | null
+  /**
+   * The record this session is about. Their own if they are living with a
+   * diagnosis; otherwise the first one they are connected to.
+   *
+   * Null means no record is in scope, which a screen must handle rather than
+   * substituting the demo patient — doing that is how every account ended up
+   * showing the same person.
+   */
+  patientId: string | null
   experience: Experience
   personName: string
   organisation: string
@@ -175,6 +184,15 @@ const STORAGE_KEY = 'orca.session'
 interface StoredSession {
   signedIn: boolean
   role: Role | null
+  /**
+   * WHO signed in, not just what kind of person they are.
+   *
+   * Storing the role alone was the bug behind "every account shows the same
+   * data": signing in as Rohan set role='patient', and the session then looked
+   * up the first option with that role — which is Ananya. Two different people
+   * with two different records resolved to one of them.
+   */
+  personId: string | null
   setupComplete: boolean
 }
 
@@ -186,7 +204,7 @@ function readStored(): StoredSession {
   } catch {
     /* storage unavailable — fall through to a signed-out session */
   }
-  return { signedIn: false, role: null, setupComplete: false }
+  return { signedIn: false, role: null, personId: null, setupComplete: false }
 }
 
 /**
@@ -229,19 +247,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const stored = readStored()
   const [signedIn, setSignedIn] = useState(stored.signedIn)
   const [role, setRole] = useState<Role | null>(stored.role)
+  const [personId, setPersonId] = useState<string | null>(stored.personId ?? null)
   const [setupComplete, setSetupComplete] = useState(stored.setupComplete)
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ signedIn, role, setupComplete }))
+      sessionStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ signedIn, role, personId, setupComplete }),
+      )
     } catch {
       /* nothing to do — the session simply will not survive a refresh */
     }
-  }, [signedIn, role, setupComplete])
+  }, [signedIn, role, personId, setupComplete])
 
   // Signing in as a person, not signing in and then choosing what to be.
   const signIn = useCallback((option: RoleOption) => {
     setRole(option.role)
+    setPersonId(option.personId)
     setSignedIn(true)
     // A returning person goes straight to their work. Only someone who has
     // never been here gets the six screens.
@@ -250,6 +273,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(() => {
     setSignedIn(false)
     setRole(null)
+    setPersonId(null)
     setSetupComplete(false)
   }, [])
   const chooseRole = useCallback((next: Role) => setRole(next), [])
@@ -260,12 +284,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [role])
 
   const value = useMemo<SessionValue>(() => {
-    const option = roleOptions.find((r) => r.role === role) ?? null
+    // The person first, the role only as a fallback for a session stored
+    // before this existed.
+    const option =
+      accounts().find((o) => o.personId === personId) ??
+      roleOptions.find((r) => r.role === role) ??
+      null
     const person = people.find((p) => p.id === option?.personId)
     return {
       signedIn,
       role,
       option,
+      patientId: patientForPerson(option?.personId),
       experience: option?.experience ?? 'patient',
       personName: person?.name ?? '',
       organisation: person?.organisation ?? (role === 'patient' ? 'Personal account' : ''),
@@ -275,7 +305,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       chooseRole,
       completeSetup,
     }
-  }, [signedIn, role, setupComplete, signIn, signOut, chooseRole, completeSetup])
+  }, [signedIn, role, personId, setupComplete, signIn, signOut, chooseRole, completeSetup])
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
 }

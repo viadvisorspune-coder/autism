@@ -13,14 +13,14 @@ import {
   formatDate,
 } from '../../components/ui'
 import { AiProvenance } from '../../components/shared'
-import { eventsFor, profileItems, strategiesFor } from '../../data/db'
+import { eventsFor, profileFor, strategiesFor } from '../../data/db'
 import { useUI } from '../../state/ui'
 
 /* ------------------------------------------------- 25.1 OT functional profile */
 
 export function FunctionalProfile() {
-  const helps = profileItems.filter((p) => p.section === 'What helps me')
-  const context = profileItems.filter((p) => p.section === 'Important context')
+  const helps = profileFor('pt-ananya').filter((p) => p.section === 'What helps me')
+  const context = profileFor('pt-ananya').filter((p) => p.section === 'Important context')
 
   return (
     <div className="max-w-5xl">
@@ -259,7 +259,7 @@ export function AdaptationTrials() {
 
 export function GoalWorkspace() {
   const { say } = useUI()
-  const goals = profileItems.filter((p) => p.section === 'Current goals')
+  const goals = profileFor('pt-ananya').filter((p) => p.section === 'Current goals')
   const strategies = strategiesFor('pt-ananya')
 
   return (

@@ -7,6 +7,7 @@ import { useLive } from '../lib/live'
 import type { ConversationData } from '../lib/live'
 import { useSession } from '../state/session'
 import type { Role } from '../data/types'
+import { useRecordId } from '../state/record'
 import {
   TODAY,
   appointmentsFor,
@@ -47,7 +48,8 @@ function daysFromToday(iso: string): number {
 
 /* ------------------------------------------------ what changed while away */
 
-export function SinceYouWereHere({ patientId = 'pt-ananya' }: { patientId?: string }) {
+export function SinceYouWereHere({ patientId: given }: { patientId?: string }) {
+  const patientId = useRecordId(given)
   const { data } = useLive<ConversationData>('conversation', patientId, 15000)
   if (!data?.last_seen_at) return null
 
@@ -135,7 +137,8 @@ function collapseRuns(
  * person's own interface, closed by default because on a good day it is
  * uninteresting — and one press away on the day it is not.
  */
-export function DecidedWithoutAsking({ patientId = 'pt-ananya' }: { patientId?: string }) {
+export function DecidedWithoutAsking({ patientId: given }: { patientId?: string }) {
+  const patientId = useRecordId(given)
   const { data } = useLive<{ entries: AuditRow[] }>('audit', patientId, 20000)
   const alone = (data?.entries ?? []).filter((e) => e.action === 'Proceeded without asking')
   if (!alone.length) return null
@@ -187,7 +190,8 @@ interface Suggestion {
   order: number
 }
 
-export function OrcaSuggests({ patientId = 'pt-ananya' }: { patientId?: string }) {
+export function OrcaSuggests({ patientId: given }: { patientId?: string }) {
+  const patientId = useRecordId(given)
   const { role, option } = useSession()
   if (!role) return null
 

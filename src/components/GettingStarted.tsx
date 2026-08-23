@@ -5,6 +5,7 @@ import { useSession } from '../state/session'
 import { useLive } from '../lib/live'
 import type { ConversationData } from '../lib/live'
 import { connections, strategiesFor } from '../data/db'
+import { useRecordId } from '../state/record'
 
 /**
  * The first week.
@@ -38,7 +39,8 @@ interface Item {
   done: boolean
 }
 
-export function GettingStarted({ patientId = 'pt-ananya' }: { patientId?: string }) {
+export function GettingStarted({ patientId: given }: { patientId?: string }) {
+  const patientId = useRecordId(given)
   const { role, option } = useSession()
   const { level, hasDone, record } = useMaturity()
   const { data } = useLive<ConversationData>('conversation', patientId, 20000)

@@ -59,7 +59,7 @@ export default function AddInformation() {
 
   const set = (name: string, value: string) => setRaw(JSON.stringify({ ...values, [name]: value }))
 
-  const patients = patientsFor(role ?? 'psychologist')
+  const patients = patientsFor(role ?? 'psychologist', option?.personId)
   const missing = (kind?.fields ?? []).filter((f) => f.required && !values[f.name]?.trim())
 
   // What ORCA already knows, offered rather than inserted.

@@ -21,6 +21,8 @@ import { GettingStarted } from '../../components/GettingStarted'
 import { WhatOrcaRemembers } from '../../components/Remembers'
 import { Shortcuts } from '../../components/Shortcuts'
 import { useDraft } from '../../lib/draft'
+import { useRecordId } from '../../state/record'
+import { useSession } from '../../state/session'
 
 /**
  * 3.1 Patient dashboard.
@@ -29,18 +31,25 @@ import { useDraft } from '../../lib/draft'
  * now, what needs my attention, and what can ORCA help me with.
  */
 export default function PatientHome() {
+  const patientId = useRecordId()
+  // Their name, not the demo patient's. A greeting is the first thing on the
+  // screen and the fastest way to tell somebody this is not their account.
+  const { personName } = useSession()
+  const first = personName.split(' ')[0]
   const navigate = useNavigate()
   // The home composer keeps what was typed. Someone interrupted halfway
   // through describing a bad week should not have to find the words twice.
   const { value: message, setValue: setMessage, clear: clearMessage } = useDraft('home.compose')
 
-  const strategies = strategiesFor('pt-ananya')
+  const strategies = strategiesFor(patientId)
   const active = strategies.find((s) => s.status === 'Active')
-  const recent = timeline.filter((e) => e.patientId === 'pt-ananya').slice(0, 3)
+  const recent = timeline.filter((e) => e.patientId === patientId).slice(0, 3)
 
   return (
     <div className="mx-auto max-w-4xl">
-      <h1 className="text-[1.6rem] font-semibold tracking-[-0.015em] text-ink">Good morning, Ananya</h1>
+      <h1 className="text-[1.6rem] font-semibold tracking-[-0.015em] text-ink">
+        {greeting()}{first ? `, ${first}` : ''}
+      </h1>
       <p className="mt-1 text-[0.9rem] text-muted">Wednesday, {formatDate('2026-08-19')}</p>
 
       {/* Orientation, then urgency, then what is worth doing next — and each
@@ -232,6 +241,14 @@ export default function PatientHome() {
  * is a thing you can decide to do. Quiet by design — the conversation above is
  * the primary route, and these must not compete with it.
  */
+/** Morning, afternoon or evening — read off the clock, not assumed. */
+function greeting(): string {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
+}
+
 function Workflow({ to, title, detail }: { to: string; title: string; detail: string }) {
   return (
     <Link

@@ -94,6 +94,16 @@ export interface TimelineEvent {
 
 export interface ProfileItem {
   id: string
+  /**
+   * Whose profile this is.
+   *
+   * The database has always had this column; the frontend type dropped it, so
+   * every screen and ORCA itself read one shared list — a psychologist opening
+   * Rohan saw Ananya's "what helps me", and the answer engine quoted it back
+   * about whoever asked. A profile is the most personal thing in this record
+   * and was the one table with no owner.
+   */
+  patientId: string
   section: 'About me' | 'What helps me' | "What doesn't help me" | 'Current goals' | 'Important context'
   text: string
   sourceId: string

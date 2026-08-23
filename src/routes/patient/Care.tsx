@@ -26,11 +26,13 @@ import {
   profileItems,
 } from '../../data/db'
 import { useUI } from '../../state/ui'
+import { useRecordId } from '../../state/record'
 
 /** 8.1 My care dashboard. */
 export function PatientCare() {
-  const upcoming = appointmentsFor('pt-ananya').filter((a) => a.status !== 'Completed')
-  const past = appointmentsFor('pt-ananya').filter((a) => a.status === 'Completed')
+  const patientId = useRecordId()
+  const upcoming = appointmentsFor(patientId).filter((a) => a.status !== 'Completed')
+  const past = appointmentsFor(patientId).filter((a) => a.status === 'Completed')
   const team = connections.filter((c) =>
     ['psychologist', 'psychiatrist', 'ot', 'gp', 'therapist'].includes(
       people.find((p) => p.id === c.personId)?.role ?? '',
@@ -276,12 +278,13 @@ export function PatientAppointment() {
 
 /** 8.4 Appointment preparation — draft, edit, approve, then share. */
 export function PatientAppointmentPrep() {
+  const patientId = useRecordId()
   const { appointmentId } = useParams()
   const { say } = useUI()
   const appointment = appointments.find((a) => a.id === appointmentId)
   const [stage, setStage] = useState<'draft' | 'approved' | 'shared'>('draft')
   const [editing, setEditing] = useState(false)
-  const docs = documentsFor('pt-ananya').filter((d) => d.category !== 'Employment')
+  const docs = documentsFor(patientId).filter((d) => d.category !== 'Employment')
 
   const [brief, setBrief] = useState({
     changed:

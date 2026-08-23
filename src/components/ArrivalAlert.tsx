@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from './ui'
 import { useLive } from '../lib/live'
 import { useSession } from '../state/session'
+import { useRecordId } from '../state/record'
 
 /**
  * Something has just arrived that needs you.
@@ -62,7 +63,8 @@ interface Arrival {
 
 const OPEN = new Set(['Awaiting approval', 'Awaiting professional review'])
 
-export function ArrivalAlert({ patientId = 'pt-ananya' }: { patientId?: string }) {
+export function ArrivalAlert({ patientId: given }: { patientId?: string }) {
+  const patientId = useRecordId(given)
   const { role, option } = useSession()
   const navigate = useNavigate()
   const { data } = useLive<InboxData>('inbox', patientId)

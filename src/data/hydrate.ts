@@ -180,6 +180,7 @@ function apply(b: Bundle) {
     db.profileItems,
     b.profile_items.map((p) => ({
       id: p.id,
+      patientId: p.patient_id,
       section: p.section,
       text: p.text,
       sourceId: p.source_id ?? p.source_label ?? 'ORCA',

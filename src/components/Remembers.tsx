@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
 import { Card, CardBody, Section, formatDate } from './ui'
 import { useSession } from '../state/session'
-import { memoryCandidates, profileItems } from '../data/db'
+import { memoryCandidates, profileFor } from '../data/db'
+import { useRecordId } from '../state/record'
 
 /**
  * What ORCA remembers.
@@ -24,10 +25,13 @@ import { memoryCandidates, profileItems } from '../data/db'
  * "What it knows about me" is not a feature if it is read-only.
  */
 
-export function WhatOrcaRemembers({ patientId = 'pt-ananya' }: { patientId?: string }) {
+export function WhatOrcaRemembers({ patientId: given }: { patientId?: string }) {
+  const patientId = useRecordId(given)
   const { role } = useSession()
 
-  const held = profileItems.filter((p) => p.section !== 'Current goals').slice(0, 4)
+  const held = profileFor(patientId)
+    .filter((p) => p.section !== 'Current goals')
+    .slice(0, 4)
   const proposed = memoryCandidates.filter(
     (m) => m.patientId === patientId && m.status === 'Pending',
   )

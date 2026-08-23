@@ -5,6 +5,7 @@ import { actOnRecord, useLive } from '../lib/live'
 import { useSession } from '../state/session'
 import { useUI } from '../state/ui'
 import { appointmentsFor, personName, requestsFor } from '../data/db'
+import { useRecordId } from '../state/record'
 
 /**
  * Everything in flight, in one list.
@@ -80,7 +81,8 @@ interface Row {
 
 const OPEN = new Set(['Awaiting approval', 'Awaiting professional review'])
 
-export function WorkStream({ patientId = 'pt-ananya' }: { patientId?: string }) {
+export function WorkStream({ patientId: given }: { patientId?: string }) {
+  const patientId = useRecordId(given)
   const { role, option } = useSession()
   const { say } = useUI()
   const { data, refresh } = useLive<InboxData>('inbox', patientId)

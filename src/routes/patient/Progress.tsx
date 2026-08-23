@@ -11,6 +11,7 @@ import {
 } from '../../components/ui'
 import { AiProvenance, WhyButton } from '../../components/shared'
 import { profileItems, strategiesFor } from '../../data/db'
+import { useRecordId } from '../../state/record'
 
 /**
  * 14.1 My progress.
@@ -19,7 +20,8 @@ import { profileItems, strategiesFor } from '../../data/db'
  * didn't, and what to try next.
  */
 export default function PatientProgress() {
-  const strategies = strategiesFor('pt-ananya')
+  const patientId = useRecordId()
+  const strategies = strategiesFor(patientId)
   const goals = profileItems.filter((p) => p.section === 'Current goals')
   const helped = strategies.filter((s) => s.outcome?.effectiveness !== 'Did not help' && s.outcome)
   const didNot = strategies.filter((s) => s.outcome?.effectiveness === 'Did not help')

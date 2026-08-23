@@ -12,6 +12,7 @@ import {
 } from '../../components/ui'
 import { eventsFor, personName, timeline } from '../../data/db'
 import type { EventCategory } from '../../data/types'
+import { useRecordId } from '../../state/record'
 
 const FILTERS: (EventCategory | 'All')[] = [
   'All',
@@ -28,8 +29,9 @@ const FILTERS: (EventCategory | 'All')[] = [
 
 /** 5.1 Longitudinal timeline. */
 export function PatientStory() {
+  const patientId = useRecordId()
   const [filter, setFilter] = useState<string>('All')
-  const events = eventsFor('pt-ananya').filter((e) => filter === 'All' || e.category === filter)
+  const events = eventsFor(patientId).filter((e) => filter === 'All' || e.category === filter)
 
   return (
     <div className="mx-auto max-w-4xl">

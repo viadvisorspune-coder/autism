@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { requestsFor } from '../../data/db'
+import { useRecordId } from '../../state/record'
 
 /**
  * The patient interface on a phone.
@@ -42,11 +43,12 @@ interface Tab {
 
 export function MobileTabs({
   onOpenMore,
-  patientId = 'pt-ananya',
+  patientId: given,
 }: {
   onOpenMore: () => void
   patientId?: string
 }) {
+  const patientId = useRecordId(given)
   const location = useLocation()
 
   // Derived from the record rather than polled: a request with an unanswered

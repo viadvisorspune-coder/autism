@@ -6,7 +6,7 @@ import {
   eventsFor,
   people,
   personName,
-  profileItems,
+  profileFor,
   requestsFor,
   sessionNotes,
   strategiesFor,
@@ -264,7 +264,7 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
 
   /* -------------------------------------------- what is recorded about me */
   if (has(question, 'about me', 'know about', 'understand', 'profile', 'remember', 'pattern')) {
-    const held = profileItems.slice(0, 6)
+    const held = profileFor(patientId).slice(0, 6)
     if (held.length) {
       return {
         text: `${held.length} things are recorded about you, each with a source and a date. None of it is fixed.`,
@@ -480,7 +480,7 @@ function searchRecord(question: string, patientId: string): Hit[] {
       })
   }
 
-  for (const p of profileItems) {
+  for (const p of profileFor(patientId)) {
     const n = score(`${p.text} ${p.section}`)
     if (n)
       hits.push({

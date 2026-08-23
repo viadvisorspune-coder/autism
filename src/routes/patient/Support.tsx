@@ -16,11 +16,13 @@ import { AiProvenance, WhyButton } from '../../components/shared'
 import { personName, strategies, strategiesFor, timeline } from '../../data/db'
 import { useUI } from '../../state/ui'
 import type { Strategy } from '../../data/types'
+import { useRecordId } from '../../state/record'
 
 /** 7.1 My support dashboard. */
 export function PatientSupport() {
+  const patientId = useRecordId()
   const [tab, setTab] = useState('Active')
-  const all = strategiesFor('pt-ananya')
+  const all = strategiesFor(patientId)
   const shown =
     tab === 'Active'
       ? all.filter((s) => ['Active', 'Requires adaptation', 'Draft'].includes(s.status))

@@ -30,9 +30,11 @@ import type {
 export const TODAY = '2026-08-19'
 
 export const people: Person[] = [
-  { id: 'u-ananya', name: 'Ananya Rao', role: 'patient', pronouns: 'she/her' },
+  { id: 'u-ananya',
+    email: 'ananya.rao@example.in', name: 'Ananya Rao', role: 'patient', pronouns: 'she/her' },
   {
     id: 'u-kavita',
+    email: 'k.nair@sahyadri.example',
     name: 'Dr Kavita Nair',
     role: 'psychologist',
     title: 'Clinical Psychologist',
@@ -40,6 +42,7 @@ export const people: Person[] = [
   },
   {
     id: 'u-arun',
+    email: 'a.deshpande@sahyadri.example',
     name: 'Dr Arun Deshpande',
     role: 'psychiatrist',
     title: 'Consultant Psychiatrist',
@@ -47,6 +50,7 @@ export const people: Person[] = [
   },
   {
     id: 'u-meera',
+    email: 'm.joshi@sahyadri.example',
     name: 'Meera Joshi',
     role: 'therapist',
     title: 'Speech & Communication Therapist',
@@ -54,6 +58,7 @@ export const people: Person[] = [
   },
   {
     id: 'u-sana',
+    email: 's.kulkarni@sahyadri.example',
     name: 'Sana Kulkarni',
     role: 'ot',
     title: 'Occupational Therapist',
@@ -61,6 +66,7 @@ export const people: Person[] = [
   },
   {
     id: 'u-vikram',
+    email: 'v.rao@kothrud.example',
     name: 'Dr Vikram Rao',
     role: 'gp',
     title: 'General Practitioner',
@@ -68,6 +74,7 @@ export const people: Person[] = [
   },
   {
     id: 'u-priya',
+    email: 'p.salvi@sahyadri.example',
     name: 'Priya Salvi',
     role: 'clinic',
     title: 'Care Coordinator',
@@ -75,6 +82,7 @@ export const people: Person[] = [
   },
   {
     id: 'u-anil',
+    email: 'a.fernandes@northline.example',
     name: 'Anil Fernandes',
     role: 'employer',
     title: 'HR Business Partner',
@@ -82,19 +90,50 @@ export const people: Person[] = [
   },
   {
     id: 'u-ruth',
+    email: 'r.menon@pid.example',
     name: 'Ruth Menon',
     role: 'university',
     title: 'Accessibility Adviser',
     organisation: 'Pune Institute of Design',
   },
-  { id: 'u-divya', name: 'Divya Rao', role: 'trusted', title: 'Sister (trusted person)' },
+  { id: 'u-divya',
+    email: 'divya.rao@example.in', name: 'Divya Rao', role: 'trusted', title: 'Sister (trusted person)' },
   {
     id: 'u-tejas',
+    email: 't.bhatt@orca.example',
     name: 'Tejas Bhatt',
     role: 'admin',
     title: 'Platform Administrator',
     organisation: 'ORCA',
   },
+  {
+    id: 'u-rohan',
+    name: 'Rohan Mehta',
+    role: 'patient',
+    pronouns: 'he/him',
+    email: 'rohan.mehta@example.com',
+  },
+  {
+    id: 'u-farida',
+    name: 'Farida Qureshi',
+    role: 'patient',
+    pronouns: 'she/her',
+    email: 'farida.qureshi@example.com',
+  },
+  {
+    id: 'u-dev',
+    name: 'Dev Sharma',
+    role: 'patient',
+    pronouns: 'he/him',
+    email: 'dev.sharma@example.com',
+  },
+  {
+    id: 'u-neha',
+    name: 'Neha Iyer',
+    role: 'patient',
+    pronouns: 'they/them',
+    email: 'neha.iyer@example.com',
+  }
 ]
 
 export const personName = (id: string) => people.find((p) => p.id === id)?.name ?? id
@@ -309,11 +348,153 @@ export const timeline: TimelineEvent[] = [
     summary: 'Account created. Communication preferences and privacy defaults set.',
     visibleTo: ['patient'],
   },
+
+  /* ------------------------------------------------ Rohan — warehouse work */
+  {
+    id: 'ev-r1',
+    patientId: 'pt-rohan',
+    date: '2026-08-14',
+    title: 'Rota changed at the end of a shift',
+    category: 'Work',
+    sourceId: 'u-rohan',
+    status: 'Recorded',
+    evidence: 'Reported',
+    summary:
+      'Told at 17:40 that the following morning would start two hours earlier. Slept badly and the whole of the next day was harder than usual.',
+    context: 'Warehouse, evening handover.',
+    visibleTo: ALL_CLINICAL,
+  },
+  {
+    id: 'ev-r2',
+    patientId: 'pt-rohan',
+    date: '2026-08-05',
+    title: 'Noise on the pick line',
+    category: 'Functional',
+    sourceId: 'u-sana',
+    status: 'Recorded',
+    evidence: 'Professionally documented',
+    summary:
+      'Sustained mechanical noise measured at conversation-blocking levels for most of the shift. Ear defenders were available but made the safety announcements unusable.',
+    context: 'Workplace visit, 5 August 2026.',
+    visibleTo: ALL_CLINICAL,
+  },
+  {
+    id: 'ev-r3',
+    patientId: 'pt-rohan',
+    date: '2026-06-30',
+    title: 'Diagnosis received',
+    category: 'Clinical',
+    sourceId: 'u-kavita',
+    status: 'Recorded',
+    evidence: 'Professionally documented',
+    summary:
+      'Assessment concluded. Has not told his employer and has said he does not want to yet.',
+    visibleTo: ALL_CLINICAL,
+  },
+
+  /* ------------------------------------------ Farida — architecture studio */
+  {
+    id: 'ev-f1',
+    patientId: 'pt-farida',
+    date: '2026-08-16',
+    title: 'Studio brief changed four days before the crit',
+    category: 'University',
+    sourceId: 'u-farida',
+    status: 'Recorded',
+    evidence: 'Reported',
+    summary:
+      'The submission requirements changed after two weeks of work. Rebuilt the model in four days and presented it, but did not sleep properly in that week.',
+    context: 'Pune Institute of Design, final-year studio.',
+    visibleTo: ALL_CLINICAL,
+  },
+  {
+    id: 'ev-f2',
+    patientId: 'pt-farida',
+    date: '2026-08-02',
+    title: 'Crit day went better with the running order known in advance',
+    category: 'University',
+    sourceId: 'u-farida',
+    status: 'Recorded',
+    evidence: 'Reported',
+    summary:
+      'Knew she was third rather than waiting to be called. Described the day as ordinary, which is unusual for a crit.',
+    visibleTo: ALL_CLINICAL,
+  },
+  {
+    id: 'ev-f3',
+    patientId: 'pt-farida',
+    date: '2026-07-11',
+    title: 'Lecture recordings agreed for one module',
+    category: 'University',
+    sourceId: 'u-ruth',
+    status: 'Recorded',
+    evidence: 'Professionally documented',
+    summary:
+      'Recording approved for the technology module only. The studio modules were not included and no reason was recorded.',
+    visibleTo: ['patient', 'psychologist', 'therapist', 'university'],
+  },
+
+  /* ---------------------------------------------- Dev — after job loss */
+  {
+    id: 'ev-d1',
+    patientId: 'pt-dev',
+    date: '2026-08-09',
+    title: 'Third month of freelance work',
+    category: 'Personal',
+    sourceId: 'u-dev',
+    status: 'Recorded',
+    evidence: 'Reported',
+    summary:
+      'Work is steady. Says the difficult part is not the drawing but the four client calls a week, which he now schedules on one day.',
+    visibleTo: ALL_CLINICAL,
+  },
+  {
+    id: 'ev-d2',
+    patientId: 'pt-dev',
+    date: '2026-05-22',
+    title: 'Redundancy',
+    category: 'Work',
+    sourceId: 'u-dev',
+    status: 'Recorded',
+    evidence: 'Reported',
+    summary:
+      'Studio closed. No adjustments had ever been requested there — he has said he did not know he could.',
+    visibleTo: ALL_CLINICAL,
+  },
+
+  /* -------------------------------------------- Neha — first-year transition */
+  {
+    id: 'ev-n1',
+    patientId: 'pt-neha',
+    date: '2026-08-12',
+    title: 'Moved into halls',
+    category: 'Personal',
+    sourceId: 'u-neha',
+    status: 'Recorded',
+    evidence: 'Reported',
+    summary:
+      'Shared kitchen, six people. Has not told anyone at the university they are autistic and has asked that nothing be shared for now.',
+    visibleTo: ['patient', 'psychologist', 'therapist'],
+  },
+  {
+    id: 'ev-n2',
+    patientId: 'pt-neha',
+    date: '2026-07-04',
+    title: 'Transition planning session',
+    category: 'Support',
+    sourceId: 'u-meera',
+    status: 'Recorded',
+    evidence: 'Professionally documented',
+    summary:
+      'Worked through what the first month would involve. Agreed a fortnightly check-in until October.',
+    visibleTo: ALL_CLINICAL,
+  }
 ]
 
 export const profileItems: ProfileItem[] = [
   {
     id: 'pf-1',
+    patientId: 'pt-ananya',
     section: 'About me',
     text: 'I prefer written communication. Voice calls without notice are hard.',
     sourceId: 'u-ananya',
@@ -323,6 +504,7 @@ export const profileItems: ProfileItem[] = [
   },
   {
     id: 'pf-2',
+    patientId: 'pt-ananya',
     section: 'About me',
     text: 'I work best in the first half of the day and plan my week on Sunday evening.',
     sourceId: 'u-ananya',
@@ -332,6 +514,7 @@ export const profileItems: ProfileItem[] = [
   },
   {
     id: 'pf-3',
+    patientId: 'pt-ananya',
     section: 'What helps me',
     text: 'Written notice of schedule changes, ideally several hours ahead.',
     sourceId: 'u-ananya',
@@ -341,6 +524,7 @@ export const profileItems: ProfileItem[] = [
   },
   {
     id: 'pf-4',
+    patientId: 'pt-ananya',
     section: 'What helps me',
     text: 'A short buffer between an unexpected meeting and the next task.',
     sourceId: 'u-sana',
@@ -350,6 +534,7 @@ export const profileItems: ProfileItem[] = [
   },
   {
     id: 'pf-5',
+    patientId: 'pt-ananya',
     section: "What doesn't help me",
     text: 'Being told about a change verbally in a corridor with no follow-up in writing.',
     sourceId: 'u-ananya',
@@ -359,6 +544,7 @@ export const profileItems: ProfileItem[] = [
   },
   {
     id: 'pf-6',
+    patientId: 'pt-ananya',
     section: "What doesn't help me",
     text: 'Noise-cancelling headphones alone — tried in May, made conversation harder without reducing interruptions.',
     sourceId: 'u-ananya',
@@ -368,6 +554,7 @@ export const profileItems: ProfileItem[] = [
   },
   {
     id: 'pf-7',
+    patientId: 'pt-ananya',
     section: 'Current goals',
     text: 'Get through a full sprint without needing to work late to catch up.',
     sourceId: 'u-ananya',
@@ -377,6 +564,7 @@ export const profileItems: ProfileItem[] = [
   },
   {
     id: 'pf-8',
+    patientId: 'pt-ananya',
     section: 'Current goals',
     text: 'Finish the MDes term project without taking leave from work.',
     sourceId: 'u-ananya',
@@ -386,6 +574,7 @@ export const profileItems: ProfileItem[] = [
   },
   {
     id: 'pf-9',
+    patientId: 'pt-ananya',
     section: 'Important context',
     text: 'Transitions are harder when the change is announced inside the same hour it happens.',
     sourceId: 'orca',
@@ -395,6 +584,7 @@ export const profileItems: ProfileItem[] = [
   },
   {
     id: 'pf-10',
+    patientId: 'pt-ananya',
     section: 'Important context',
     text: 'Desk is positioned on a main walkway; peripheral movement is a recurring demand.',
     sourceId: 'u-sana',
@@ -402,6 +592,110 @@ export const profileItems: ProfileItem[] = [
     evidence: 'Professionally documented',
     visibleTo: ALL_CLINICAL,
   },
+
+  {
+    id: 'pf-r1',
+    patientId: 'pt-rohan',
+    section: 'What helps me',
+    text: 'Knowing the rota a week ahead. Not the day before.',
+    sourceId: 'u-rohan',
+    date: '2026-07-10',
+    evidence: 'Reported',
+    visibleTo: ALL_CLINICAL,
+  },
+  {
+    id: 'pf-r2',
+    patientId: 'pt-rohan',
+    section: "What doesn't help me",
+    text: 'Being asked how I am in front of the team.',
+    sourceId: 'u-rohan',
+    date: '2026-07-10',
+    evidence: 'Reported',
+    visibleTo: ALL_CLINICAL,
+  },
+  {
+    id: 'pf-r3',
+    patientId: 'pt-rohan',
+    section: 'Important context',
+    text: 'My employer does not know about the diagnosis. That is my decision and I am not ready to change it.',
+    sourceId: 'u-rohan',
+    date: '2026-07-02',
+    evidence: 'Validated',
+    visibleTo: ALL_CLINICAL,
+  },
+
+  {
+    id: 'pf-f1',
+    patientId: 'pt-farida',
+    section: 'What helps me',
+    text: 'Knowing the running order before a crit starts.',
+    sourceId: 'u-farida',
+    date: '2026-08-03',
+    evidence: 'Validated',
+    visibleTo: ALL_CLINICAL,
+  },
+  {
+    id: 'pf-f2',
+    patientId: 'pt-farida',
+    section: 'Current goals',
+    text: 'Finish the final year without another week like the one in August.',
+    sourceId: 'u-farida',
+    date: '2026-08-17',
+    evidence: 'Reported',
+    visibleTo: ALL_CLINICAL,
+  },
+  {
+    id: 'pf-f3',
+    patientId: 'pt-farida',
+    section: 'About me',
+    text: 'I can work for a long time on one thing. Switching between three is what costs me.',
+    sourceId: 'u-farida',
+    date: '2026-06-19',
+    evidence: 'Reported',
+    visibleTo: ALL_CLINICAL,
+  },
+
+  {
+    id: 'pf-d1',
+    patientId: 'pt-dev',
+    section: 'What helps me',
+    text: 'All my calls on one day. The other four days are quiet.',
+    sourceId: 'u-dev',
+    date: '2026-08-09',
+    evidence: 'Reported',
+    visibleTo: ALL_CLINICAL,
+  },
+  {
+    id: 'pf-d2',
+    patientId: 'pt-dev',
+    section: 'Important context',
+    text: 'I never asked for anything at my old job because nobody told me I could.',
+    sourceId: 'u-dev',
+    date: '2026-06-01',
+    evidence: 'Reported',
+    visibleTo: ALL_CLINICAL,
+  },
+
+  {
+    id: 'pf-n1',
+    patientId: 'pt-neha',
+    section: 'Important context',
+    text: 'Nobody at the university knows. I want to decide when that changes.',
+    sourceId: 'u-neha',
+    date: '2026-08-12',
+    evidence: 'Validated',
+    visibleTo: ['patient', 'psychologist', 'therapist'],
+  },
+  {
+    id: 'pf-n2',
+    patientId: 'pt-neha',
+    section: 'What helps me',
+    text: 'Cooking before anyone else is up.',
+    sourceId: 'u-neha',
+    date: '2026-08-15',
+    evidence: 'Reported',
+    visibleTo: ALL_CLINICAL,
+  }
 ]
 
 export const strategies: Strategy[] = [
@@ -537,6 +831,86 @@ export const strategies: Strategy[] = [
       proposedAdaptation: 'Address the interruption channel rather than the sound.',
     },
   },
+
+  {
+    id: 'st-r1',
+    patientId: 'pt-rohan',
+    title: 'Rota published a week ahead',
+    goal: 'Remove same-day notice of shift changes.',
+    rationale:
+      'The two hardest days recorded so far both followed a change given the evening before. Nothing has been tried yet.',
+    evidenceIds: ['ev-r1'],
+    status: 'Active',
+    phase: 'Started',
+    start: '2026-08-15',
+    durationWeeks: 6,
+    conditions: 'Shift lead posts the following week every Wednesday.',
+    successCriteria: 'No shift change given with less than 24 hours notice.',
+    reviewDate: '2026-09-26',
+    ownerId: 'u-kavita',
+    checkIns: [],
+  },
+  {
+    id: 'st-f1',
+    patientId: 'pt-farida',
+    title: 'Running order given before each crit',
+    goal: 'Remove the waiting-to-be-called part of a crit day.',
+    rationale:
+      'The one crit where the order was known in advance was described as an ordinary day, which no other crit has been.',
+    evidenceIds: ['ev-f2'],
+    status: 'Active',
+    phase: 'Check-ins',
+    start: '2026-08-04',
+    durationWeeks: 8,
+    conditions: 'Studio tutor emails the order the evening before.',
+    successCriteria: 'Able to work the day before a crit.',
+    reviewDate: '2026-09-29',
+    ownerId: 'u-kavita',
+    checkIns: [
+      {
+        date: '2026-08-18',
+        note: 'Order sent the night before. Worked normally that morning for the first time.',
+        helpfulness: 'Helped',
+        reportedBy: 'u-farida',
+      },
+    ],
+  },
+  {
+    id: 'st-d1',
+    patientId: 'pt-dev',
+    title: 'Client calls grouped on one day',
+    goal: 'Protect four working days from unplanned conversation.',
+    rationale: 'His own idea, already running informally since June.',
+    evidenceIds: ['ev-d1'],
+    status: 'Completed',
+    phase: 'Outcome',
+    start: '2026-06-10',
+    durationWeeks: 8,
+    conditions: 'All calls offered on Tuesdays only.',
+    successCriteria: 'Four days a week with no scheduled calls.',
+    reviewDate: '2026-08-05',
+    ownerId: 'u-vikram',
+    checkIns: [
+      {
+        date: '2026-07-08',
+        note: 'Two clients pushed for other days. Held the line and both accepted.',
+        helpfulness: 'Helped',
+        reportedBy: 'u-dev',
+      },
+      {
+        date: '2026-08-05',
+        note: 'Settled. Says he would not go back to it.',
+        helpfulness: 'Helped',
+        reportedBy: 'u-dev',
+      },
+    ],
+    outcome: {
+      summary: 'Kept. Now how he works rather than something he is trying.',
+      effectiveness: 'Helped',
+      patientFeedback: 'The quiet days are the reason the work is any good.',
+      professionalFeedback: 'Self-directed and sustained without support.',
+    },
+  }
 ]
 
 export const appointments: Appointment[] = [
@@ -751,6 +1125,79 @@ export const connections: Connection[] = [
     reviewDue: '2027-05-06',
     lastInteraction: '2026-05-06',
   },
+
+  {
+    id: 'cn-r1',
+    patientId: 'pt-rohan',
+    personId: 'u-kavita',
+    relationship: 'Clinical psychologist',
+    purpose: 'Post-diagnostic support',
+    accessScope: ['Timeline', 'Profile', 'Strategies & outcomes'],
+    consentGiven: '2026-06-30',
+    consentStatus: 'Active',
+    reviewDue: '2026-09-10',
+    lastInteraction: '2026-08-15',
+  },
+  {
+    id: 'cn-r2',
+    patientId: 'pt-rohan',
+    personId: 'u-sana',
+    relationship: 'Occupational therapist',
+    purpose: 'Workplace environment and noise',
+    accessScope: ['Functional profile', 'Environment observations'],
+    consentGiven: '2026-07-20',
+    consentStatus: 'Active',
+    reviewDue: '2027-01-20',
+    lastInteraction: '2026-08-05',
+  },
+  {
+    id: 'cn-f1',
+    patientId: 'pt-farida',
+    personId: 'u-kavita',
+    relationship: 'Clinical psychologist',
+    purpose: 'Study and transition support',
+    accessScope: ['Timeline', 'Profile', 'Strategies & outcomes'],
+    consentGiven: '2026-05-14',
+    consentStatus: 'Active',
+    reviewDue: '2026-11-14',
+    lastInteraction: '2026-08-18',
+  },
+  {
+    id: 'cn-f2',
+    patientId: 'pt-farida',
+    personId: 'u-ruth',
+    relationship: 'Accessibility adviser',
+    purpose: 'Course adjustments only',
+    accessScope: ['Authorised functional information for the current request'],
+    consentGiven: '2026-07-01',
+    consentStatus: 'Active',
+    reviewDue: '2027-07-01',
+    lastInteraction: '2026-07-11',
+  },
+  {
+    id: 'cn-d1',
+    patientId: 'pt-dev',
+    personId: 'u-vikram',
+    relationship: 'General practitioner',
+    purpose: 'General health and continuity',
+    accessScope: ['Relevant health summary'],
+    consentGiven: '2026-05-30',
+    consentStatus: 'Active',
+    reviewDue: '2027-05-30',
+    lastInteraction: '2026-08-05',
+  },
+  {
+    id: 'cn-n1',
+    patientId: 'pt-neha',
+    personId: 'u-meera',
+    relationship: 'Speech and communication therapist',
+    purpose: 'Transition to university',
+    accessScope: ['Profile', 'Strategies & outcomes'],
+    consentGiven: '2026-04-02',
+    consentStatus: 'Active',
+    reviewDue: '2026-10-02',
+    lastInteraction: '2026-07-04',
+  }
 ]
 
 export const disclosures: Disclosure[] = [
@@ -1483,12 +1930,60 @@ export const tasks: TaskItem[] = [
   },
 ]
 
-export const patientsFor = (role: string) => {
-  if (role === 'employer') return patients.filter((p) => ['pt-ananya', 'pt-rohan'].includes(p.id))
-  if (role === 'university') return patients.filter((p) => ['pt-farida', 'pt-neha'].includes(p.id))
-  return patients
+/**
+ * Whose records a person can see, from the connections they actually hold.
+ *
+ * This used to be two hardcoded lists and "everybody else sees everybody",
+ * which made every clinical role identical: five names on every dashboard,
+ * four of them people that clinician has never met. A caseload is not a list
+ * of patients on the platform — it is the list of people who gave you access.
+ *
+ * Falls back to the whole list only when a role has no connections at all,
+ * because an empty screen in a prototype reads as broken rather than as
+ * correct. Administrators genuinely see everyone: managing accounts is not
+ * reading records, and they still cannot open one.
+ */
+export const patientsFor = (role: string, personId?: string) => {
+  if (role === 'admin' || role === 'patient') return patients
+
+  const person = personId ?? people.find((p) => p.role === role)?.id
+  if (!person) return patients
+
+  const mine = new Set(
+    connections
+      .filter((c) => c.personId === person && c.consentStatus === 'Active')
+      .map((c) => c.patientId),
+  )
+
+  const held = patients.filter((p) => mine.has(p.id))
+  return held.length ? held : patients
 }
 
+/**
+ * The record a signed-in person is looking at.
+ *
+ * For somebody living with a diagnosis it is their own — `u-rohan` owns
+ * `pt-rohan`, and the ids are paired by construction. For everybody else it is
+ * the first record they hold a live connection to, which is the only sensible
+ * default for a clinician who has just opened the app and not yet chosen a
+ * patient.
+ *
+ * Returns null rather than guessing when there is no such record. A screen
+ * that quietly falls back to the demo patient is how every account ended up
+ * showing the same person.
+ */
+export const patientForPerson = (personId: string | undefined | null): string | null => {
+  if (!personId) return null
+
+  const own = patients.find((p) => p.id === personId.replace(/^u-/, 'pt-'))
+  if (own) return own.id
+
+  const link = connections.find((c) => c.personId === personId && c.consentStatus === 'Active')
+  return link?.patientId ?? null
+}
+
+export const profileFor = (patientId: string) =>
+  profileItems.filter((p) => p.patientId === patientId)
 export const eventsFor = (patientId: string) => timeline.filter((e) => e.patientId === patientId)
 export const strategiesFor = (patientId: string) => strategies.filter((s) => s.patientId === patientId)
 export const documentsFor = (patientId: string) => documents.filter((d) => d.patientId === patientId)

@@ -13,6 +13,7 @@ import { MemoryValidationCard } from '../../components/shared'
 import { memoryCandidates, personName, profileItems } from '../../data/db'
 import type { ProfileItem } from '../../data/types'
 import { useUI } from '../../state/ui'
+import { useRecordId } from '../../state/record'
 
 const SECTIONS: ProfileItem['section'][] = [
   'About me',
@@ -24,10 +25,11 @@ const SECTIONS: ProfileItem['section'][] = [
 
 /** 6.1 / 6.2 My profile — viewing and correcting what ORCA holds. */
 export default function PatientProfile() {
+  const patientId = useRecordId()
   const { say } = useUI()
   const [editing, setEditing] = useState(false)
   const [items, setItems] = useState(profileItems)
-  const candidates = memoryCandidates.filter((m) => m.patientId === 'pt-ananya')
+  const candidates = memoryCandidates.filter((m) => m.patientId === patientId)
 
   const markOutdated = (id: string) => {
     setItems((list) => list.map((i) => (i.id === id ? { ...i, outdated: !i.outdated } : i)))

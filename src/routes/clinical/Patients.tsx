@@ -25,7 +25,8 @@ import {
   eventsFor,
   patients,
   personName,
-  profileItems,
+  patientsFor,
+  profileFor,
   requestsFor,
   sessionNotes,
   strategiesFor,
@@ -42,10 +43,13 @@ export function ClinicalPatients() {
   const [filter, setFilter] = useState('All')
   const base = option?.home ?? '/psychologist'
 
-  const rows = patients.map((p) => {
+  // The caseload, not the platform. This read the whole patient table, so
+  // every clinical role opened the same five names — four of them people that
+  // clinician has never met and holds no connection to.
+  const rows = patientsFor(role ?? 'psychologist', option?.personId).map((p) => {
     const next = appointmentsFor(p.id).find((a) => a.status !== 'Completed')
     const openTasks = tasks.filter((t) => t.patientId === p.id).length
-    const goals = profileItems.filter((i) => i.section === 'Current goals').length
+    const goals = profileFor(p.id).filter((i) => i.section === 'Current goals').length
     return {
       key: p.id,
       to: `${base}/patients/${p.id}`,
@@ -93,7 +97,7 @@ export function ClinicalPatientOverview() {
   const strategies = strategiesFor(patient.id)
   const next = appointmentsFor(patient.id).find((a) => a.status !== 'Completed')
   const docs = documentsFor(patient.id)
-  const goals = profileItems.filter((p) => p.section === 'Current goals')
+  const goals = profileFor(patient.id).filter((p) => p.section === 'Current goals')
   const notes = sessionNotes.filter((n) => n.patientId === patient.id)
   const openRequests = requestsFor(patient.id).filter((r) => r.status !== 'Completed')
 

@@ -19,12 +19,14 @@ import { requests, requestsFor, reviewItems } from '../../data/db'
 import { useOrcaRead } from '../../lib/orca'
 import { respondToApproval } from '../../lib/approvals'
 import { useUI } from '../../state/ui'
+import { useRecordId } from '../../state/record'
 
 /** 13.1 My requests. */
 export function PatientRequests() {
+  const patientId = useRecordId()
   const [tab, setTab] = useState('Requires action')
   const [open, setOpen] = useState<PendingApproval | null>(null)
-  const all = requestsFor('pt-ananya')
+  const all = requestsFor(patientId)
 
   // Approvals a workflow is currently stopped on. These come first on the page
   // because a paused run is costing someone else time, and because they are

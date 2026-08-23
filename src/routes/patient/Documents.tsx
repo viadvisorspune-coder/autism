@@ -15,13 +15,15 @@ import {
 } from '../../components/ui'
 import { documents, documentsFor, personName, timeline } from '../../data/db'
 import { useUI } from '../../state/ui'
+import { useRecordId } from '../../state/record'
 
 const CATEGORIES = ['All', 'Clinical', 'Therapy', 'OT', 'Employment', 'University', 'Statutory', 'Personal']
 
 /** 10.1 Document library. */
 export function PatientDocuments() {
+  const patientId = useRecordId()
   const [filter, setFilter] = useState('All')
-  const docs = documentsFor('pt-ananya').filter((d) => filter === 'All' || d.category === filter)
+  const docs = documentsFor(patientId).filter((d) => filter === 'All' || d.category === filter)
 
   return (
     <div className="mx-auto max-w-4xl">

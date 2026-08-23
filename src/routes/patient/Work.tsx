@@ -18,11 +18,13 @@ import { AiProvenance } from '../../components/shared'
 import { requests, requestsFor } from '../../data/db'
 import type { RequestRecord } from '../../data/types'
 import { useUI } from '../../state/ui'
+import { useRecordId } from '../../state/record'
 
 /** 9.1 Work / university dashboard. */
 export function PatientWork() {
+  const patientId = useRecordId()
   const [context, setContext] = useState<'Work' | 'University'>('Work')
-  const all = requestsFor('pt-ananya')
+  const all = requestsFor(patientId)
   const shown = all.filter((r) =>
     context === 'Work' ? r.destinationRole === 'employer' : r.destinationRole === 'university',
   )

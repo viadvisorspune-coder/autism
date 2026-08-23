@@ -14,6 +14,7 @@ import { markSeen, persistMessage, useLive } from '../lib/live'
 import type { ConversationData } from '../lib/live'
 import { documentsFor, eventsFor, strategiesFor } from '../data/db'
 import { AttachmentCard, filesForRun } from './Attachment'
+import { useRecordId } from '../state/record'
 
 /**
  * The copilot rail — ORCA for the people working alongside the record.
@@ -135,7 +136,7 @@ export function Copilot({
   // names that appear literally in the source — a template string produces
   // classes that exist at runtime and were never generated.
   const tone = COPILOT_TONE[experience] ?? COPILOT_TONE.clinical
-  const patientId = 'pt-ananya'
+  const patientId = useRecordId()
 
   const stored = useLive<ConversationData>('conversation', patientId, 8000)
   // Kept warm so a caseload question is answered from something already in

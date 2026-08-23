@@ -3,6 +3,7 @@ import { Button, Callout, Card, CardBody, CardHead, StatusPill, formatDate } fro
 import { actOnRecord, useLive } from '../lib/live'
 import { useSession } from '../state/session'
 import { useUI } from '../state/ui'
+import { useRecordId } from '../state/record'
 
 /**
  * Decisions moving between people.
@@ -55,7 +56,8 @@ interface InboxData {
 
 const OPEN = new Set(['Awaiting approval', 'Awaiting professional review'])
 
-export function Inbox({ patientId = 'pt-ananya' }: { patientId?: string }) {
+export function Inbox({ patientId: given }: { patientId?: string }) {
+  const patientId = useRecordId(given)
   const { role, option } = useSession()
   const { say } = useUI()
   const { data, refresh } = useLive<InboxData>('inbox', patientId)
@@ -256,7 +258,8 @@ export function Inbox({ patientId = 'pt-ananya' }: { patientId?: string }) {
  * Deliberately requires naming who — a decision addressed to nobody is a
  * decision nobody makes, and the endpoint refuses one.
  */
-export function RaiseDecision({ patientId = 'pt-ananya' }: { patientId?: string }) {
+export function RaiseDecision({ patientId: given }: { patientId?: string }) {
+  const patientId = useRecordId(given)
   const { role, option } = useSession()
   const { say } = useUI()
   const [open, setOpen] = useState(false)
