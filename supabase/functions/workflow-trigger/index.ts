@@ -42,10 +42,6 @@ Deno.serve(async (req) => {
     return forbidden('You do not have access to this record.')
   }
 
-  const triggerUrl = Deno.env.get('YOXA_TRIGGER_URL')
-  const secret = Deno.env.get('YOXA_DEPLOYMENT_SECRET')
-  if (!triggerUrl || !secret) return json({ error: 'trigger_not_configured' }, 503)
-
   // What kind of request this is, decided in the app before it was sent.
   //
   // The workflow was running all fifteen steps on everything, including "who
@@ -75,6 +71,34 @@ Deno.serve(async (req) => {
       'the requester merely wanted to know has already been answered in the app from ' +
       'the record, so do not repeat the record back to them. Run only the steps this ' +
       'lane needs; a step that is not relevant should say so in one line and stop.'
+
+  /**
+   * Which deployment answers this.
+   *
+   * Talking and doing want different shapes. A conversation should come back
+   * in seconds from two steps; producing a document that leaves ORCA needs
+   * consent checks, an approval and an audit trail, and should be slow. One
+   * workflow cannot be both without being bad at one of them.
+   *
+   * So there are two, and each Yoxa deployment carries its own URL and its own
+   * secret — they are issued together and are never interchangeable. Pairing
+   * one deployment's URL with another's secret produces a 403 that looks
+   * exactly like an inactive deployment, which is a bad afternoon.
+   *
+   * Both may be unset, and that is deliberately a working configuration: every
+   * lane falls back to the main deployment. Nothing breaks while the second
+   * workflow is being built, and the day it exists this starts using it
+   * without a code change.
+   */
+  const chatUrl = Deno.env.get('YOXA_CHAT_TRIGGER_URL')
+  const chatSecret = Deno.env.get('YOXA_CHAT_DEPLOYMENT_SECRET')
+  const useChat = asking && Boolean(chatUrl)
+
+  const triggerUrl = useChat ? chatUrl : Deno.env.get('YOXA_TRIGGER_URL')
+  const secret = useChat
+    ? (chatSecret ?? Deno.env.get('YOXA_DEPLOYMENT_SECRET'))
+    : Deno.env.get('YOXA_DEPLOYMENT_SECRET')
+  if (!triggerUrl || !secret) return json({ error: 'trigger_not_configured' }, 503)
 
   // A new key per real user action. Reusing one is only correct when retrying
   // that same action with an identical payload.
