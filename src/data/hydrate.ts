@@ -168,7 +168,11 @@ function apply(b: Bundle) {
       category: e.category,
       sourceId: e.source_id ?? '',
       status: e.status ?? 'Recorded',
-      evidence: e.evidence_status,
+      // The column is `evidence`. This read `evidence_status`, which the
+      // bundle never returns, so every event on the deployed app arrived with
+      // no evidence status at all — the one field that separates something a
+      // person mentioned once from something a clinician documented.
+      evidence: e.evidence ?? e.evidence_status ?? 'Reported',
       summary: e.summary ?? '',
       context: e.context ?? undefined,
       relatedIds: e.related_ids ?? undefined,
@@ -185,7 +189,7 @@ function apply(b: Bundle) {
       text: p.text,
       sourceId: p.source_id ?? p.source_label ?? 'ORCA',
       date: day(p.recorded_on),
-      evidence: p.evidence_status,
+      evidence: p.evidence ?? p.evidence_status ?? 'Reported',
       visibleTo: roles(p.visible_to, ['patient']),
       outdated: p.outdated ?? undefined,
     })),

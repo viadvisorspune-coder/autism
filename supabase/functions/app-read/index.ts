@@ -658,12 +658,24 @@ async function read(
 
     case 'timeline': {
       if (!patientId) return null
-      const { data } = await admin
+      /**
+       * The column is `evidence`. This asked for `evidence_status`.
+       *
+       * PostgREST rejected the whole select, the error was discarded by
+       * destructuring only `data`, and the caller received an empty array —
+       * so every patient's story and profile read as "nothing recorded yet"
+       * on the deployed app while twelve events and ten profile items sat in
+       * the table. A failed read that looks like an empty record is the worst
+       * shape this bug could have taken: nobody reports it, because an empty
+       * record is a plausible thing to have.
+       */
+      const { data, error } = await admin
         .from('timeline_events')
-        .select('id, occurred_on, recorded_on, title, summary, category, source_id, evidence_status')
+        .select('id, occurred_on, recorded_on, title, summary, category, source_id, source_label, evidence, status, visible_to')
         .eq('patient_id', patientId)
         .order('recorded_on', { ascending: false })
         .limit(100)
+      if (error) return { events: [], people: {}, error: error.message }
       const people = await peopleById([...new Set((data ?? []).map((e) => String(e.source_id)).filter(Boolean))])
       return { events: data ?? [], people }
     }
@@ -686,10 +698,12 @@ async function read(
 
     case 'profile': {
       if (!patientId) return null
-      const { data } = await admin
+      const { data, error } = await admin
         .from('profile_items')
-        .select('id, section, text, source_id, source_label, recorded_on, evidence_status')
+        .select('id, section, text, source_id, source_label, recorded_on, evidence, visible_to, outdated')
         .eq('patient_id', patientId)
+      // Same column error as the timeline above, and the same silent shape.
+      if (error) return { profile: [], error: error.message }
       return { profile: data ?? [] }
     }
 
