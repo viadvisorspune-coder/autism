@@ -37,9 +37,18 @@ interface AccessRequest {
   status: string
 }
 
+/** A workflow has stopped outside ORCA and is waiting on somebody here. */
+interface HitlRequest {
+  request_id: string
+  title: string
+  description: string | null
+  status: string
+}
+
 interface InboxData {
   reviews: Review[]
   access_requests: AccessRequest[]
+  approvals?: HitlRequest[]
   people: Record<string, { name: string }>
 }
 
@@ -47,6 +56,8 @@ interface Arrival {
   id: string
   title: string
   detail: string
+  /** Where the decision actually gets made. */
+  to?: string
 }
 
 const OPEN = new Set(['Awaiting approval', 'Awaiting professional review'])
@@ -68,6 +79,21 @@ export function ArrivalAlert({ patientId = 'pt-ananya' }: { patientId?: string }
     data.reviews
       .filter((r) => OPEN.has(r.status) && r.assigned_to.includes(role ?? ''))
       .forEach((r) => mine.push({ id: r.id, title: r.title, detail: r.reason }))
+
+    // Approvals a workflow outside ORCA is stopped on. These were arriving in
+    // the record and waiting to be noticed, which for a paused run is the same
+    // as not arriving: the person who has to decide had no way of knowing
+    // there was anything to decide.
+    ;(data.approvals ?? [])
+      .filter((a) => a.status === 'Awaiting approval')
+      .forEach((a) =>
+        mine.push({
+          id: a.request_id,
+          title: a.title,
+          detail: a.description ?? 'ORCA has stopped and needs your decision before it goes any further.',
+          to: role === 'patient' ? '/patient/requests' : undefined,
+        }),
+      )
 
     if (role === 'patient') {
       data.access_requests
@@ -137,7 +163,7 @@ export function ArrivalAlert({ patientId = 'pt-ananya' }: { patientId?: string }
         <Button
           variant="primary"
           onClick={() => {
-            const to = option?.home ?? '/'
+            const to = current.to ?? option?.home ?? '/'
             dismiss()
             navigate(to)
           }}
