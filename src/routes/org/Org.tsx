@@ -16,7 +16,7 @@ import {
   Tag,
   formatDate,
 } from '../../components/ui'
-import { TODAY, patientName, patients, requests } from '../../data/db'
+import { TODAY, patientName, patientsFor, requests, strategiesFor } from '../../data/db'
 import { useSession } from '../../state/session'
 import { useUI } from '../../state/ui'
 import type { RequestRecord, Role } from '../../data/types'
@@ -343,9 +343,10 @@ export function OrgPeople() {
   const { role, option } = useSession()
   const base = option?.home ?? '/employer'
   const isUni = role === 'university'
-  const list = isUni
-    ? patients.filter((p) => ['pt-farida', 'pt-neha'].includes(p.id))
-    : patients.filter((p) => ['pt-ananya', 'pt-rohan'].includes(p.id))
+  // Derived from the connections this organisation actually holds. It used to
+  // be two hard-coded lists of patient ids, so adding a person to the system
+  // meant editing this file, and an employer saw whoever was written here.
+  const list = patientsFor(role ?? 'employer', option?.personId)
 
   return (
     <div className="max-w-5xl">
@@ -358,14 +359,21 @@ export function OrgPeople() {
           columns={[isUni ? 'Student' : 'Employee', 'Open requests', 'Agreed adjustments', 'Next review']}
           rows={list.map((p) => {
             const theirs = requests.filter((r) => r.patientId === p.id && r.destinationRole === role)
+            const agreed = strategiesFor(p.id).filter((st) => st.status === 'Active')
+            const review = agreed
+              .map((st) => st.reviewDate)
+              .sort()
+              .find(Boolean)
             return {
               key: p.id,
-              to: theirs[0] ? `${base}/requests/${theirs[0].id}` : undefined,
+              // A name leads to everything this organisation may see about the
+              // person, not to whichever request happened to be raised first.
+              to: `${base}/patients/${p.id}`,
               cells: [
                 p.name,
                 theirs.filter((r) => r.status !== 'Completed').length,
-                isUni ? 1 : 0,
-                isUni ? 'January 2027' : '—',
+                agreed.length,
+                review ? formatDate(review) : '—',
               ],
             }
           })}

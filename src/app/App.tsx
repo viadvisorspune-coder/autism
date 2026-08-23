@@ -237,6 +237,10 @@ export default function App() {
         <Route path="/employer">
           <Route index element={<OrgDashboard />} />
           <Route path="add" element={<AddInformation />} />
+          {/* A name leads to the record, scoped to what this organisation may
+              see — same destination as every other stakeholder gets. */}
+          <Route path="patients/:patientId" element={<PatientRecord />} />
+          <Route path="patients/:patientId/:tab" element={<PatientRecord />} />
           <Route path="employees" element={<OrgPeople />} />
           <Route path="requests" element={<OrgRequests />} />
           <Route path="requests/:requestId" element={<OrgRequestDetail />} />
@@ -249,6 +253,10 @@ export default function App() {
         <Route path="/university">
           <Route index element={<OrgDashboard />} />
           <Route path="add" element={<AddInformation />} />
+          {/* A name leads to the record, scoped to what this organisation may
+              see — same destination as every other stakeholder gets. */}
+          <Route path="patients/:patientId" element={<PatientRecord />} />
+          <Route path="patients/:patientId/:tab" element={<PatientRecord />} />
           <Route path="students" element={<OrgPeople />} />
           <Route path="requests" element={<OrgRequests />} />
           <Route path="requests/:requestId" element={<OrgRequestDetail />} />

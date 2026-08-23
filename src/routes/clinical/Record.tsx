@@ -37,7 +37,6 @@ import { UploadPanel } from '../../components/Upload'
 import {
   appointmentsFor,
   documentsFor,
-  eventsFor,
   patients,
   personName,
   profileFor,
@@ -46,15 +45,26 @@ import {
   strategiesFor,
   tasks,
 } from '../../data/db'
-import { lastContact, nextAppointment, recordCounts, roleLens, whatChanged } from '../../lib/record'
+import {
+  lastContact,
+  nextAppointment,
+  recordCounts,
+  roleLens,
+  visibleEvents,
+  visibleTabs,
+  whatChanged,
+} from '../../lib/record'
 import { useSession } from '../../state/session'
 import { askOrca } from '../../lib/ask'
 import type { Role } from '../../data/types'
 
-const TABS = ['Overview', 'Timeline', 'Support', 'Documents', 'Requests', 'Diary'] as const
-type Tab = (typeof TABS)[number]
+const ALL_TABS = ['Overview', 'Timeline', 'Support', 'Documents', 'Requests', 'Diary'] as const
+type Tab = (typeof ALL_TABS)[number]
 
 const slug = (t: Tab) => t.toLowerCase()
+
+/** Mirrors the scope rule in lib/record — kept here for the request filter. */
+const CLINICAL_VIEW = new Set<Role>(['psychologist', 'psychiatrist', 'therapist', 'ot', 'gp', 'clinic'])
 
 export default function PatientRecord() {
   const { patientId, tab } = useParams()
@@ -72,10 +82,15 @@ export default function PatientRecord() {
     )
   }
 
+  const viewer = (role ?? 'psychologist') as Role
+  // Which tabs exist at all is a scope decision, not a layout one. An employer
+  // has no business with a Support tab, and offering one that always says
+  // "nothing for you" still tells them the tab was worth building.
+  const TABS = visibleTabs(viewer) as Tab[]
   const viewing = (TABS.find((t) => slug(t) === (tab ?? 'overview')) ?? 'Overview') as Tab
-  const counts = recordCounts(patient.id, (role ?? 'psychologist') as Role)
-  const next = nextAppointment(patient.id)
-  const seen = lastContact(patient.id)
+  const counts = recordCounts(patient.id, viewer)
+  const next = nextAppointment(patient.id, viewer)
+  const seen = lastContact(patient.id, viewer)
 
   // A tab that says how much is behind it stops the record feeling like an
   // unknown quantity — and stops someone opening five empty tabs to find out.
@@ -108,12 +123,14 @@ export default function PatientRecord() {
 
       {/* One strip, three facts, every role. Everything else is behind a tab. */}
       <div className="mb-5 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-[20px] bg-surface-2 px-5 py-3 text-[0.85rem]">
-        <span className="text-muted">
-          Next:{' '}
-          <span className="text-ink">
-            {next ? `${formatDateTime(next.datetime)} · ${next.purpose}` : 'nothing booked'}
+        {next ? (
+          <span className="text-muted">
+            Next:{' '}
+            <span className="text-ink">
+              {formatDateTime(next.datetime)} · {next.purpose}
+            </span>
           </span>
-        </span>
+        ) : null}
         <span className="text-muted">
           Last entry:{' '}
           <span className="text-ink">{seen ? `${formatDate(seen.date)} · ${seen.by}` : 'none yet'}</span>
@@ -141,11 +158,11 @@ export default function PatientRecord() {
         ))}
       </div>
 
-      {viewing === 'Overview' ? <Overview patientId={patient.id} base={base} role={role as Role} /> : null}
-      {viewing === 'Timeline' ? <Timeline patientId={patient.id} /> : null}
+      {viewing === 'Overview' ? <Overview patientId={patient.id} base={base} role={viewer} tabs={TABS} /> : null}
+      {viewing === 'Timeline' ? <Timeline patientId={patient.id} role={viewer} /> : null}
       {viewing === 'Support' ? <Support patientId={patient.id} base={base} /> : null}
-      {viewing === 'Documents' ? <Documents patientId={patient.id} role={role as Role} /> : null}
-      {viewing === 'Requests' ? <Requests patientId={patient.id} /> : null}
+      {viewing === 'Documents' ? <Documents patientId={patient.id} role={viewer} /> : null}
+      {viewing === 'Requests' ? <Requests patientId={patient.id} role={viewer} /> : null}
       {viewing === 'Diary' ? <Diary patientId={patient.id} /> : null}
     </div>
   )
@@ -157,12 +174,26 @@ export default function PatientRecord() {
  * The two questions somebody actually opens a record with: what has moved, and
  * what does my own job need from it. Both derived from this patient's rows.
  */
-function Overview({ patientId, base, role }: { patientId: string; base: string; role: Role }) {
-  const changed = whatChanged(patientId)
+function Overview({
+  patientId,
+  base,
+  role,
+  tabs,
+}: {
+  patientId: string
+  base: string
+  role: Role
+  tabs: Tab[]
+}) {
+  const changed = whatChanged(patientId, role)
   const lens = roleLens(role, patientId)
-  const goals = profileFor(patientId).filter((p) => p.section === 'Current goals')
-  const notes = sessionNotes.filter((n) => n.patientId === patientId)
-  const open = tasks.filter((t) => t.patientId === patientId)
+  // Goals, session notes and internal tasks are the care team's. An
+  // organisation reading this record gets what it was asked for and what it
+  // was given, and nothing about how the person is being looked after.
+  const inTeam = CLINICAL_VIEW.has(role) || role === 'patient'
+  const goals = inTeam ? profileFor(patientId).filter((p) => p.section === 'Current goals') : []
+  const notes = inTeam ? sessionNotes.filter((n) => n.patientId === patientId) : []
+  const open = inTeam ? tasks.filter((t) => t.patientId === patientId) : []
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
@@ -197,6 +228,7 @@ function Overview({ patientId, base, role }: { patientId: string; base: string; 
           </Card>
         ) : null}
 
+        {inTeam ? (
         <Section title="Current goals" count={goals.length} summary={goals[0]?.text}>
           <Card>
             <CardBody>
@@ -212,9 +244,11 @@ function Overview({ patientId, base, role }: { patientId: string; base: string; 
             </CardBody>
           </Card>
         </Section>
+        ) : null}
       </div>
 
       <div>
+        {inTeam ? (
         <Section title="Professional input" count={notes.length} important>
           <Card>
             <CardBody>
@@ -235,7 +269,9 @@ function Overview({ patientId, base, role }: { patientId: string; base: string; 
             </CardBody>
           </Card>
         </Section>
+        ) : null}
 
+        {inTeam ? (
         <Section title="Open tasks" count={open.length} summary={open[0]?.title}>
           <Card>
             <CardBody>
@@ -254,11 +290,12 @@ function Overview({ patientId, base, role }: { patientId: string; base: string; 
             </CardBody>
           </Card>
         </Section>
+        ) : null}
 
         <Section title="Elsewhere in this record">
           <Card>
             <CardBody className="space-y-2">
-              {(['Timeline', 'Support', 'Documents', 'Requests', 'Diary'] as Tab[]).map((t) => (
+              {tabs.filter((t) => t !== 'Overview').map((t) => (
                 <Link
                   key={t}
                   to={`${base}/patients/${patientId}/${slug(t)}`}
@@ -277,16 +314,24 @@ function Overview({ patientId, base, role }: { patientId: string; base: string; 
 
 /* ------------------------------------------------------------------ timeline */
 
-function Timeline({ patientId }: { patientId: string }) {
+function Timeline({ patientId, role }: { patientId: string; role: Role }) {
   const [filter, setFilter] = useState('All')
-  const all = eventsFor(patientId)
+  // Scoped per event, not per record. An employer opening somebody's timeline
+  // must not read their psychiatry entries because the name at the top is the
+  // same one they are entitled to see.
+  const all = visibleEvents(patientId, role)
   const events = all.filter((e) => filter === 'All' || e.category === filter)
   // Only offer a filter the record can actually satisfy. A chip row of nine
   // categories where seven return nothing teaches people the filters are broken.
   const categories = ['All', ...new Set(all.map((e) => e.category))]
 
   if (!all.length) {
-    return <EmptyState title="Nothing recorded yet" detail="This record has no events on it." />
+    return (
+      <EmptyState
+        title="Nothing here for you"
+        detail="Either nothing has been recorded, or none of it is shared with your role."
+      />
+    )
   }
 
   return (
@@ -403,8 +448,11 @@ function Documents({ patientId, role }: { patientId: string; role: Role }) {
 
 /* ------------------------------------------------------------------ requests */
 
-function Requests({ patientId }: { patientId: string }) {
-  const all = requestsFor(patientId)
+function Requests({ patientId, role }: { patientId: string; role: Role }) {
+  // A request raised with the university is not the employer's to read.
+  const all = requestsFor(patientId).filter(
+    (r) => role === 'patient' || r.destinationRole === role || CLINICAL_VIEW.has(role),
+  )
   if (!all.length) return <EmptyState title="No requests" detail="Nothing has been asked of anybody yet." />
 
   const open = all.filter((r) => r.status !== 'Completed')

@@ -47,8 +47,8 @@ export function ClinicalPatients() {
   // somebody else's month.
   const rows = patientsFor(role ?? 'psychologist', option?.personId).map((p) => {
     const next = appointmentsFor(p.id).find((a) => a.status !== 'Completed')
-    const seen = lastContact(p.id)
-    const changed = whatChanged(p.id)
+    const seen = lastContact(p.id, role ?? 'psychologist')
+    const changed = whatChanged(p.id, role ?? 'psychologist')
     return {
       key: p.id,
       to: `${base}/patients/${p.id}`,
