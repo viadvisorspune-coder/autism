@@ -8,6 +8,7 @@ import {
   personName,
   profileItems,
   requestsFor,
+  sessionNotes,
   strategiesFor,
 } from '../data/db'
 
@@ -319,6 +320,10 @@ interface Hit {
   to: string
   date: string
   score: number
+  /** Who put it there. The whole value of a shared record is knowing this. */
+  who?: string
+  /** Professionally documented outranks reported, all else being equal. */
+  weight: number
 }
 
 /** Words that carry no topic. */
@@ -414,11 +419,43 @@ function searchRecord(question: string, patientId: string): Hit[] {
 
   for (const e of eventsFor(patientId)) {
     const n = score(`${e.title} ${e.summary} ${e.context ?? ''} ${e.category}`)
-    if (n) hits.push({ label: e.title, line: e.summary, to: `/patient/story/${e.id}`, date: e.date, score: n })
+    if (n)
+      hits.push({
+        label: e.title,
+        line: e.summary,
+        to: `/patient/story/${e.id}`,
+        date: e.date,
+        score: n,
+        who: e.sourceId ? personName(e.sourceId) : undefined,
+        weight: e.evidence === 'Professionally documented' ? 1.3 : 1,
+      })
+  }
+
+  // Session notes. The single richest thing in this record and, until now,
+  // invisible to the part of it that answers questions — so a psychologist
+  // could write up a session in detail and the patient could ask about that
+  // exact session and be told nothing matched.
+  for (const note of sessionNotes.filter((note) => note.patientId === patientId)) {
+    const n = score(
+      `${note.observations} ${note.patientReport} ${note.goals.join(' ')} ${note.actions.join(' ')}`,
+    )
+    if (n)
+      hits.push({
+        label: `Session with ${personName(note.professionalId)}`,
+        line: note.observations || note.patientReport,
+        to: '/patient/care',
+        date: note.date,
+        score: n,
+        who: personName(note.professionalId),
+        weight: note.status === 'Signed' ? 1.4 : 1,
+      })
   }
 
   for (const s of strategiesFor(patientId)) {
-    const n = score(`${s.title} ${s.goal} ${s.rationale}`)
+    // The check-ins carry how it actually went, which is usually the part
+    // somebody is asking about.
+    const notes = s.checkIns.map((c) => c.note).join(' ')
+    const n = score(`${s.title} ${s.goal} ${s.rationale} ${notes}`)
     if (n)
       hits.push({
         label: s.title,
@@ -426,6 +463,7 @@ function searchRecord(question: string, patientId: string): Hit[] {
         to: `/patient/support/${s.id}`,
         date: s.start,
         score: n,
+        weight: 1.2,
       })
   }
 
@@ -438,21 +476,42 @@ function searchRecord(question: string, patientId: string): Hit[] {
         to: `/patient/requests/${r.id}`,
         date: r.raised,
         score: n,
+        weight: 1,
       })
   }
 
   for (const p of profileItems) {
     const n = score(`${p.text} ${p.section}`)
-    if (n) hits.push({ label: p.text, line: p.section, to: '/patient/profile', date: p.date, score: n })
+    if (n)
+      hits.push({
+        label: p.text,
+        line: p.section,
+        to: '/patient/profile',
+        date: p.date,
+        score: n,
+        weight: p.outdated ? 0.6 : 1.1,
+      })
   }
 
   for (const d of documentsFor(patientId)) {
     const n = score(`${d.title} ${d.category}`)
     if (n)
-      hits.push({ label: d.title, line: d.category, to: `/patient/documents/${d.id}`, date: d.date, score: n })
+      hits.push({
+        label: d.title,
+        line: d.category,
+        to: `/patient/documents/${d.id}`,
+        date: d.date,
+        score: n,
+        weight: 1,
+      })
   }
 
-  hits.sort((a, b) => b.score - a.score || b.date.localeCompare(a.date))
+  // Matches first, then how much the entry is worth, then how recent it is.
+  // A signed session note from last week beats a self-reported line from March
+  // that happened to share the same word.
+  hits.sort(
+    (a, b) => b.score * b.weight - a.score * a.weight || b.date.localeCompare(a.date),
+  )
 
   // Two loose mentions, or one strong one. A single entry that happened to
   // share one common word is not a topic.
@@ -487,9 +546,21 @@ function aboutTopic(question: string, hits: Hit[], patientId: string): LocalAnsw
     (s) => s.status === 'Active' && found.has(`/patient/support/${s.id}`),
   )
 
+  // Who it came from, counted. On a record several people write into, "three
+  // things, from two people" is a materially different answer from "three
+  // things you told me yourself" — and it is the difference between a note and
+  // a corroborated pattern.
+  const voices = new Set(hits.map((h) => h.who).filter(Boolean))
+  const from =
+    voices.size > 1
+      ? `, from ${voices.size} people`
+      : voices.size === 1
+        ? `, from ${[...voices][0]}`
+        : ''
+
   const opening = asksWhy
-    ? `I cannot tell you why — that part is yours. What I can say is that ${hits.length} ${hits.length === 1 ? 'thing' : 'things'} in your record touch on this${span}.`
-    : `${hits.length} ${hits.length === 1 ? 'thing' : 'things'} in your record touch on that${span}.`
+    ? `I cannot tell you why — that part is yours. What I can say is that ${hits.length} ${hits.length === 1 ? 'thing' : 'things'} in your record touch on this${span}${from}.`
+    : `${hits.length} ${hits.length === 1 ? 'thing' : 'things'} in your record touch on that${span}${from}.`
 
   // Silence when there is nothing true to add. "Nothing has been tried" was
   // being said about topics where something had been tried and simply had not

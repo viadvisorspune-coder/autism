@@ -49,8 +49,37 @@ export function RecordProvider({ children }: { children: ReactNode }) {
       .then((result) => {
         if (!cancelled) setStatus(result)
       })
+
+    /**
+     * And again, quietly, while the tab is open.
+     *
+     * Loading once at boot was right when one person read their own record.
+     * It stopped being right the moment other people could write to it: a
+     * psychologist adds a session note at 10:04 and, until this, ORCA could
+     * not answer a question about it until the patient reloaded the page.
+     * Between them the record was two records.
+     *
+     * A minute is chosen against what actually happens on the other side of
+     * this: somebody writing up a session takes minutes, not seconds, so
+     * polling faster would mostly re-fetch a record nobody had touched. It
+     * pauses on a hidden tab for the same reason the live polls do — a
+     * background tab pulling the whole record every minute is a battery cost
+     * nobody agreed to.
+     *
+     * Nothing re-renders on its own. Screens read these arrays when they
+     * render and ORCA reads them when it answers, which is the moment that
+     * matters: the answer is built from whatever the last refresh brought in.
+     */
+    const timer = window.setInterval(() => {
+      if (cancelled || document.visibilityState !== 'visible') return
+      void hydrate(10000).then((result) => {
+        if (!cancelled) setStatus(result)
+      })
+    }, 60_000)
+
     return () => {
       cancelled = true
+      window.clearInterval(timer)
     }
   }, [])
 
