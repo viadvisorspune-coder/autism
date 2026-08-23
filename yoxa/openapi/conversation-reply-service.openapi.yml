@@ -13,23 +13,21 @@ paths:
   /functions/v1/conversation-reply:
     post:
       operationId: replyInConversation
-      summary: Write an ORCA message into a person's conversation
+      summary: Reply to the person, in their own conversation
       description: >-
-        Appends an ORCA-authored message to the thread between this patient and
-        this actor, creating the thread if the actor is the patient or has a
-        live connection to the record. The message appears in their interface
-        immediately.
+        Writes your reply into the person's conversation.
 
 
-        Saying something is not doing something. This writes text and nothing
-        else: it does not decide, share, or alter the record, and it must not be
-        used to convey an outcome that has not been through the approval it
-        needs. Where an action is required, call the connector for that action —
-        each stops for a person.
+        Send patient_id, actor_id and text from the metadata, plus
+        workflow_run_id.
 
 
-        Every message is stored with the run that produced it, so any line in a
-        conversation can be traced back to the reasoning behind it.
+        Call this on every run. A run that produces only a file has answered
+        nobody.
+
+
+        Two to four sentences. Say what you found or did. Let any document
+        carry the detail.
       requestBody:
         required: true
         content:

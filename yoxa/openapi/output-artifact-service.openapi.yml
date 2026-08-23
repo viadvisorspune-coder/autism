@@ -10,10 +10,20 @@ paths:
       operationId: deliverGeneratedArtifact
       summary: Receive an approved artefact and record it on the patient's file
       description: >-
-        Stores the generated document privately against the patient's record.
-        Attach the workflow's generated output tools to this connector under
-        Attach output files; the endpoint also accepts this plain JSON request
-        with no files, which is what the API Connection Check sends.
+        Stores one generated document against the patient's record.
+
+
+        One document per request, at the end. Not one per stage — sections
+        accumulate into the same file.
+
+
+        Never call this for a question. If the lane is answer, reply in words
+        instead and do not call this at all.
+
+
+        Attach the workflow's generated output files to this connector under
+        Attach output files. The endpoint also accepts a plain JSON request
+        with no files, which is what the connection check sends.
       requestBody:
         required: true
         content:
