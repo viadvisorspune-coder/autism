@@ -17,6 +17,7 @@ import { useDraft } from '../../lib/draft'
 import { directReply } from '../../lib/answer'
 import { laneFor, startedLine, type Lane } from '../../lib/route'
 import { useMaturity } from '../../state/maturity'
+import { useRecordId } from '../../state/record'
 import {
   ContextBanner,
   ContextChoice,
@@ -35,17 +36,22 @@ export default function PatientGuide() {
   const navigate = useNavigate()
   const { say } = useUI()
   const { option } = useSession()
+  // Whose record this conversation is about. Signing in as a different patient
+  // has to move the thread with them, or two people share one history — which
+  // is the same bug as the calendar showing everyone the same appointments,
+  // wearing different clothes.
+  const recordId = useRecordId()
   const [messages, setMessages] = useState<GuideMessage[]>(guideConversation)
   const [loadedHistory, setLoadedHistory] = useState(false)
   // Whether this conversation is carrying the record in with it. Asked once,
   // and the answer changes what is sent, not just what is drawn.
-  const { mode, choose } = useContextMode('pt-ananya')
+  const { mode, choose } = useContextMode(recordId)
   const [showEarlier, setShowEarlier] = useState(false)
   const [historyCount, setHistoryCount] = useState(0)
 
   // The thread as it actually is, not as it was the first time anyone opened
   // this page. Polls too, so a reply written on another device turns up here.
-  const stored = useLive<ConversationData>('conversation', 'pt-ananya', 8000)
+  const stored = useLive<ConversationData>('conversation', recordId, 8000)
 
   // First poll replaces the thread with the real one. Every poll after that
   // merges in anything new — which is how a message written by a workflow, on
@@ -77,7 +83,7 @@ export default function PatientGuide() {
   // Leaving stamps the visit, so the next arrival can say what changed.
   useEffect(() => {
     return () => {
-      if (option?.personId) markSeen('pt-ananya', option.personId)
+      if (option?.personId) markSeen(recordId, option.personId)
     }
   }, [option?.personId])
   const { value: draft, setValue: setDraft, clear: clearDraft, restored } = useDraft(
@@ -95,7 +101,7 @@ export default function PatientGuide() {
 
   // What "my previous context" means concretely, today, in this record.
   const recap = recapFor(
-    'pt-ananya',
+    recordId,
     (stored.data?.messages ?? []).filter((m) => m.author === 'person').map((m) => m.text),
   )
   const storedCount = stored.data?.messages?.length ?? 0
@@ -117,7 +123,7 @@ export default function PatientGuide() {
     ])
     // Only the answer is kept. The detail and the buttons are rebuilt from the
     // record whenever it is read, so storing them would be storing a stale copy.
-    persistMessage('pt-ananya', option?.personId ?? 'u-ananya', text, 'orca')
+    persistMessage(recordId, option?.personId ?? '', text, 'orca')
   }
 
   /**
@@ -151,7 +157,7 @@ export default function PatientGuide() {
     }
     setMessages((m) => [...m, user])
     clearDraft()
-    persistMessage('pt-ananya', option?.personId ?? 'u-ananya', trimmed, 'person')
+    persistMessage(recordId, option?.personId ?? '', trimmed, 'person')
 
     // Without a backend there is nothing to send to, so the prototype's own
     // replies stand in — and the panel below says which of the two it is.
@@ -161,7 +167,7 @@ export default function PatientGuide() {
     }
 
     // 1. Answer, from the record, here. This is not a fallback any more.
-    const local = directReply(trimmed, 'pt-ananya', 'patient')
+    const local = directReply(trimmed, recordId, 'patient')
     // Pressing "think this through properly" asks for thinking, not for a
     // letter. Same workflow, different lane — and the workflow is told which.
     const lane: Lane = force ? 'ask' : laneFor(trimmed, local.matched !== false)
@@ -214,7 +220,7 @@ export default function PatientGuide() {
     // had typed it. What it contains is on screen above, verbatim.
     const outbound = mode === 'previous' && recap.preamble ? `${recap.preamble}${trimmed}` : trimmed
 
-    void startRun(outbound, 'pt-ananya', option?.personId ?? 'u-ananya', lane).then(({ runId, error }) => {
+    void startRun(outbound, recordId, option?.personId ?? '', lane).then(({ runId, error }) => {
       setStarting(false)
       if (error || !runId) {
         // The status code and the support reference go to the panel below,
@@ -286,7 +292,7 @@ export default function PatientGuide() {
       {storedCount > 0 ? (
         mode === null ? (
           <ContextChoice
-            patientId="pt-ananya"
+            patientId={recordId}
             recentMessages={(stored.data?.messages ?? [])
               .filter((m) => m.author === 'person')
               .map((m) => m.text)}

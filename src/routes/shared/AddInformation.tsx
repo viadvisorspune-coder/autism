@@ -4,7 +4,7 @@ import { Button, Card, CardBody, PageHeader } from '../../components/ui'
 import { useSession } from '../../state/session'
 import { useUI } from '../../state/ui'
 import { useDraft } from '../../lib/draft'
-import { actOnRecord } from '../../lib/live'
+import { actOnRecord, persistMessage } from '../../lib/live'
 import { appointmentsFor, eventsFor, patientsFor, strategiesFor } from '../../data/db'
 import { dispositions, entryModels } from '../../data/entryForms'
 import type { EntryKind, Field } from '../../data/entryForms'
@@ -95,11 +95,27 @@ export default function AddInformation() {
     }
 
     clearDraft()
-    say(
-      chosen.has('propose')
-        ? 'Saved. ORCA is reading it against the rest of the record and will propose anything it changes.'
-        : 'Saved to your record.',
+    const confirmation = chosen.has('propose')
+      ? 'Saved. ORCA is reading it against the rest of the record and will propose anything it changes.'
+      : 'Saved to your record.'
+    say(confirmation)
+
+    // A form is a way of saying something, so it is kept where saying things is
+    // kept. The timeline holds the entry; the thread holds the fact that this
+    // person, on this day, entered it — which is what "what did I tell ORCA
+    // about them" is asking, and what the timeline alone cannot answer.
+    const said = (kind.fields ?? [])
+      .filter((f) => values[f.name]?.trim() && f.name !== 'patient')
+      .map((f) => `${f.label}: ${values[f.name].trim()}`)
+      .join('\n')
+    persistMessage(
+      values.patient ?? '',
+      option?.personId ?? '',
+      `[${kind.label}]\n${said}`,
+      'person',
     )
+    persistMessage(values.patient ?? '', option?.personId ?? '', confirmation, 'orca')
+
     setKindId(null)
     setChosen(new Set(['save']))
   }
