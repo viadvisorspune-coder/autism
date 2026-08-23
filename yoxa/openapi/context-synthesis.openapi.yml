@@ -9,9 +9,12 @@ paths:
     post:
       operationId: synthesiseContext
       summary: Assemble the task-specific context brief from authorised records
-      description: Returns recorded events, strategies and profile items with their provenance and evidence
-        status, plus an explicit statement of what is missing. The only write it performs is creating
-        a memory candidate, which is not part of the record until a person confirms it.
+      description: >-
+        Pulls together what is already known that bears on this request.
+
+
+        Call it before forming a view. You have no knowledge of this person
+        beyond what this returns.
       requestBody:
         required: true
         content:

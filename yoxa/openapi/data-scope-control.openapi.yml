@@ -9,8 +9,12 @@ paths:
     post:
       operationId: checkDataScope
       summary: Determine the minimum necessary data categories for the stated purpose
-      description: Returns a deterministic access decision from the patient's consent records. Also used
-        before any disclosure, to establish which categories of information the recipient may receive.
+      description: >-
+        Decides what may appear in something going to a named recipient.
+
+
+        About content, not about whether the requester may ask. Call it before
+        writing anything that will leave ORCA.
       requestBody:
         required: true
         content:

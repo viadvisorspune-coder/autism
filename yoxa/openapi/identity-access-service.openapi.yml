@@ -10,9 +10,11 @@ paths:
       operationId: checkIdentityAndAccess
       summary: Decide whether an actor may access or disclose a patient's information
       description: >-
-        Returns a deterministic access decision from the patient's consent
-        records. Also used before any disclosure, to establish which categories
-        of information the recipient may receive.
+        Returns this person's connection to the record and what it permits.
+
+
+        The platform verified identity before this workflow started — the
+        metadata says so. Use this for scope, not to re-check who they are.
       requestBody:
         required: true
         content:

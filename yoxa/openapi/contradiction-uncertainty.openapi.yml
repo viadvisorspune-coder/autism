@@ -9,9 +9,12 @@ paths:
     post:
       operationId: analyseContradictions
       summary: Return evidence with provenance so conflicts and gaps are explicit
-      description: Returns recorded events, strategies and profile items with their provenance and evidence
-        status, plus an explicit statement of what is missing. The only write it performs is creating
-        a memory candidate, which is not part of the record until a person confirms it.
+      description: >-
+        Finds where two sources in the record disagree.
+
+
+        Call it before presenting anything as settled. Where sources conflict,
+        say so rather than choosing one.
       requestBody:
         required: true
         content:

@@ -9,9 +9,13 @@ paths:
     post:
       operationId: retrieveKnowledgeContext
       summary: Retrieve authorised records relevant to the current task
-      description: Returns recorded events, strategies and profile items with their provenance and evidence
-        status, plus an explicit statement of what is missing. The only write it performs is creating
-        a memory candidate, which is not part of the record until a person confirms it.
+      description: >-
+        Retrieves what this record actually holds.
+
+
+        This is the only source of real information about this person. You
+        cannot produce it yourself — anything written without calling it is
+        invented. Call it before stating any finding.
       requestBody:
         required: true
         content:

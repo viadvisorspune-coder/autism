@@ -9,9 +9,12 @@ paths:
     post:
       operationId: proposePatientStateUpdate
       summary: Propose a longitudinal update as a candidate for human confirmation
-      description: Returns recorded events, strategies and profile items with their provenance and evidence
-        status, plus an explicit statement of what is missing. The only write it performs is creating
-        a memory candidate, which is not part of the record until a person confirms it.
+      description: >-
+        Proposes a durable change to what the record holds about this person.
+
+
+        A proposal, not a decision — a human accepts it before it becomes true.
+        Only call it when something genuinely changed.
       requestBody:
         required: true
         content:

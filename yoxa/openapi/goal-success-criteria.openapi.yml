@@ -9,9 +9,12 @@ paths:
     post:
       operationId: defineGoalAndCriteria
       summary: Register the goal and its observable success criteria on the run
-      description: Creates a run when none is supplied, otherwise records the step that has just completed
-        and the one now in progress. Reports whether the run is blocked on a named human, which no agent
-        may bypass.
+      description: >-
+        Records what this request is for and what a good outcome looks like.
+
+
+        Send the goal only once it is grounded in what the record returned, not
+        in what seems likely.
       requestBody:
         required: true
         content:

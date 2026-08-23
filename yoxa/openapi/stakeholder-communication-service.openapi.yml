@@ -10,10 +10,11 @@ paths:
       operationId: raiseClarificationOrFollowUp
       summary: Raise a clarification question or schedule a follow-up
       description: >-
-        Creates the question inside ORCA, addressed to a role, in the standard
-        form of what happened, why it matters and what the person needs to do.
-        It sends nothing outside the patient's boundary; that requires a
-        separately approved disclosure.
+        Sends something to a named person outside ORCA.
+
+
+        Only after a human approved this exact content and this exact
+        recipient. Never call it to tell someone about progress.
       requestBody:
         required: true
         content:

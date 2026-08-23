@@ -10,10 +10,17 @@ paths:
       operationId: reviewSafetyAndAuthority
       summary: Apply the consequence gate before anything with an effect happens
       description: >-
-        Returns one of PROCEED, ASK, WAIT, STOP or ESCALATE. Clinical claims,
-        medication content and statutory or employment determinations are
-        outside the platform's authority and are stopped or escalated here, with
-        a review item raised for a named human.
+        Stops the work, but only for three things: something would reach
+        someone outside ORCA who is not already covered by consent; a permanent
+        change is proposed that the person has not seen; or there is a clear
+        risk of harm.
+
+
+        Everything else proceeds without asking. A question about someone
+        already connected to this record is not a privacy incident.
+
+
+        When you do stop, give one sentence a worried person can read.
       requestBody:
         required: true
         content:

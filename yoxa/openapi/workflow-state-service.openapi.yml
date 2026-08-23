@@ -9,9 +9,12 @@ paths:
     post:
       operationId: advanceWorkflowState
       summary: Read or advance the state of a workflow run
-      description: Creates a run when none is supplied, otherwise records the step that has just completed
-        and the one now in progress. Reports whether the run is blocked on a named human, which no agent
-        may bypass.
+      description: >-
+        Reads or advances the run.
+
+
+        Use it to know what was planned. A step not on the plan is not needed —
+        say so in one line and stop.
       requestBody:
         required: true
         content:

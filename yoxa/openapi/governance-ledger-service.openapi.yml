@@ -10,10 +10,8 @@ paths:
       operationId: readGovernanceLedger
       summary: Consent over time, outstanding access requests, clarification exchanges and retention
         position
-      description: Answers what a named person was permitted to see at a given moment, who has asked
-        for access and not yet been answered, and what an outside organisation asked and was told. Grants
-        nothing. Recording a request for access is not the same as granting it, and answering a clarification
-        requires the patient's approval.
+      description: >-
+        Records the governance decision for this run. Call it once, at closure.
       requestBody:
         required: true
         content:
