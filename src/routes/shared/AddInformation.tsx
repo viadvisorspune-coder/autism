@@ -5,7 +5,7 @@ import { useSession } from '../../state/session'
 import { useUI } from '../../state/ui'
 import { useDraft } from '../../lib/draft'
 import { actOnRecord } from '../../lib/live'
-import { patientsFor } from '../../data/db'
+import { appointmentsFor, eventsFor, patientsFor, strategiesFor } from '../../data/db'
 import { dispositions, entryModels } from '../../data/entryForms'
 import type { EntryKind, Field } from '../../data/entryForms'
 
@@ -61,6 +61,9 @@ export default function AddInformation() {
 
   const patients = patientsFor(role ?? 'psychologist')
   const missing = (kind?.fields ?? []).filter((f) => f.required && !values[f.name]?.trim())
+
+  // What ORCA already knows, offered rather than inserted.
+  const suggestions = kind && values.patient ? suggestFor(kind, values, values.patient) : []
 
   if (!model) {
     return (
@@ -138,6 +141,32 @@ export default function AddInformation() {
         <p className="mb-4 rounded-[16px] bg-state-wait-tint px-4 py-3 text-[0.85rem] text-state-wait">
           This was still here from last time. Nothing has been saved yet.
         </p>
+      ) : null}
+
+      {suggestions.length ? (
+        <div className="mb-4 rounded-[20px] bg-brand-tint px-5 py-4">
+          <p className="text-[0.88rem] font-medium text-brand-ink">
+            From the record — fill in if it is right
+          </p>
+          <p className="mt-0.5 text-[0.82rem] leading-relaxed text-ink-2">
+            None of this is entered until you press it. ORCA does not put words in a clinician's
+            note.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {suggestions.map((s) => (
+              <button
+                key={s.field + s.value}
+                onClick={() => set(s.field, s.value)}
+                className="rounded-2xl bg-surface px-3 py-2 text-left text-[0.83rem] text-ink hover:bg-surface-2"
+              >
+                <span className="block text-[0.72rem] uppercase tracking-[0.06em] text-muted">
+                  {s.label}
+                </span>
+                {s.value.length > 70 ? `${s.value.slice(0, 70)}…` : s.value}
+              </button>
+            ))}
+          </div>
+        </div>
       ) : null}
 
       <Card>
@@ -277,6 +306,64 @@ function FormField({
       )}
     </div>
   )
+}
+
+interface Suggestion {
+  field: string
+  label: string
+  value: string
+}
+
+/**
+ * What the record can offer, without writing any of it.
+ *
+ * A clinician writing up a session already knows most of this — but typing it
+ * again is the reason notes get written in a text editor and pasted in, or not
+ * written at all. So ORCA offers: the goal from the running strategy, the
+ * thing that happened last week, the date of the appointment this is about.
+ *
+ * Every suggestion is a button, never a pre-filled field. Two reasons, and the
+ * second is the important one. A pre-filled field is easy to leave unread, and
+ * a clinical note that says something nobody actually decided to say is worse
+ * than a blank one. And the standing of the entry depends on who wrote it —
+ * "professionally documented" means a professional documented it, not that
+ * software assembled it from nearby rows.
+ */
+function suggestFor(
+  kind: EntryKind,
+  values: Record<string, string>,
+  patientId: string,
+): Suggestion[] {
+  const names = new Set(kind.fields.map((f) => f.name))
+  const out: Suggestion[] = []
+  const offer = (field: string, label: string, value: string | undefined | null) => {
+    if (!value || !names.has(field) || values[field]?.trim()) return
+    out.push({ field, label, value })
+  }
+
+  const running = strategiesFor(patientId).find((s) => s.status === 'Active')
+  const recent = eventsFor(patientId)[0]
+  const next = appointmentsFor(patientId).find((a) => a.status !== 'Completed')
+
+  if (running) {
+    offer('goal', 'Current goal', running.goal)
+    offer('intervention', 'What is running', running.title)
+    offer('activity', 'What is running', running.title)
+  }
+
+  if (recent) {
+    offer('context', 'Most recent entry', recent.title)
+    offer('changes', 'Since last time', recent.summary)
+    offer('patient_reported', 'They reported', recent.summary)
+    offer('patient_report', 'They reported', recent.summary)
+  }
+
+  if (next) {
+    offer('date', 'Next appointment', next.datetime.slice(0, 10))
+    offer('reason', 'Appointment purpose', next.purpose)
+  }
+
+  return out.slice(0, 5)
 }
 
 /** Exported so a dashboard can show the same list without importing the page. */

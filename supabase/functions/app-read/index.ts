@@ -185,9 +185,59 @@ async function read(
           ])
         : [{ data: [] }, { data: [] }, { data: [] }]
 
+      /**
+       * Documents this conversation produced, delivered into it.
+       *
+       * Asking for a report and being told "it has been saved to documents"
+       * is a system describing its own filing rather than answering. The
+       * person asked here; the thing arrives here.
+       *
+       * The join needs no new column: a run writes its document with its
+       * `workflow_run_id`, and the message announcing it carries the same one.
+       * Match on that and every artefact lands under the sentence that
+       * promised it.
+       *
+       * The URL is signed and short-lived. The bucket is private, and a
+       * document about somebody's autism assessment must not become a link
+       * that works for anyone who ever sees it.
+       */
+      const runIds = [
+        ...new Set(
+          (messages ?? []).map((m) => m.workflow_run_id).filter((id): id is string => Boolean(id)),
+        ),
+      ]
+
+      const attachments: Record<string, unknown>[] = []
+      if (runIds.length) {
+        const { data: docs } = await admin
+          .from('documents')
+          .select('id, title, file_type, category, storage_path, workflow_run_id, recorded_on')
+          .in('workflow_run_id', runIds)
+
+        for (const doc of docs ?? []) {
+          let url: string | null = null
+          if (doc.storage_path) {
+            const { data: signed } = await admin.storage
+              .from('orca-artifacts')
+              .createSignedUrl(String(doc.storage_path), 60 * 30)
+            url = signed?.signedUrl ?? null
+          }
+          attachments.push({
+            id: doc.id,
+            title: doc.title,
+            file_type: doc.file_type,
+            category: doc.category,
+            workflow_run_id: doc.workflow_run_id,
+            recorded_on: doc.recorded_on,
+            url,
+          })
+        }
+      }
+
       return {
         conversation,
         messages: messages ?? [],
+        attachments,
         last_seen_at: since,
         since_last_visit: {
           events: events.data ?? [],

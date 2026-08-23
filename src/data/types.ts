@@ -314,6 +314,8 @@ export interface GuideMessage {
    * them rather than looking them up.
    */
   actions?: { label: string; href?: string; ask?: string; think?: string }[]
+  /** The run that wrote this line, so its documents attach to it. */
+  runId?: string | null
 }
 
 export interface SessionNote {

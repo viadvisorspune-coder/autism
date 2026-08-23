@@ -13,6 +13,7 @@ import type { RunState } from '../lib/agent'
 import { markSeen, persistMessage, useLive } from '../lib/live'
 import type { ConversationData } from '../lib/live'
 import { documentsFor, eventsFor, strategiesFor } from '../data/db'
+import { AttachmentCard, filesForRun } from './Attachment'
 
 /**
  * The copilot rail — ORCA for the people working alongside the record.
@@ -148,6 +149,7 @@ export function Copilot({
       sources?: Source[]
       detail?: string
       actions?: LocalAction[]
+      runId?: string | null
     }[]
   >([])
   const [loaded, setLoaded] = useState(false)
@@ -164,10 +166,16 @@ export function Copilot({
     const incoming = stored.data?.messages
     if (!incoming?.length) return
 
-    const asMessage = (m: { id: string; author: string; text: string }) => ({
+    const asMessage = (m: {
+      id: string
+      author: string
+      text: string
+      workflow_run_id?: string | null
+    }) => ({
       id: m.id,
       from: (m.author === 'orca' ? 'orca' : 'you') as 'orca' | 'you',
       text: m.text,
+      runId: m.workflow_run_id ?? null,
     })
 
     if (!loaded) {
@@ -346,6 +354,10 @@ export function Copilot({
                 <p className="whitespace-pre-line text-[0.88rem] leading-relaxed text-ink">{m.text}</p>
 
                 {m.detail ? <Expandable text={m.detail} /> : null}
+
+                {filesForRun(stored.data?.attachments, m.runId).map((file) => (
+                  <AttachmentCard key={file.id} file={file} />
+                ))}
 
                 {m.actions?.length ? (
                   <div className="mt-3 flex flex-wrap gap-1.5">

@@ -163,9 +163,27 @@ export interface SinceLastVisit {
   runs: { id: string; type: string; status: string; current_step: string; updated_at: string }[]
 }
 
+/**
+ * A document a run produced, delivered into the conversation that asked for it.
+ *
+ * `url` is signed and expires in half an hour. Absent means the file is not
+ * ready — usually a run that recorded the document before writing the bytes.
+ */
+export interface Attachment {
+  id: string
+  title: string
+  file_type: string
+  category: string
+  workflow_run_id: string | null
+  recorded_on: string
+  url: string | null
+}
+
 export interface ConversationData {
   conversation: { id: string; started_at: string; last_message_at: string } | null
   messages: StoredMessage[]
+  /** Matched to a message by workflow_run_id. */
+  attachments?: Attachment[]
   last_seen_at: string | null
   since_last_visit: SinceLastVisit
 }

@@ -12,6 +12,7 @@ import { markSeen, persistMessage, useLive } from '../../lib/live'
 import type { ConversationData } from '../../lib/live'
 import type { RunState } from '../../lib/agent'
 import { RunProgress } from '../../components/RunProgress'
+import { AttachmentCard, filesForRun } from '../../components/Attachment'
 import { useDraft } from '../../lib/draft'
 import { directReply } from '../../lib/answer'
 import { laneFor, startedLine, type Lane } from '../../lib/route'
@@ -346,6 +347,10 @@ export default function PatientGuide() {
                   </div>
                 ) : null}
 
+                {filesForRun(stored.data?.attachments, message.runId).map((file) => (
+                  <AttachmentCard key={file.id} file={file} />
+                ))}
+
                 {message.detail ? <MoreDetail text={message.detail} /> : null}
 
                 {message.actions?.length ? (
@@ -457,12 +462,21 @@ export default function PatientGuide() {
 }
 
 /** One stored row as the conversation renders it. */
-function asGuideMessage(m: { id: string; author: string; text: string; created_at: string }): GuideMessage {
+function asGuideMessage(m: {
+  id: string
+  author: string
+  text: string
+  created_at: string
+  workflow_run_id?: string | null
+}): GuideMessage {
   return {
     id: m.id,
     from: m.author === 'orca' ? 'orca' : 'patient',
     time: relativeDay(m.created_at),
     text: m.text,
+    // Kept so any document the run produced lands under this line rather than
+    // at the bottom of the thread.
+    runId: m.workflow_run_id ?? null,
   }
 }
 
