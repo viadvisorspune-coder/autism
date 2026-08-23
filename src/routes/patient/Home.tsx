@@ -16,7 +16,7 @@ import {
   timeline,
 } from '../../data/db'
 import { WorkStream } from '../../components/Priority'
-import { OrcaSuggests, SinceYouWereHere } from '../../components/Returning'
+import { DecidedWithoutAsking, OrcaSuggests, SinceYouWereHere } from '../../components/Returning'
 import { GettingStarted } from '../../components/GettingStarted'
 import { WhatOrcaRemembers } from '../../components/Remembers'
 import { Shortcuts } from '../../components/Shortcuts'
@@ -104,6 +104,7 @@ export default function PatientHome() {
         <OrcaSuggests />
         <GettingStarted />
         <WhatOrcaRemembers />
+        <DecidedWithoutAsking />
       </div>
 
       {/* ---------------------------------------------- current activity */}

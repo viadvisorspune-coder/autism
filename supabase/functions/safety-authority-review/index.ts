@@ -66,11 +66,50 @@ Deno.serve(
       reason = 'The proposed action implies a statutory or employment determination, which is outside the platform’s authority.'
       findings.push(`Institutional decision language: ${institutional.join(', ')}`)
     } else if (recipientRole && recipientRole !== 'patient') {
-      decision = 'ASK'
-      riskLevel = 'medium'
-      requiresHuman = true
-      reason = 'Information would leave the patient’s boundary. That needs the patient’s explicit, per-recipient approval first.'
-      findings.push(`Outbound recipient: ${recipientRole}`)
+      // Consent already exists at the connection. Ask again only when this
+      // exceeds it.
+      //
+      // The old rule stopped for a person whenever a recipient existed at all,
+      // which meant Ananya was asked to approve her own psychologist reading a
+      // summary — the exact thing she had already consented to, by name, for a
+      // stated purpose, with a review date. Asking again is not a second
+      // safeguard. It teaches people that the approval means nothing, and a
+      // person who approves seven things without reading them is less
+      // protected than one who is asked once about something that matters.
+      //
+      // So the gate now asks the question that was always the real one: does
+      // this exceed what has already been agreed? A connected professional
+      // acting inside their scope proceeds, and it is written to the audit log
+      // as a decision ORCA took alone, with the consent it relied on named. An
+      // external recipient, a lapsed connection, or content outside the agreed
+      // scope still stops, because those are genuinely new disclosures.
+      const covered = await withinExistingConsent(patientId, recipientRole, haystack)
+
+      if (covered.allowed) {
+        decision = 'PROCEED'
+        riskLevel = 'low'
+        requiresHuman = false
+        reason = `Already covered by consent: ${covered.because}`
+        findings.push(`Recipient ${recipientRole} is connected and in scope.`)
+
+        await recordAudit({
+          actorLabel: 'ORCA',
+          actorRole: 'admin',
+          patientId,
+          action: 'Proceeded without asking',
+          record: proposedAction.slice(0, 200) || 'Disclosure within agreed scope',
+          accessType: 'Share',
+          why: covered.because,
+          result: 'Allowed',
+          workflowRunId,
+        })
+      } else {
+        decision = 'ASK'
+        riskLevel = 'medium'
+        requiresHuman = true
+        reason = covered.because
+        findings.push(`Outbound recipient: ${recipientRole}`)
+      }
     }
 
     let reviewItemId: string | null = null
@@ -120,3 +159,82 @@ Deno.serve(
     })
   }),
 )
+
+
+/**
+ * Whether this disclosure is inside something the patient has already agreed.
+ *
+ * The test is the connection they created: is this person connected, is that
+ * consent live, has it passed its review date, and does the content fall
+ * inside the scope they named? All four, or it stops.
+ *
+ * Deliberately strict about scope. "Timeline, profile, strategies" does not
+ * cover a diagnosis, and a connection agreed for workplace adaptation does not
+ * become general permission because the same person asked for something else.
+ * The point of narrowing autonomy this way is that what it does allow, it
+ * allows for a reason the patient could recognise as their own decision.
+ */
+const SCOPE_TERMS: Record<string, string[]> = {
+  timeline: ['timeline', 'history', 'happened', 'event'],
+  profile: ['profile', 'about me', 'what helps', 'preference'],
+  strategies: ['strategy', 'strategies', 'outcome', 'check-in', 'trial'],
+  documents: ['document', 'letter', 'report'],
+  functional: ['functional', 'workplace', 'environment', 'adjustment', 'adaptation'],
+}
+
+async function withinExistingConsent(
+  patientId: string,
+  recipientRole: string,
+  content: string,
+): Promise<{ allowed: boolean; because: string }> {
+  const { data: connections } = await admin
+    .from('connections')
+    .select('person_id, relationship, purpose, access_scope, consent_status, review_due')
+    .eq('patient_id', patientId)
+
+  const { data: people } = await admin.from('app_users').select('id, role')
+  const idsForRole = new Set(
+    (people ?? []).filter((p) => p.role === recipientRole).map((p) => String(p.id)),
+  )
+
+  const link = (connections ?? []).find((c) => idsForRole.has(String(c.person_id)))
+
+  if (!link) {
+    return {
+      allowed: false,
+      because:
+        'Nobody in that role is connected to this record, so this would be a new disclosure and needs the patient to agree to it.',
+    }
+  }
+  if (link.consent_status !== 'Active') {
+    return {
+      allowed: false,
+      because: `That connection is ${String(link.consent_status).toLowerCase()}, so consent for it does not currently exist.`,
+    }
+  }
+  if (link.review_due && new Date(String(link.review_due)) < new Date()) {
+    return {
+      allowed: false,
+      because: 'That connection is past its review date, so it has lapsed and needs renewing before anything more is shared.',
+    }
+  }
+
+  const scope = ((link.access_scope as string[] | null) ?? []).map((x) => x.toLowerCase())
+  const inScope = scope.some((entry) => {
+    const key = Object.keys(SCOPE_TERMS).find((k) => entry.includes(k))
+    if (!key) return entry.split(/\s+/).some((word) => word.length > 4 && content.includes(word))
+    return SCOPE_TERMS[key].some((term) => content.includes(term))
+  })
+
+  if (!inScope) {
+    return {
+      allowed: false,
+      because: `This falls outside what was agreed for that connection (${scope.join(', ')}), so it needs the patient to widen it first.`,
+    }
+  }
+
+  return {
+    allowed: true,
+    because: `${link.relationship} — consented on this record for ${link.purpose}, scope covers this, review due ${link.review_due}.`,
+  }
+}

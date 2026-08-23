@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Card, CardBody, formatDate } from './ui'
+import { Card, CardBody, Section, formatDate } from './ui'
 import { PrepareSessionButton } from './PrepareSession'
 import { useLive } from '../lib/live'
 import type { ConversationData } from '../lib/live'
@@ -118,6 +118,60 @@ function collapseRuns(
         : `Work in progress: ${step.toLowerCase()}`,
     }
   })
+}
+
+/* ---------------------------------------------- what it did without asking */
+
+/**
+ * The decisions ORCA took on its own.
+ *
+ * Giving an assistant more autonomy is only defensible if the autonomy is
+ * legible. A system that asks about everything is exhausting; one that asks
+ * about nothing and shows nothing is worse, because the person has no way to
+ * discover what was decided for them or to object to a rule they never saw.
+ *
+ * So every time the gate proceeds without asking, it writes an audit line
+ * saying what it did and which consent it relied on. This is that list, in the
+ * person's own interface, closed by default because on a good day it is
+ * uninteresting — and one press away on the day it is not.
+ */
+export function DecidedWithoutAsking({ patientId = 'pt-ananya' }: { patientId?: string }) {
+  const { data } = useLive<{ entries: AuditRow[] }>('audit', patientId, 20000)
+  const alone = (data?.entries ?? []).filter((e) => e.action === 'Proceeded without asking')
+  if (!alone.length) return null
+
+  return (
+    <Section
+      title="What ORCA did without asking"
+      count={alone.length}
+      summary="Each of these was already covered by something you had agreed to."
+    >
+      <Card>
+        <CardBody>
+          <ul className="space-y-3">
+            {alone.slice(0, 6).map((e) => (
+              <li key={e.id} className="border-b border-line pb-3 last:border-0 last:pb-0">
+                <p className="text-[0.87rem] text-ink">{e.record}</p>
+                <p className="mt-0.5 text-[0.82rem] leading-relaxed text-ink-2">{e.why}</p>
+                <p className="text-[0.77rem] text-muted">{formatDate(String(e.occurred_at).slice(0, 10))}</p>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-[0.82rem] leading-relaxed text-muted">
+            If any of this should have stopped for you, narrow that connection and it will.
+          </p>
+        </CardBody>
+      </Card>
+    </Section>
+  )
+}
+
+interface AuditRow {
+  id: string
+  action: string
+  record: string
+  why: string | null
+  occurred_at: string
 }
 
 /* ------------------------------------------------------------ suggestions */
