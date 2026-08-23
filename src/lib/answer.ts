@@ -274,6 +274,23 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
     }
   }
 
+  /* ------------------------------------------- anything else about a topic */
+  // The last real attempt, and the one that makes this a conversation rather
+  // than a menu.
+  //
+  // Every branch above matches a *phrasing* — "who can see", "what have I
+  // tried". Anything said in words the list did not anticipate fell straight
+  // through to "I could not match that", including questions the record
+  // answers well. "Why is the office so difficult" produced a shrug while the
+  // three entries about open-plan desks, unplanned meetings and quiet-room use
+  // sat one function call away — and, worse, were listed underneath as sources
+  // for an answer that claimed to have found nothing.
+  //
+  // So the last thing tried is a plain search of the record for what was
+  // actually asked about.
+  const found = searchRecord(question, patientId)
+  if (found.length) return aboutTopic(question, found, patientId)
+
   /* ------------------------------------------------------------ fallback */
   // Nothing matched. Say so.
   //
@@ -291,6 +308,179 @@ export function answerFromRecord(question: string, patientId: string): LocalAnsw
     ],
     sources: [],
     matched: false,
+  }
+}
+
+/* ------------------------------------------------------------ topic search */
+
+interface Hit {
+  label: string
+  line: string
+  to: string
+  date: string
+  score: number
+}
+
+/** Words that carry no topic. */
+const STOP = new Set([
+  'the', 'and', 'but', 'for', 'with', 'that', 'this', 'have', 'has', 'had', 'was', 'were', 'are',
+  'you', 'your', 'his', 'her', 'their', 'our', 'why', 'how', 'what', 'when', 'where', 'who', 'which',
+  'can', 'could', 'would', 'should', 'does', 'did', 'not', 'too', 'very', 'much', 'more', 'again',
+  'still', 'just', 'some', 'any', 'there', 'here', 'from', 'into', 'out', 'off', 'about', 'been',
+  'being', 'get', 'got', 'know', 'think', 'tell', 'say', 'said', 'please', 'help', 'like', 'want',
+  'need', 'now', 'then', 'than', 'all', 'lot', 'bit',
+])
+
+/**
+ * The words a record uses for the thing somebody just said.
+ *
+ * Nobody types "open-plan desk position". They type "office". This is the
+ * short bridge between the two, and it is deliberately short: a long synonym
+ * table starts matching things nobody asked about, and a confident answer to
+ * the wrong question is worse than no answer at all.
+ */
+const NEARBY: Record<string, string[]> = {
+  office: ['work', 'workplace', 'desk', 'open-plan', 'meeting', 'colleague', 'sprint', 'employer'],
+  work: ['workplace', 'desk', 'office', 'meeting', 'employer', 'sprint'],
+  job: ['work', 'employer', 'role', 'workplace'],
+  boss: ['manager', 'employer', 'hr'],
+  uni: ['university', 'studio', 'tutor', 'brief', 'lecture'],
+  university: ['studio', 'tutor', 'brief', 'lecture'],
+  noise: ['sound', 'loud', 'quiet', 'open-plan'],
+  loud: ['noise', 'sound', 'quiet'],
+  tired: ['fatigue', 'exhausted', 'energy'],
+  meeting: ['meetings', 'handover', 'sprint', 'unplanned'],
+  change: ['unplanned', 'notice', 'rescheduled', 'short notice'],
+  focus: ['concentrate', 'focused', 'quiet'],
+  sleep: ['sleep', 'rest', 'fatigue'],
+}
+
+/** Rough stem, so "meetings" and "difficulty" find "meeting" and "difficult". */
+function root(word: string): string {
+  const stripped = word.replace(/(ing|ies|ed|es|s|y)$/, '')
+  return stripped.length >= 4 ? stripped : word
+}
+
+function terms(question: string): string[] {
+  const words = question
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOP.has(w))
+
+  const out = new Set<string>()
+  for (const word of words) {
+    out.add(root(word))
+    for (const near of NEARBY[word] ?? []) out.add(root(near))
+  }
+  return [...out]
+}
+
+/**
+ * Everything in this record that mentions what was asked about.
+ *
+ * A plain substring search, scored by how many of the question's words each
+ * entry contains. No model, no ranking cleverness — and every hit keeps the
+ * link back to the thing it came from, so nothing is ever said that cannot be
+ * opened and read.
+ */
+function searchRecord(question: string, patientId: string): Hit[] {
+  const want = terms(question)
+  if (!want.length) return []
+
+  const score = (haystack: string) => {
+    const hay = haystack.toLowerCase()
+    return want.filter((t) => hay.includes(t)).length
+  }
+
+  const hits: Hit[] = []
+
+  for (const e of eventsFor(patientId)) {
+    const n = score(`${e.title} ${e.summary} ${e.context ?? ''} ${e.category}`)
+    if (n) hits.push({ label: e.title, line: e.summary, to: `/patient/story/${e.id}`, date: e.date, score: n })
+  }
+
+  for (const s of strategiesFor(patientId)) {
+    const n = score(`${s.title} ${s.goal} ${s.rationale}`)
+    if (n)
+      hits.push({
+        label: s.title,
+        line: `${s.status} — ${s.goal}`,
+        to: `/patient/support/${s.id}`,
+        date: s.start,
+        score: n,
+      })
+  }
+
+  for (const r of requestsFor(patientId)) {
+    const n = score(`${r.title} ${r.functionalRequirement} ${r.requestedAdjustment} ${r.destination}`)
+    if (n)
+      hits.push({
+        label: r.title,
+        line: `${r.status}, with ${r.currentOwner}`,
+        to: `/patient/requests/${r.id}`,
+        date: r.raised,
+        score: n,
+      })
+  }
+
+  for (const p of profileItems) {
+    const n = score(`${p.text} ${p.section}`)
+    if (n) hits.push({ label: p.text, line: p.section, to: '/patient/profile', date: p.date, score: n })
+  }
+
+  for (const d of documentsFor(patientId)) {
+    const n = score(`${d.title} ${d.category}`)
+    if (n)
+      hits.push({ label: d.title, line: d.category, to: `/patient/documents/${d.id}`, date: d.date, score: n })
+  }
+
+  hits.sort((a, b) => b.score - a.score || b.date.localeCompare(a.date))
+
+  // Two loose mentions, or one strong one. A single entry that happened to
+  // share one common word is not a topic.
+  const strong = hits.filter((h) => h.score >= 2)
+  if (hits.length < 2 && !strong.length) return []
+  return hits.slice(0, 5)
+}
+
+/**
+ * What the record has on a topic, said in two sentences.
+ *
+ * It does not explain and does not claim to. A record can say what is in it
+ * and when — the "why" belongs to the person, or to a conversation with
+ * someone who knows them, and pretending otherwise would be the software
+ * making something up.
+ */
+function aboutTopic(question: string, hits: Hit[], patientId: string): LocalAnswer {
+  const asksWhy = /\bwhy\b|\bhow come\b|\bexplain\b|\bwhat does .* mean\b/i.test(question)
+  const dates = hits.map((h) => h.date).sort()
+  const span =
+    dates.length > 1 && dates[0] !== dates[dates.length - 1]
+      ? `, between ${say(dates[0])} and ${say(dates[dates.length - 1])}`
+      : dates.length
+        ? `, the latest on ${say(dates[dates.length - 1])}`
+        : ''
+
+  const running = strategiesFor(patientId).find((s) => s.status === 'Active')
+
+  const opening = asksWhy
+    ? `I cannot tell you why — that part is yours. What I can say is that ${hits.length} ${hits.length === 1 ? 'thing' : 'things'} in your record touch on this${span}.`
+    : `${hits.length} ${hits.length === 1 ? 'thing' : 'things'} in your record touch on that${span}.`
+
+  const second = running
+    ? `You are already trying something related: ${running.title.toLowerCase()}.`
+    : 'Nothing has been tried for it yet.'
+
+  const actions: LocalAction[] = [{ label: 'See them together', to: '/patient/story' }]
+  if (running) actions.push({ label: 'Open what you are trying', to: `/patient/support/${running.id}` })
+  if (asksWhy) actions.push({ label: 'Think this through properly', think: question })
+
+  return {
+    text: `${opening} ${second}`,
+    detail: hits.map((h) => `${h.label}\n${h.line}`).join('\n\n'),
+    actions,
+    sources: hits.slice(0, 3).map((h) => ({ label: h.label, detail: say(h.date), to: h.to })),
   }
 }
 

@@ -32,6 +32,7 @@ import { useUI } from '../../state/ui'
 
 interface Appointment {
   id: string
+  patient_id: string
   professional_id: string | null
   scheduled_for: string
   purpose: string
@@ -44,6 +45,7 @@ interface Appointment {
 interface CalendarData {
   appointments: Appointment[]
   people: Record<string, { name: string }>
+  patients?: Record<string, { name: string }>
 }
 
 const PROPOSED = 'Awaiting stakeholder'
@@ -51,10 +53,28 @@ const DONE = new Set(['Completed', 'Cancelled'])
 
 type View = 'day' | 'week' | 'month'
 
-export default function Calendar({ patientId = 'pt-ananya' }: { patientId?: string }) {
+/**
+ * `scope="mine"` is a person's own diary — every appointment they are party
+ * to, across every record they hold a connection to. Without it, one record.
+ *
+ * Every route used to mount this with no props at all, and the default was the
+ * demo patient, so a psychologist, an employer and an administrator all opened
+ * the calendar and found the same four appointments in it. The scope is now
+ * something a route has to say out loud.
+ */
+export default function Calendar({
+  patientId,
+  scope = 'record',
+}: {
+  patientId?: string
+  scope?: 'record' | 'mine'
+}) {
   const { role, option } = useSession()
   const { say } = useUI()
-  const { data, refresh } = useLive<CalendarData>('calendar', patientId, 15000)
+  // A diary read is keyed on the person, not the record: `null` tells the
+  // server to answer with what this actor is party to.
+  const readFor = scope === 'mine' ? null : (patientId ?? 'pt-ananya')
+  const { data, refresh } = useLive<CalendarData>('calendar', readFor, 15000)
   const [busy, setBusy] = useState<string | null>(null)
   const [proposing, setProposing] = useState(false)
   const [view, setView] = useState<View>('month')
@@ -62,8 +82,16 @@ export default function Calendar({ patientId = 'pt-ananya' }: { patientId?: stri
   const [picked, setPicked] = useState<string | null>(null)
 
   const appointments = data?.appointments ?? []
-  const nameOf = (id: string | null) =>
-    id ? (data?.people?.[id]?.name ?? 'your clinician') : 'someone yet to be assigned'
+  const mine = scope === 'mine'
+
+  // Who the other party is. In your own diary that is the patient; in
+  // somebody's record it is the clinician they are seeing.
+  const nameOf = (a: Appointment) =>
+    mine
+      ? (data?.patients?.[a.patient_id]?.name ?? 'a patient')
+      : a.professional_id
+        ? (data?.people?.[a.professional_id]?.name ?? 'your clinician')
+        : 'someone yet to be assigned'
 
   const isPatient = role === 'patient'
   const upcoming = appointments.filter((a) => !DONE.has(a.status))
@@ -103,9 +131,15 @@ export default function Calendar({ patientId = 'pt-ananya' }: { patientId?: stri
     setPicked(dayKey(now))
   }
 
-  async function answer(id: string, choice: 'accept' | 'decline' | 'reschedule', when?: string) {
+  async function answer(
+    appointment: Appointment,
+    choice: 'accept' | 'decline' | 'reschedule',
+    when?: string,
+  ) {
+    const id = appointment.id
     setBusy(id)
-    const result = await actOnRecord('answer_appointment', patientId, option?.personId ?? '', {
+    // The record it belongs to, not the one this screen happens to be showing.
+    const result = await actOnRecord('answer_appointment', appointment.patient_id, option?.personId ?? '', {
       appointment_id: id,
       answer: choice,
       scheduled_for: when,
@@ -130,7 +164,9 @@ export default function Calendar({ patientId = 'pt-ananya' }: { patientId?: stri
         description={
           isPatient
             ? 'Everything arranged, and anything anyone has asked to arrange. Nothing is booked until you agree to it.'
-            : 'Appointments with this person, including times proposed but not yet agreed.'
+            : mine
+              ? 'Your own appointments, across everyone you are connected to. Times proposed but not yet agreed are shown too.'
+              : 'Appointments with this person, including times proposed but not yet agreed.'
         }
         actions={
           <Button variant="primary" onClick={() => setProposing((v) => !v)}>
@@ -141,7 +177,8 @@ export default function Calendar({ patientId = 'pt-ananya' }: { patientId?: stri
 
       {proposing ? (
         <Propose
-          patientId={patientId}
+          patientId={mine ? null : (patientId ?? 'pt-ananya')}
+          choices={mine ? (data?.patients ?? {}) : {}}
           day={picked}
           onDone={() => {
             setProposing(false)
@@ -178,8 +215,8 @@ export default function Calendar({ patientId = 'pt-ananya' }: { patientId?: stri
                 <EventRow
                   key={a.id}
                   appointment={a}
-                  who={nameOf(a.professional_id)}
-                  patientId={patientId}
+                  who={nameOf(a)}
+                  patientId={a.patient_id}
                   actorId={option?.personId ?? ''}
                   busy={busy === a.id}
                   onAnswer={answer}
@@ -309,7 +346,7 @@ function EventRow({
   patientId: string
   actorId: string
   busy: boolean
-  onAnswer: (id: string, choice: 'accept' | 'decline' | 'reschedule', when?: string) => void
+  onAnswer: (a: Appointment, choice: 'accept' | 'decline' | 'reschedule', when?: string) => void
   onChanged: () => void
 }) {
   const [panel, setPanel] = useState<'none' | 'move' | 'edit'>('none')
@@ -358,16 +395,16 @@ function EventRow({
             proposed={proposed}
             onMove={() => setPanel((p) => (p === 'move' ? 'none' : 'move'))}
             onEdit={() => setPanel((p) => (p === 'edit' ? 'none' : 'edit'))}
-            onCancel={() => onAnswer(appointment.id, 'decline')}
+            onCancel={() => onAnswer(appointment, 'decline')}
           />
         </div>
 
         {proposed ? (
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button variant="primary" disabled={busy} onClick={() => onAnswer(appointment.id, 'accept')}>
+            <Button variant="primary" disabled={busy} onClick={() => onAnswer(appointment, 'accept')}>
               That works
             </Button>
-            <Button disabled={busy} onClick={() => onAnswer(appointment.id, 'decline')}>
+            <Button disabled={busy} onClick={() => onAnswer(appointment, 'decline')}>
               Not this one
             </Button>
           </div>
@@ -376,7 +413,7 @@ function EventRow({
         {panel === 'move' ? (
           <Reschedule
             onPick={(iso) => {
-              onAnswer(appointment.id, 'reschedule', iso)
+              onAnswer(appointment, 'reschedule', iso)
               setPanel('none')
             }}
             onClose={() => setPanel('none')}
@@ -648,7 +685,7 @@ function DayColumn({
 }: {
   cursor: Date
   byDay: Map<string, Appointment[]>
-  nameOf: (id: string | null) => string
+  nameOf: (a: Appointment) => string
 }) {
   const events = byDay.get(dayKey(cursor)) ?? []
   if (!events.length) {
@@ -665,7 +702,7 @@ function DayColumn({
           <p className="text-[0.82rem] font-medium tabular-nums">{time(e.scheduled_for)}</p>
           <p className="text-[0.95rem] font-semibold">{e.purpose}</p>
           <p className="text-[0.84rem] opacity-80">
-            With {nameOf(e.professional_id)} · {e.location || 'location to be confirmed'}
+            With {nameOf(e)} · {e.location || 'location to be confirmed'}
           </p>
         </li>
       ))}
@@ -805,15 +842,23 @@ function Edit({
 /** Asking for a time, from either side. */
 function Propose({
   patientId,
+  choices,
   day,
   onDone,
 }: {
-  patientId: string
+  /** The record this goes into, when the screen is showing one. */
+  patientId: string | null
+  /** Whose records this person may offer a time in, when it is not. */
+  choices: Record<string, { name: string }>
   day: string | null
   onDone: () => void
 }) {
   const { option, role } = useSession()
   const { say } = useUI()
+  // A diary spans records, so it has to be said which one this is for. One
+  // connected patient and it is not a question worth asking.
+  const names = Object.entries(choices)
+  const [who, setWho] = useState(patientId ?? (names.length === 1 ? names[0][0] : ''))
   // A day picked in the grid is already an answer to "when", so it is filled in
   // rather than asked for again.
   const [when, setWhen] = useState(day ? `${day}T10:00` : '')
@@ -822,8 +867,9 @@ function Propose({
   const [saving, setSaving] = useState(false)
 
   async function submit() {
+    if (!who) return
     setSaving(true)
-    const result = await actOnRecord('propose_appointment', patientId, option?.personId ?? '', {
+    const result = await actOnRecord('propose_appointment', who, option?.personId ?? '', {
       scheduled_for: new Date(when).toISOString(),
       purpose,
       location,
@@ -846,6 +892,30 @@ function Propose({
             ? 'Ask for a time that suits you. Your clinician sees it and either agrees or suggests another.'
             : 'Offer a time. The patient sees it and either agrees or suggests another — it is not booked until they do.'}
         </p>
+
+        {!patientId && names.length > 1 ? (
+          <label className="mt-4 block text-[0.8rem] font-medium text-ink-2">
+            Who it is for
+            <select
+              value={who}
+              onChange={(e) => setWho(e.target.value)}
+              className="mt-1 w-full rounded-2xl bg-surface-2 px-3 py-2 text-[0.88rem] text-ink outline-none"
+            >
+              <option value="">Choose a person</option>
+              {names.map(([id, person]) => (
+                <option key={id} value={id}>
+                  {person.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+
+        {!patientId && names.length === 0 ? (
+          <p className="mt-4 text-[0.86rem] text-state-wait">
+            You are not connected to anyone's record yet, so there is nobody to offer a time to.
+          </p>
+        ) : null}
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="text-[0.8rem] font-medium text-ink-2">
@@ -878,7 +948,12 @@ function Propose({
           />
         </label>
 
-        <Button variant="primary" className="mt-4" disabled={saving || !when || !purpose} onClick={submit}>
+        <Button
+          variant="primary"
+          className="mt-4"
+          disabled={saving || !when || !purpose || !who}
+          onClick={submit}
+        >
           {saving ? 'Proposing…' : 'Propose it'}
         </Button>
       </CardBody>

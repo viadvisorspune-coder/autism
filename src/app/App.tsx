@@ -118,7 +118,7 @@ function clinicalRoutes() {
       <Route path="permissions" element={<ClinicalPermissions />} />
       <Route path="timeline" element={<ClinicalTimeline />} />
       <Route path="appointments" element={<ClinicalAppointments />} />
-      <Route path="calendar" element={<Calendar />} />
+      <Route path="calendar" element={<Calendar scope="mine" />} />
       <Route path="coordination" element={<CareCoordination />} />
       <Route path="referrals" element={<Referrals />} />
     </>
@@ -167,7 +167,7 @@ export default function App() {
           <Route path="support" element={<PatientSupport />} />
           <Route path="support/:strategyId" element={<PatientStrategy />} />
           <Route path="care" element={<PatientCare />} />
-          <Route path="calendar" element={<Calendar />} />
+          <Route path="calendar" element={<Calendar patientId="pt-ananya" />} />
           <Route path="care/team" element={<PatientCareTeam />} />
           <Route path="care/appointments/:appointmentId" element={<PatientAppointment />} />
           <Route path="care/appointments/:appointmentId/prepare" element={<PatientAppointmentPrep />} />

@@ -202,19 +202,60 @@ async function read(
     // same kind of object — a thing that may happen on Tuesday. What differs
     // is whether it is settled, and that is a property of the row, not a
     // reason to keep two lists.
+    /**
+     * A calendar belongs to whoever is looking at it.
+     *
+     * This read used to require a patient id and the app never supplied one,
+     * so it fell back to the demo patient — and every clinician, every
+     * employer, every administrator opened the calendar and found Ananya's
+     * appointments sitting in it. Four different people appeared to be seeing
+     * the same psychologist at the same time, which is both wrong and, in a
+     * record about who can see what, exactly the wrong thing to be wrong
+     * about.
+     *
+     * With a patient id it is that person's calendar, as before. Without one
+     * it is the caller's own diary: appointments they are personally party to,
+     * across every record they hold a live connection to. Not everything about
+     * those patients — a psychologist's diary is not a window into their
+     * patients' other clinicians — just their own.
+     */
     case 'calendar': {
-      if (!patientId) return null
-      const { data: appointments } = await admin
-        .from('appointments')
-        .select('*')
-        .eq('patient_id', patientId)
-        .order('scheduled_for', { ascending: true })
+      const query = admin.from('appointments').select('*').order('scheduled_for', { ascending: true })
 
-      const people = await peopleById(
-        (appointments ?? []).map((a) => String(a.professional_id ?? '')),
-      )
+      if (patientId) {
+        const { data: appointments } = await query.eq('patient_id', patientId)
+        const rows = appointments ?? []
+        return {
+          appointments: rows,
+          people: await peopleById(rows.map((a) => String(a.professional_id ?? ''))),
+          patients: await patientNames(rows.map((a) => String(a.patient_id ?? ''))),
+        }
+      }
 
-      return { appointments: appointments ?? [], people }
+      if (!actorId) return { appointments: [], people: {}, patients: {} }
+
+      // Only records this person is actually connected to. The professional_id
+      // filter narrows it again to the ones they are in the room for.
+      const { data: links } = await admin
+        .from('connections')
+        .select('patient_id')
+        .eq('person_id', actorId)
+        .eq('consent_status', 'Active')
+
+      const ids = (links ?? []).map((l) => String(l.patient_id))
+      if (!ids.length) return { appointments: [], people: {}, patients: {} }
+
+      const { data: appointments } = await query.in('patient_id', ids).eq('professional_id', actorId)
+      const rows = appointments ?? []
+
+      return {
+        appointments: rows,
+        people: await peopleById(rows.map((a) => String(a.professional_id ?? ''))),
+        // Every connected record, not only the ones already in the diary —
+        // otherwise a clinician can offer a time to the patients they have
+        // seen and to nobody else, which is precisely backwards.
+        patients: await patientNames(ids),
+      }
     }
 
     // One run, with anything a person waiting on it would want to know: where
@@ -501,6 +542,20 @@ async function read(
 }
 
 /** Names resolved server-side so no response ever carries a bare identifier. */
+/**
+ * Whose appointment it is, by name.
+ *
+ * A diary that says "Tuesday, 16:00, review" and not who it is with is a diary
+ * nobody can use. Only needed when the calendar spans more than one record,
+ * but harmless on a single one.
+ */
+async function patientNames(ids: string[]): Promise<Record<string, { name: string }>> {
+  const unique = [...new Set(ids.filter(Boolean))]
+  if (!unique.length) return {}
+  const { data } = await admin.from('patients').select('id, name').in('id', unique)
+  return Object.fromEntries((data ?? []).map((p) => [String(p.id), { name: String(p.name) }]))
+}
+
 async function peopleById(ids: string[]): Promise<Record<string, { name: string; role: string; organisation: string | null }>> {
   const unique = ids.filter(Boolean)
   if (!unique.length) return {}
