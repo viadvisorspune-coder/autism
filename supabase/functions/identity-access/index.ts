@@ -73,8 +73,34 @@ Deno.serve(
 
     const isSelf = patient?.user_id === actor.id
 
-    // Everyone else needs a live connection the patient created.
-    const subjectId = recipientId ?? actor.id
+    /**
+     * The recipient, however the agent chose to name them.
+     *
+     * An agent asked who a letter is going to answers in the words of the
+     * task, not in ids: it sent `employer-hr`, which is neither a user id nor
+     * a role. The lookup found nothing, the gate refused a recipient it could
+     * not verify, and the run blocked — correct behaviour on an input nobody
+     * had told it how to write.
+     *
+     * Ananya does have a live employer connection, purpose "Workplace
+     * accommodation request only". Refusing it over a hyphen would be a
+     * pedantry the person pays for. So: try the id, and if that is not a user,
+     * read it as a role and resolve it to whoever holds that role on THIS
+     * patient's connection list. The consent check that follows is unchanged
+     * and still decides — this only works out who is being talked about.
+     */
+    let subjectId = recipientId ?? actor.id
+    if (recipientId) {
+      const { data: named } = await admin
+        .from('app_users')
+        .select('id')
+        .eq('id', recipientId)
+        .maybeSingle()
+      if (!named) {
+        const resolved = await personInRole(patientId, recipientId)
+        if (resolved) subjectId = resolved
+      }
+    }
     const { data: connection } = await admin
       .from('connections')
       .select('access_scope, purpose, consent_status, review_due, relationship')
@@ -163,4 +189,58 @@ function deny(patientId: string, reason: string) {
     reason,
     audit_id: null,
   }
+}
+
+
+/**
+ * Turn a role-ish word into the person who actually holds it here.
+ *
+ * Only ever returns somebody the patient has already connected. A role with no
+ * connection resolves to nothing, so this can widen how a recipient is named
+ * but never who may receive.
+ */
+const ROLE_WORDS: Record<string, string> = {
+  hr: 'employer',
+  'employer-hr': 'employer',
+  employer: 'employer',
+  work: 'employer',
+  workplace: 'employer',
+  manager: 'employer',
+  university: 'university',
+  'university-accessibility': 'university',
+  accessibility: 'university',
+  college: 'university',
+  tutor: 'university',
+  gp: 'gp',
+  doctor: 'gp',
+  psychologist: 'psychologist',
+  psychiatrist: 'psychiatrist',
+  therapist: 'therapist',
+  ot: 'ot',
+  'occupational-therapist': 'ot',
+  clinic: 'clinic',
+  trusted: 'trusted',
+  family: 'trusted',
+}
+
+async function personInRole(patientId: string, given: string): Promise<string | null> {
+  const key = given.trim().toLowerCase().replace(/[\s_]+/g, '-')
+  const role = ROLE_WORDS[key] ?? ROLE_WORDS[key.split('-')[0]]
+  if (!role) return null
+
+  const { data: links } = await admin
+    .from('connections')
+    .select('person_id')
+    .eq('patient_id', patientId)
+  const ids = (links ?? []).map((l) => String(l.person_id))
+  if (!ids.length) return null
+
+  const { data: people } = await admin
+    .from('app_users')
+    .select('id, role')
+    .in('id', ids)
+    .eq('role', role)
+  // More than one person in the same role is genuinely ambiguous, and picking
+  // one would be choosing a recipient on the person's behalf.
+  return (people ?? []).length === 1 ? String(people![0].id) : null
 }
