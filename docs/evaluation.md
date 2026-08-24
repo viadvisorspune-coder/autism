@@ -110,28 +110,7 @@ information problems wearing the costume of judgement problems.
 
 ---
 
-## 4. One approval, printed seven times
-
-**How it was found.** A single decision appeared seven times in the interface.
-
-**Diagnosis.** Each stage of a run wrote its own approval record, and each was
-rendered. Underneath it was one decision.
-
-**Change.** Approvals are deduplicated and each says what it actually is. More
-importantly the count came down: only two things now stop for a human —
-something leaving the system, and something permanent being written into the
-record. Reading, drafting, checking scope and deciding responsibility do not
-ask.
-
-**Evidence.** `879a4af`, `897b1d4`.
-
-**Wider lesson.** An interface that asks eleven times teaches people to approve
-without reading, which is worse than not asking. Fewer, larger, better-explained
-approvals are safer than more of them.
-
----
-
-## 5. One document per stage instead of one per request
+## 4. One document per stage instead of one per request
 
 **How it was found.** A single request produced several part-documents.
 
@@ -145,7 +124,7 @@ explicitly not to produce anything for a question, and never more than once.
 
 ---
 
-## 6. "This is now with Processing, and nothing will move until they decide"
+## 5. "This is now with Processing, and nothing will move until they decide"
 
 **How it was found.** Reading the patient's chat.
 
@@ -166,7 +145,7 @@ when it holds something the designer did not anticipate.
 
 ---
 
-## 7. "which one" was answered with a paragraph about headphones
+## 6. "which one" was answered with a paragraph about headphones
 
 **How it was found.** A two-word follow-up.
 
@@ -189,7 +168,7 @@ no longer matches headphones.
 
 ---
 
-## 8. Every account showed the same person
+## 7. Every account showed the same person
 
 **How it was found.** Opening the calendar as a psychologist and seeing the demo
 patient's appointments.
@@ -226,7 +205,7 @@ last resort rather than the default.
 
 ---
 
-## 9. A failed read that looked like an empty record
+## 8. A failed read that looked like an empty record
 
 **How it was found.** Checking whether the backend was finished, by asking it for
 a timeline.
@@ -255,7 +234,7 @@ believed when it says nothing happened.
 
 ---
 
-## 10. The agent that had nothing to work with, and said so
+## 9. The agent that had nothing to work with, and said so
 
 **How it was found.** A run completed both steps and the person got no answer.
 
@@ -285,7 +264,7 @@ the worst conditions available — no context at all.
 
 ---
 
-## 11. Documents the agents could not see
+## 10. Documents the agents could not see
 
 **How it was found.** Asking whether a newly seeded set of documents would reach
 the workflows.
