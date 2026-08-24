@@ -166,7 +166,7 @@ export function ClinicalAppointments() {
                 <Button onClick={() => say('Brief prepared from the record. The patient sees it first.')}>
                   Prepare brief
                 </Button>
-                <Button onClick={() => say('Requested the patient’s approval to share their brief.')}>
+                <Button onClick={() => say('This is where the patient would be asked. Nothing has been requested of them.')}>
                   Request patient brief
                 </Button>
               </div>

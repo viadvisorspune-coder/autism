@@ -163,7 +163,7 @@ export function TrustedObservation() {
                 variant="primary"
                 onClick={() => {
                   setSent(true)
-                  say('Sent to Ananya for her to decide.')
+                  say('Ananya would see this and decide. Nothing has been sent in the prototype.')
                 }}
               >
                 Send to Ananya

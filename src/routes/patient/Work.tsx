@@ -345,7 +345,7 @@ export function PatientRequestBuilder() {
             variant="primary"
             onClick={() => {
               setStep(6)
-              say('Sent to HR. Recorded in your sharing history.')
+              say('This is where it would go to HR. Nothing has been sent — the prototype stops before anything leaves.')
             }}
           >
             Approve and send

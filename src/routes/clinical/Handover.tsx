@@ -230,7 +230,7 @@ export default function HandoverBuilder() {
             variant="primary"
             onClick={() => {
               setStage(3)
-              say('Sent to the patient for approval.')
+              say('Ready for the patient. Nothing has been sent — the prototype stops here, which is where a real approval would begin.')
             }}
           >
             Request patient approval
@@ -241,7 +241,7 @@ export default function HandoverBuilder() {
             variant="primary"
             onClick={() => {
               setStage(4)
-              say('Patient approved. Handover sent.')
+              say('This is what it looks like once approved. Nothing was sent to anybody.')
             }}
           >
             Simulate patient approval

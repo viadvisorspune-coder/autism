@@ -209,7 +209,7 @@ export function PatientRequest() {
           <Card>
             <CardHead title="Actions" />
             <CardBody className="flex flex-col gap-2">
-              <Button onClick={() => say('A reminder was sent to the recipient.')}>Send a reminder</Button>
+              <Button onClick={() => say('A reminder would go out here. Nothing has been sent in the prototype.')}>Send a reminder</Button>
               <Button onClick={() => say('Withdrawn. Nothing further will be shared.')} variant="danger">
                 Withdraw this request
               </Button>

@@ -238,7 +238,7 @@ export function OrgRequestDetail() {
                 variant="primary"
                 onClick={() => {
                   setDecision('Clarification requested')
-                  say('Clarification sent back into the workflow.')
+                  say('Noted here. Sending it back to the patient is not wired up in the prototype.')
                 }}
               >
                 Send question
@@ -253,7 +253,7 @@ export function OrgRequestDetail() {
             variant="primary"
             onClick={() => {
               setDecision('Approved')
-              say('Approved. Implementation details were sent to the requester.')
+              say('Approved here. In the prototype nothing leaves the system — a real send would need the patient to see it first.')
             }}
           >
             Approve

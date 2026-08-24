@@ -437,7 +437,7 @@ export function PatientAppointmentPrep() {
               variant="primary"
               onClick={() => {
                 setStage('shared')
-                say('Shared with Dr Kavita Nair for this appointment.')
+                say('This is the point where it would be shared. Nothing has left your record.')
               }}
             >
               Share with {personName(appointment.professionalId)}
