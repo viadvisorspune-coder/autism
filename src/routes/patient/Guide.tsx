@@ -557,37 +557,50 @@ export default function PatientGuide() {
       <ContinueAsRequest lastSaid={lastSaid} />
 
       {/* ------------------------------------------------------ composer */}
+      {/* ------------------------------------------------------ composer */}
+      {/* One surface, not three floating controls.
+          The textarea, Attach and Send used to be siblings in a wrapping flex
+          row: three different heights, bottom-aligned, and on a narrow window
+          the buttons wrapped under the box and stopped looking like they
+          belonged to it. Now the box IS the composer — the field on top, the
+          controls on a row beneath it inside the same border, so the whole
+          thing reads as one place to write. */}
       <div className="sticky bottom-0 mt-6 border-t border-line bg-canvas pt-4 pb-6">
-        <div className="mb-2 flex flex-wrap gap-2">
+        <div className="mb-3 flex flex-wrap gap-2">
           {guidePrompts.slice(0, 4).map((prompt) => (
             <button
               key={prompt}
               onClick={() => send(prompt)}
-              className="rounded-full  bg-surface-2 px-3 py-1.5 text-[0.8rem] text-ink-2 hover:text-ink"
+              className="rounded-full border border-line bg-surface px-3.5 py-1.5 text-[0.81rem] text-ink-2 shadow-sm hover:border-brand hover:text-ink"
             >
               {prompt}
             </button>
           ))}
         </div>
+
         <form
           onSubmit={(e) => {
             e.preventDefault()
             send(draft)
           }}
-          className="flex flex-wrap items-end gap-2"
+          className="rounded-[20px] border border-line bg-surface shadow-sm focus-within:border-brand"
         >
+          <label htmlFor="guide-compose" className="sr-only">
+            Write to ORCA
+          </label>
           <textarea
+            id="guide-compose"
             rows={2}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Write as much or as little as you like"
-            className="min-w-0 flex-1 rounded-2xl  bg-surface-2 px-4 py-3 text-[0.92rem] leading-relaxed outline-none placeholder:text-muted"
+            className="block w-full resize-none rounded-t-[20px] bg-transparent px-4 pt-3.5 pb-1 text-[0.95rem] leading-relaxed outline-none placeholder:text-muted"
           />
+
           {/* A real picker. This used to open a toast admitting it was not
               wired up — which is honest, and useless to somebody holding the
               letter they were asked for. The file goes onto the record through
-              the same path every other contribution uses, and the conversation
-              says so in the person's own thread. */}
+              the same path every other contribution uses. */}
           <input
             ref={fileInput}
             type="file"
@@ -600,16 +613,30 @@ export default function PatientGuide() {
               e.target.value = ''
             }}
           />
-          <label
-            htmlFor="guide-attach"
-            className="cursor-pointer rounded-2xl bg-surface-2 px-4 py-3 text-[0.88rem] font-medium text-ink hover:bg-brand-tint"
-          >
-            {attaching ? 'Adding…' : 'Attach'}
-          </label>
-          <Button type="submit" variant="primary">
-            Send
-          </Button>
+
+          <div className="flex items-center gap-2 px-3 pb-3">
+            <label
+              htmlFor="guide-attach"
+              className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full px-3 text-[0.84rem] font-medium text-ink-2 hover:bg-surface-2 hover:text-ink"
+            >
+              <span aria-hidden className="text-[0.95rem] leading-none">+</span>
+              {attaching ? 'Adding…' : 'Attach a file'}
+            </label>
+
+            <span className="ml-auto text-[0.76rem] text-muted">
+              Nothing here is shared with anyone
+            </span>
+
+            <button
+              type="submit"
+              disabled={!draft.trim()}
+              className="inline-flex h-9 items-center rounded-full bg-brand px-5 text-[0.86rem] font-semibold text-white hover:bg-brand-ink disabled:opacity-40"
+            >
+              Send
+            </button>
+          </div>
         </form>
+
         {restored && draft ? (
           <p className="mt-2 text-[0.79rem] text-state-wait">
             This was still here from last time. Nothing was sent.
@@ -787,14 +814,15 @@ function ContinueAsRequest({ lastSaid }: { lastSaid: string }) {
   if (lastSaid.trim().length < 25) return null
 
   return (
-    <div className="mt-6 rounded-[20px]  bg-surface-2 px-5 py-4">
-      <p className="text-[0.89rem] font-medium text-ink">Turn this into a request?</p>
-      <p className="mt-1 text-[0.85rem] leading-relaxed text-ink-2">
+    <div className="mt-6 rounded-[20px] border-l-4 border-brand bg-brand-tint/40 px-5 py-4">
+      <p className="text-[0.89rem] font-semibold text-ink">Turn this into a request?</p>
+      <p className="mt-1 max-w-[58ch] text-[0.85rem] leading-relaxed text-ink-2">
         What you have written here can start a request to your employer or university without
         typing it again. You will see exactly what would be sent before anyone else does.
       </p>
       <Button
         variant="primary"
+        className="mt-3"
         onClick={() => navigate('/patient/work/request', { state: { from: lastSaid } })}
       >
         Start a request from this
