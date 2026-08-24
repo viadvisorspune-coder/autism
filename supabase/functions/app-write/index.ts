@@ -13,6 +13,7 @@
  */
 import { admin, cors, json, list, recordAudit, str } from '../_shared/yoxa.ts'
 import { actorFromRequest, forbidden, mayActOnPatient, unauthorised } from '../_shared/app.ts'
+import { type NotificationKind, notifyRoles } from '../_shared/notify.ts'
 
 type Action =
   | 'propose_appointment'
@@ -136,7 +137,15 @@ Deno.serve(async (req) => {
         .single()
       if (error) return json({ error: error.message }, 400)
 
-      await notify(patientId, assignedTo, `${actor.name} has asked for a decision`, title, data.id)
+      await notify(
+        patientId,
+        assignedTo,
+        `${actor.name} has asked for a decision`,
+        title,
+        data.id,
+        'asking',
+        str(body.workflow_run_id),
+      )
 
       await recordAudit({
         actorId: actor.id,
@@ -225,6 +234,7 @@ Deno.serve(async (req) => {
         item.title as string,
         reviewId,
         'telling',
+        (item.workflow_run_id as string) ?? null,
       )
 
       await recordAudit({
@@ -875,45 +885,28 @@ function label(name: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
-/** A decision nobody is told about is a decision nobody acts on. */
-async function notify(
+/**
+ * A decision nobody is told about is a decision nobody acts on.
+ *
+ * The category, the instruction and the link all used to be written here as
+ * constants, which made every notification an approval request pointing at the
+ * patient's own screen — wrong for the receipt written when a review closes,
+ * and wrong for every clinician it was addressed to. They live in
+ * _shared/notify.ts now, worked out from the kind and the recipient.
+ *
+ * The review id stays out of it deliberately: a notification is a thing a
+ * person reads, and the id belongs in the audit trail, which is the thing code
+ * follows.
+ */
+const notify = (
   patientId: string,
   roles: string[],
   what: string,
   detail: string,
-  reviewId: string,
-  /**
-   * Asking somebody to decide, or telling them what was decided.
-   *
-   * This used to stamp every notification "Approval required" and tell the
-   * reader to approve, edit or decline — including the ones announcing a
-   * decision somebody had already made. So an inbox filled with rows reading
-   * "APPROVAL REQUIRED · Ananya Rao decided: Approved", each asking her to go
-   * and decide a thing she had just decided.
-   *
-   * An inbox that cannot tell a question from a receipt is one people learn to
-   * ignore, and the things in it that genuinely need a person go with it.
-   */
-  kind: 'asking' | 'telling' = 'asking',
-) {
-  const unique = [...new Set(roles)]
-  if (!unique.length) return
-  const asking = kind === 'asking'
-  await admin.from('notifications').insert({
-    patient_id: patientId,
-    category: asking ? 'Approval required' : 'Professional response',
-    what,
-    why: detail,
-    todo: asking
-      ? 'Open it, read what is proposed, and approve, edit or decline.'
-      : 'Nothing to do. Open it if you want to see what was decided and why.',
-    for_roles: unique,
-    href: '/patient/requests',
-  })
-  // The id is kept in the audit trail rather than the notification, which is
-  // deliberately a thing a person reads rather than a thing code follows.
-  void reviewId
-}
+  _reviewId: string,
+  kind: NotificationKind = 'asking',
+  workflowRunId: string | null = null,
+) => notifyRoles({ patientId, roles, kind, what, why: detail, workflowRunId })
 
 
 /* --------------------------------------------------------------- accounts */

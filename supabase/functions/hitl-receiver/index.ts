@@ -13,6 +13,7 @@
  * before any parsing.
  */
 import { admin, cors, json } from '../_shared/yoxa.ts'
+import { notifyRoles } from '../_shared/notify.ts'
 
 const TOLERANCE_SECONDS = 300
 
@@ -124,15 +125,20 @@ Deno.serve(async (req) => {
   if (taskError && taskError.code !== '23505') return json({ error: taskError.message }, 500)
 
   if (patientId) {
-    await admin.from('notifications').insert({
-      patient_id: patientId,
-      category: 'Approval required',
+    // The patient, deliberately and not by omission. Yoxa's event names a
+    // title, a description and some options; it does not name an audience, and
+    // there is nothing here to infer one from. These gates exist to put the
+    // person the record is about back in the loop before a run continues, so
+    // the patient is the right reader — but it is a choice made here, not a
+    // fact carried by the payload, and if Yoxa ever starts addressing gates to
+    // a clinician this is the line that has to change.
+    await notifyRoles({
+      patientId,
+      roles: ['patient'],
+      kind: 'asking',
       what: String(payload.title ?? 'A decision is needed before this can continue.'),
       why: 'A workflow has reached a point that needs a person, not a model.',
-      todo: 'Open it, read what is proposed, and approve, edit or decline.',
-      for_roles: ['patient'],
-      href: '/patient/requests',
-      workflow_run_id: workflowRunId,
+      workflowRunId,
     })
 
     await admin.from('audit_log').insert({

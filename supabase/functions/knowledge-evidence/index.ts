@@ -177,6 +177,7 @@ Deno.serve(
     // parsed it, is the invented-finding failure in a different costume.
     const documents = (docRows ?? []).map((d) => {
       const found = (d.extracted as { label?: string; value?: string }[] | null) ?? []
+      const sourceRole = sources?.find((x) => x.id === d.source_id)?.role ?? 'system'
       return {
         id: String(d.id),
         title: String(d.title),
@@ -186,9 +187,9 @@ Deno.serve(
         category: 'Documents',
         recorded_on: d.recorded_on,
         occurred_on: null,
-        evidence_status: 'Professionally documented',
+        evidence_status: evidenceFor(sourceRole),
         source: nameOf(d.source_id as string | null, d.source_label as string | null),
-        source_role: sources?.find((x) => x.id === d.source_id)?.role ?? 'system',
+        source_role: sourceRole,
       }
     })
 
@@ -251,3 +252,36 @@ Deno.serve(
     })
   }),
 )
+
+/**
+ * How much weight a document's provenance actually carries.
+ *
+ * This was the constant 'Professionally documented', stamped on every file in
+ * the record regardless of who put it there — so a photograph the patient
+ * uploaded came back to the agent carrying the same authority as a discharge
+ * summary from a consultant. Worse, the same object frequently said both
+ * things at once: "Nothing has been read from this file yet" in the summary,
+ * "Professionally documented" in the field the agent weighs.
+ *
+ * `evidence_status` is the one field here that tells an agent how far to trust
+ * a line, which makes it the last field in the system that should have been a
+ * constant. It is the uploader's role that decides it, and the record already
+ * knows the uploader.
+ */
+const CLINICAL_SOURCES = new Set([
+  'psychologist',
+  'psychiatrist',
+  'therapist',
+  'ot',
+  'gp',
+  'clinic',
+])
+
+function evidenceFor(sourceRole: string): string {
+  if (CLINICAL_SOURCES.has(sourceRole)) return 'Professionally documented'
+  // Everything else — the patient, a trusted person, an employer, a university,
+  // or a file whose uploader can no longer be resolved — is somebody's account
+  // of something. That is worth having and worth reading. It is not a clinical
+  // record, and an agent asked to weigh it should not be told that it is.
+  return 'Reported'
+}
