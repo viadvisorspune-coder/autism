@@ -15,6 +15,7 @@ import {
 } from '../../components/ui'
 import { RecordSource } from '../../components/shared'
 import { connections as mockConnections, disclosures as mockDisclosures, people, personName } from '../../data/db'
+import { askOrca } from '../../lib/ask'
 import { useOrcaRead } from '../../lib/orca'
 import { useUI } from '../../state/ui'
 
@@ -386,6 +387,14 @@ export function PatientSharingHistory() {
           { label: 'Privacy & Sharing', to: '/patient/privacy' },
           { label: 'History' },
         ]}
+        actions={
+          <>
+            <Button onClick={() => askOrca('Who has read my record?')}>Who has read it?</Button>
+            <LinkButton to="/patient/documents" variant="primary">
+              Share something
+            </LinkButton>
+          </>
+        }
       />
 
       <RecordSource state={state} reason={reason} />
@@ -410,6 +419,16 @@ export function PatientSharingHistory() {
                   ))}
                 </ul>
                 <p className="mt-3 text-[0.8rem] text-muted">Scope: {d.content_scope.join(', ')}</p>
+                {/* A history page with nothing to press is a receipt. The two
+                    questions somebody actually has here are "why did that go?"
+                    and "can I stop it?" — so both are one press away, and both
+                    go somewhere that can answer rather than to a toast. */}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button onClick={() => askOrca(`Why was this shared with ${d.recipient}?`)}>
+                    Why was this shared?
+                  </Button>
+                  <LinkButton to="/patient/connections">Change what they can see</LinkButton>
+                </div>
               </CardBody>
             </Card>
           </li>
@@ -419,8 +438,12 @@ export function PatientSharingHistory() {
       <div className="mt-6">
         <Callout tone="info" title="Access is recorded separately from sharing">
           A disclosure is something that left your record. Every time anyone <em>read</em> it — including{' '}
-          {personName('u-kavita')} and {personName('u-anil')} — is kept too, refusals included. Ask for the
-          full access log at any time.
+          {personName('u-kavita')} and {personName('u-anil')} — is kept too, refusals included.
+          <div className="mt-3">
+            <Button onClick={() => askOrca('Show me the full access log for my record')}>
+              Ask for the full access log
+            </Button>
+          </div>
         </Callout>
       </div>
     </div>
