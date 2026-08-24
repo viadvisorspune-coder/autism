@@ -224,6 +224,7 @@ Deno.serve(async (req) => {
         `${actor.name} decided: ${decision}`,
         item.title as string,
         reviewId,
+        'telling',
       )
 
       await recordAudit({
@@ -881,15 +882,31 @@ async function notify(
   what: string,
   detail: string,
   reviewId: string,
+  /**
+   * Asking somebody to decide, or telling them what was decided.
+   *
+   * This used to stamp every notification "Approval required" and tell the
+   * reader to approve, edit or decline — including the ones announcing a
+   * decision somebody had already made. So an inbox filled with rows reading
+   * "APPROVAL REQUIRED · Ananya Rao decided: Approved", each asking her to go
+   * and decide a thing she had just decided.
+   *
+   * An inbox that cannot tell a question from a receipt is one people learn to
+   * ignore, and the things in it that genuinely need a person go with it.
+   */
+  kind: 'asking' | 'telling' = 'asking',
 ) {
   const unique = [...new Set(roles)]
   if (!unique.length) return
+  const asking = kind === 'asking'
   await admin.from('notifications').insert({
     patient_id: patientId,
-    category: 'Approval required',
+    category: asking ? 'Approval required' : 'Professional response',
     what,
     why: detail,
-    todo: 'Open it, read what is proposed, and approve, edit or decline.',
+    todo: asking
+      ? 'Open it, read what is proposed, and approve, edit or decline.'
+      : 'Nothing to do. Open it if you want to see what was decided and why.',
     for_roles: unique,
     href: '/patient/requests',
   })
