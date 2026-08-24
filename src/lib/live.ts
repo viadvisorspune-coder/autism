@@ -92,6 +92,15 @@ export interface WriteResult {
   ok: boolean
   error: string | null
   note: string | null
+  /**
+   * What the server sent back.
+   *
+   * Every write used to return only ok/error/note, so a caller that needed
+   * the id of the thing it had just created had no way to get it — an upload
+   * could not be shared, because the conversation never learned which
+   * document it had made.
+   */
+  data: Record<string, unknown> | null
 }
 
 /** One person's decision, sent to the record everyone else is reading. */
@@ -102,7 +111,12 @@ export async function actOnRecord(
   fields: Record<string, unknown> = {},
 ): Promise<WriteResult> {
   if (!isSupabaseConfigured) {
-    return { ok: false, error: 'This build has no backend, so nothing was saved.', note: null }
+    return {
+      ok: false,
+      error: 'This build has no backend, so nothing was saved.',
+      note: null,
+      data: null,
+    }
   }
 
   try {
@@ -112,15 +126,16 @@ export async function actOnRecord(
 
     if (error) {
       const reason = await refusal(error)
-      return { ok: false, error: reason ?? 'That could not be saved.', note: null }
+      return { ok: false, error: reason ?? 'That could not be saved.', note: null, data: null }
     }
     return {
       ok: true,
       error: null,
       note: typeof data?.note === 'string' ? data.note : null,
+      data: (data ?? null) as Record<string, unknown> | null,
     }
   } catch {
-    return { ok: false, error: 'That could not be saved.', note: null }
+    return { ok: false, error: 'That could not be saved.', note: null, data: null }
   }
 }
 

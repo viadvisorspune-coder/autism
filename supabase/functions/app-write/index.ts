@@ -28,6 +28,7 @@ type Action =
   | 'update_user'
   | 'set_user_active'
   | 'add_entry'
+  | 'share_document'
 
 /** Only these roles may be asked to decide something clinical. */
 const DECIDING_ROLES = new Set([
@@ -543,6 +544,133 @@ Deno.serve(async (req) => {
      * be revisited, that becomes a *proposal* a human still has to accept —
      * the same rule that governs every other route into this record.
      */
+    /**
+     * Sharing a document with people who are already connected.
+     *
+     * The one action in this product that actually moves information across a
+     * boundary, so it is the one that must leave the most behind. Three
+     * writes, not one: the document's access list changes, its own sharing
+     * history gains a line, and the disclosure log gains a row. All three
+     * because a person asking "who has this?" and a person asking "what has
+     * been released about me?" are different questions, and each is asked from
+     * a different screen.
+     *
+     * Recipients are named as roles, because that is how the person thinks
+     * about it — "my psychologist", not a user id. Each role is resolved to
+     * somebody they have already connected with live consent. A role with no
+     * live connection is not an error and not silently dropped: it comes back
+     * in `refused`, with the reason, so the interface can say who did not
+     * receive it rather than implying everybody did.
+     */
+    case 'share_document': {
+      const documentId = str(body.document_id)
+      const wanted = list(body.recipients).map((r) => String(r).toLowerCase())
+      const purpose = str(body.purpose) ?? 'Shared by the person this record is about'
+      if (!documentId) return json({ error: 'document_id is required' }, 400)
+      if (!wanted.length) return json({ error: 'recipients is required' }, 400)
+
+      const { data: doc } = await admin
+        .from('documents')
+        .select('id, title, access, sharing_history')
+        .eq('id', documentId)
+        .eq('patient_id', patientId)
+        .maybeSingle()
+      if (!doc) return json({ error: 'document_not_found', document_id: documentId }, 404)
+
+      // Only people the patient has already connected, and only while that
+      // consent is live. Sharing cannot be the thing that creates a
+      // relationship — that decision belongs on the connections screen, where
+      // it is made deliberately rather than as a side effect of sending a file.
+      const { data: links } = await admin
+        .from('connections')
+        .select('person_id, consent_status, review_due')
+        .eq('patient_id', patientId)
+      const live = (links ?? []).filter(
+        (l) =>
+          l.consent_status === 'Active' &&
+          (!l.review_due || new Date(String(l.review_due)) >= new Date()),
+      )
+      const { data: people } = live.length
+        ? await admin
+            .from('app_users')
+            .select('id, name, role, organisation')
+            .in('id', live.map((l) => String(l.person_id)))
+        : { data: [] as Record<string, unknown>[] }
+
+      const granted: { role: string; id: string; name: string }[] = []
+      const refused: { role: string; reason: string }[] = []
+      for (const role of wanted) {
+        const match = (people ?? []).find((p) => String(p.role) === role)
+        if (match) granted.push({ role, id: String(match.id), name: String(match.name) })
+        else
+          refused.push({
+            role,
+            reason: 'Nobody in that role has a live connection to this record.',
+          })
+      }
+
+      if (!granted.length) {
+        await recordAudit({
+          actorId: actor.id,
+          actorLabel: actor.name,
+          actorRole: actor.role,
+          patientId,
+          action: `Tried to share ${doc.title}`,
+          record: `Document ${doc.id}`,
+          accessType: 'Share',
+          why: 'None of the named recipients hold a live connection.',
+          result: 'Denied',
+        })
+        return json({ error: 'no_live_recipients', refused }, 403)
+      }
+
+      const today = new Date().toISOString().slice(0, 10)
+      const history = Array.isArray(doc.sharing_history) ? doc.sharing_history : []
+      const additions = granted.map((g) => ({
+        date: today,
+        recipient: g.name,
+        purpose,
+      }))
+      const access = [...new Set([...(doc.access ?? []), ...granted.map((g) => g.role)])]
+
+      const { error: updateError } = await admin
+        .from('documents')
+        .update({ access, sharing_history: [...history, ...additions] })
+        .eq('id', doc.id)
+      if (updateError) return json({ error: updateError.message }, 400)
+
+      for (const g of granted) {
+        await admin.from('disclosures').insert({
+          patient_id: patientId,
+          recipient: g.name,
+          recipient_id: g.id,
+          purpose,
+          content_scope: [String(doc.title)],
+          items_shared: [String(doc.title)],
+          approved_by: actor.id,
+        })
+        await recordAudit({
+          actorId: actor.id,
+          actorLabel: actor.name,
+          actorRole: actor.role,
+          patientId,
+          action: `Shared ${doc.title} with ${g.name}`,
+          record: `Document ${doc.id}`,
+          accessType: 'Share',
+          why: purpose,
+          result: 'Allowed',
+        })
+      }
+
+      return json({
+        document_id: doc.id,
+        title: doc.title,
+        shared_with: granted,
+        refused,
+        note: 'Recorded in the disclosure log and on the document itself. It can be revoked from Privacy.',
+      })
+    }
+
     case 'add_entry': {
       const kind = str(body.kind)
       const kindLabel = str(body.kind_label) ?? 'Entry'
@@ -583,6 +711,50 @@ Deno.serve(async (req) => {
         .single()
 
       if (error) return json({ error: error.message }, 400)
+
+      /**
+       * A file added to the record is a document, not only a timeline entry.
+       *
+       * It used to be only the entry, so an upload appeared in the history and
+       * then could not be found, opened or shared — there was no row for it in
+       * the table the whole document layer reads. Somebody who had just
+       * attached a letter and asked to share it was told, correctly and
+       * uselessly, that nothing matched.
+       *
+       * Visible to the patient alone until they decide otherwise. Sharing is a
+       * separate action with its own audit line, and it should never be
+       * something a file does by arriving.
+       */
+      let documentId: string | null = null
+      if (kind === 'document') {
+        const title = String((fields.title as string) ?? kindLabel)
+        const { data: doc } = await admin
+          .from('documents')
+          .insert({
+            id: `doc-${crypto.randomUUID().slice(0, 8)}`,
+            patient_id: patientId,
+            title,
+            file_type: title.toLowerCase().endsWith('.pdf')
+              ? 'PDF'
+              : /\.(png|jpe?g|gif|webp|heic)$/i.test(title)
+                ? 'Image'
+                : /\.docx?$/i.test(title)
+                  ? 'DOCX'
+                  : 'Structured',
+            category: String((fields.category as string) ?? 'Personal'),
+            source_id: actor.id,
+            source_label: actor.name,
+            status: 'Uploaded',
+            // Nothing has read it, and the record should say so rather than
+            // leaving a reader to assume the blank means nothing was found.
+            extracted: [],
+            related_event_ids: [event.id],
+            access: ['patient'],
+          })
+          .select('id')
+          .single()
+        documentId = doc ? String(doc.id) : null
+      }
 
       // Asked for, never assumed. And it is a proposal: what somebody wrote
       // this afternoon does not get to rewrite who a person is.
@@ -626,6 +798,7 @@ Deno.serve(async (req) => {
 
       return json({
         event_id: event.id,
+        document_id: documentId,
         proposed,
         follow_up: followUp,
         note: proposed

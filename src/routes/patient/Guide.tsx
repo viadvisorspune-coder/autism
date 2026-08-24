@@ -93,6 +93,7 @@ export default function PatientGuide() {
   const [run, setRun] = useState<RunState | null>(null)
   const [starting, setStarting] = useState(false)
   const [attaching, setAttaching] = useState(false)
+  const [lastDocument, setLastDocument] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const [runError, setRunError] = useState<string | null>(null)
   const seeded = useRef(false)
@@ -148,8 +149,76 @@ export default function PatientGuide() {
       },
     ])
     persistMessage(recordId, option?.personId ?? '', `Attached ${file.name}`, 'person')
+    const id = (result.data as { document_id?: string } | undefined)?.document_id ?? null
+    setLastDocument(id)
     say2(
-      `${file.name} is on your record. I have not read what is inside it — nobody else can see it unless you share it.`,
+      `${file.name} is on your record. I have not read what is inside it, and nobody else can see it yet.`,
+      {
+        actions: id
+          ? [
+              { label: 'Share with my care team', share: 'care' },
+              { label: 'Share with my employer', share: 'employer' },
+              { label: 'Keep it to myself', share: 'none' },
+            ]
+          : undefined,
+      },
+    )
+  }
+
+  /**
+   * Sharing, for real.
+   *
+   * The one action in this interface that moves information across a boundary,
+   * so it is the one that must not be a toast. It writes three places — the
+   * document's own access list, its sharing history, and the disclosure log —
+   * and it reports who did not receive it rather than implying everybody did.
+   * A role with no live connection is a fact worth telling somebody, not an
+   * error to swallow.
+   */
+  const share = async (which: string) => {
+    if (which === 'none') {
+      say2('Kept to yourself. It stays on your record and nobody else can open it.')
+      return
+    }
+    if (!lastDocument) return
+
+    const recipients =
+      which === 'employer'
+        ? ['employer']
+        : ['psychologist', 'psychiatrist', 'therapist', 'ot', 'gp']
+
+    const result = await actOnRecord('share_document', recordId, option?.personId ?? '', {
+      document_id: lastDocument,
+      recipients,
+      purpose: 'Shared by Ananya from her conversation with ORCA',
+    })
+
+    if (!result.ok) {
+      say2(
+        'That could not be shared. Nothing has left your record — the people you named may not have a live connection to it.',
+      )
+      return
+    }
+
+    const data = result.data as {
+      shared_with?: { name: string }[]
+      refused?: { role: string }[]
+    }
+    const names = (data.shared_with ?? []).map((r) => r.name)
+    const missed = (data.refused ?? []).map((r) => r.role)
+
+    say2(
+      [
+        names.length
+          ? `Shared with ${names.join(', ')}. It is in your sharing history and you can take it back from Privacy.`
+          : 'Nobody received it.',
+        missed.length
+          ? `Not shared with your ${missed.join(' or ')} — nobody in that role has a live connection to your record.`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' '),
+      { actions: [{ label: 'See who can see it', to: '/patient/privacy' }] },
     )
   }
 
@@ -428,7 +497,8 @@ export default function PatientGuide() {
                         <button
                           key={action.label}
                           onClick={() => {
-                            if (action.think) send(action.think, true)
+                            if (action.share) void share(action.share)
+                            else if (action.think) send(action.think, true)
                             else if (action.ask) send(action.ask)
                           }}
                           className={`rounded-2xl px-3 py-2 text-[0.84rem] ${

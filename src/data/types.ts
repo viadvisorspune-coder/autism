@@ -323,7 +323,7 @@ export interface GuideMessage {
    * the same words again but takes the slow path, where ORCA reasons about
    * them rather than looking them up.
    */
-  actions?: { label: string; href?: string; ask?: string; think?: string }[]
+  actions?: { label: string; href?: string; to?: string; ask?: string; think?: string; share?: string }[]
   /** The run that wrote this line, so its documents attach to it. */
   runId?: string | null
 }
