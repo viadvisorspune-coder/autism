@@ -104,6 +104,58 @@ Deno.serve(async (req) => {
   // that same action with an identical payload.
   const idempotencyKey = str(body.idempotency_key) ?? crypto.randomUUID()
 
+  /**
+   * The plan, written where the decision is actually made.
+   *
+   * It was meant to come from the orchestrating agent: call the routing tool
+   * first, send the steps this request needs, and every later step reads them
+   * back. The agent never sent one — a call without a plan is legal and
+   * changes nothing — so every run showed a single step and the routing
+   * decision was invisible again.
+   *
+   * The application already decides the lane before anything is sent. Deciding
+   * the shape at the same moment is the same decision, made once, in the place
+   * that has the information: it knows the lane, the actor, the record and
+   * whether anything is leaving the system. An agent asked to re-derive that
+   * from a paragraph of text was always going to be the weaker source.
+   *
+   * Written at creation, so it is on screen for the person waiting before the
+   * first step has run. The routing tool called without a plan still only
+   * reads, which means nothing conflicts and an agent that does send one still
+   * wins.
+   *
+   * Named exactly as the workflow's own steps, because the connector matches
+   * on the string and a paraphrase would append rather than advance.
+   */
+  const ANSWER_PLAN = [
+    'Trigger and Intake',
+    'Longitudinal Context Retrieval',
+    'Evidence, Provenance and Uncertainty Analysis',
+    'Audit, Provenance and Workflow Closure',
+  ]
+
+  const MAKE_PLAN = [
+    'Trigger and Intake',
+    'Access, Purpose and Data Scope',
+    'Longitudinal Context Retrieval',
+    'Evidence, Provenance and Uncertainty Analysis',
+    'Current Need and Goal Formulation',
+    'Reasoning and Hypothesis Generation',
+    'Option Generation and Personalised Planning',
+    'Stakeholder-Specific Translation',
+    'Safety, Authority and Consequence Check',
+    'User or Authorised Human Review and Consent',
+    'Execution and Handoff',
+    'Audit, Provenance and Workflow Closure',
+  ]
+
+  const plan = asking ? ANSWER_PLAN : MAKE_PLAN
+  const plannedSteps = plan.map((label, i) => ({
+    label,
+    state: i === 0 ? 'current' : 'todo',
+    detail: i === 0 ? `Planned for the ${laneWord} lane.` : null,
+  }))
+
   // Record the run before calling out, so a failure leaves a visible trace
   // rather than silence.
   const { data: run, error: runError } = await admin
@@ -112,12 +164,12 @@ Deno.serve(async (req) => {
       patient_id: patientId,
       type: asking ? 'Question' : 'End-to-end support coordination',
       stakeholder: actor.role === 'patient' ? 'Patient' : actor.name,
-      current_step: 'Trigger received',
+      current_step: plan[0],
       status: 'In progress',
       waiting_for: 'Processing',
       idempotency_key: idempotencyKey,
       trigger_text: triggerText,
-      steps: [{ label: 'Trigger received', state: 'current' }],
+      steps: plannedSteps,
     })
     .select('id')
     .single()
