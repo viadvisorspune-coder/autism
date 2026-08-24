@@ -8,7 +8,7 @@ import { useUI } from '../../state/ui'
 import { useSession } from '../../state/session'
 import { isSupabaseConfigured } from '../../lib/supabase'
 import { followRun, isWaitingOnAPerson, startRun, waitingLabel } from '../../lib/agent'
-import { markSeen, persistMessage, useLive } from '../../lib/live'
+import { actOnRecord, markSeen, persistMessage, useLive } from '../../lib/live'
 import type { ConversationData } from '../../lib/live'
 import type { RunState } from '../../lib/agent'
 import { RunProgress } from '../../components/RunProgress'
@@ -92,6 +92,8 @@ export default function PatientGuide() {
   const { verbosity } = useMaturity()
   const [run, setRun] = useState<RunState | null>(null)
   const [starting, setStarting] = useState(false)
+  const [attaching, setAttaching] = useState(false)
+  const fileInput = useRef<HTMLInputElement>(null)
   const [runError, setRunError] = useState<string | null>(null)
   const seeded = useRef(false)
   const endRef = useRef<HTMLDivElement>(null)
@@ -109,6 +111,47 @@ export default function PatientGuide() {
   // The most recent thing the person said in their own words, which is what a
   // request should be built out of.
   const lastSaid = [...messages].reverse().find((m) => m.from === 'patient')?.text ?? ''
+
+  /**
+   * Putting a file on the record from the conversation.
+   *
+   * Same route as the upload panel on every other screen: registered against
+   * this record, visible on the timeline, and mirrored into this thread so the
+   * conversation shows what was added rather than only what was typed. What it
+   * does not claim is that the contents were read — nothing parses a file yet,
+   * and saying otherwise here would be the invented-finding failure in a
+   * friendlier place.
+   */
+  const attach = async (file: File) => {
+    setAttaching(true)
+    const result = await actOnRecord('add_entry', recordId, option?.personId ?? '', {
+      kind: 'document',
+      kind_label: 'Document added',
+      fields: { title: file.name, category: 'Personal', size: String(file.size) },
+      propose: false,
+      follow_up: false,
+    })
+    setAttaching(false)
+
+    if (!result.ok) {
+      say(result.error ?? 'That could not be added. Nothing has been lost.')
+      return
+    }
+
+    setMessages((m) => [
+      ...m,
+      {
+        id: `gm-u-${Date.now()}`,
+        from: 'patient',
+        time: 'Just now',
+        text: `Attached ${file.name}`,
+      },
+    ])
+    persistMessage(recordId, option?.personId ?? '', `Attached ${file.name}`, 'person')
+    say2(
+      `${file.name} is on your record. I have not read what is inside it — nobody else can see it unless you share it.`,
+    )
+  }
 
   const say2 = (text: string, extra?: Partial<GuideMessage>) => {
     setMessages((m) => [
@@ -398,9 +441,18 @@ export default function PatientGuide() {
                         </button>
                       ),
                     )}
+                    {/* This claimed a message had been sent to a hard-coded
+                        clinician, and sent nothing. Now it opens the request
+                        builder with what the person actually wrote, so they
+                        see who it would go to and what it would say before
+                        anybody else does. */}
                     <button
-                      onClick={() => say('A message has been sent to Dr Kavita Nair.')}
-                      className="rounded-2xl  border-line-strong px-3 py-2 text-[0.84rem] text-ink hover:bg-surface-2"
+                      onClick={() =>
+                        navigate('/patient/work/request', {
+                          state: { message: lastSaid || message.text },
+                        })
+                      }
+                      className="rounded-2xl border-line-strong px-3 py-2 text-[0.84rem] text-ink hover:bg-surface-2"
                     >
                       Ask a person instead
                     </button>
@@ -461,9 +513,29 @@ export default function PatientGuide() {
             placeholder="Write as much or as little as you like"
             className="min-w-0 flex-1 rounded-2xl  bg-surface-2 px-4 py-3 text-[0.92rem] leading-relaxed outline-none placeholder:text-muted"
           />
-          <Button onClick={() => say('Attach a document — the file picker is not wired up in this prototype.')}>
-            Attach
-          </Button>
+          {/* A real picker. This used to open a toast admitting it was not
+              wired up — which is honest, and useless to somebody holding the
+              letter they were asked for. The file goes onto the record through
+              the same path every other contribution uses, and the conversation
+              says so in the person's own thread. */}
+          <input
+            ref={fileInput}
+            type="file"
+            id="guide-attach"
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              void attach(file)
+              e.target.value = ''
+            }}
+          />
+          <label
+            htmlFor="guide-attach"
+            className="cursor-pointer rounded-2xl bg-surface-2 px-4 py-3 text-[0.88rem] font-medium text-ink hover:bg-brand-tint"
+          >
+            {attaching ? 'Adding…' : 'Attach'}
+          </label>
           <Button type="submit" variant="primary">
             Send
           </Button>
