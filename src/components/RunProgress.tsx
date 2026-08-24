@@ -1,4 +1,4 @@
-import { Callout, Card, CardBody, CardHead, StatusPill } from './ui'
+import { Callout, Card, CardBody, CardHead, LinkButton, StatusPill } from './ui'
 import { isWaitingOnAPerson } from '../lib/agent'
 import type { RunState } from '../lib/agent'
 
@@ -49,7 +49,22 @@ export function RunProgress({
   return (
     <Card>
       <CardHead
-        title="What ORCA is doing"
+        title={
+          <span className="inline-flex items-center gap-2.5">
+            What ORCA is doing
+            {/* Only while something is actually moving. A spinner beside a run
+                that has stopped for a person would say the opposite of the
+                truth — that waiting is temporary and nothing is needed. It
+                also honours prefers-reduced-motion, which on a product for
+                autistic adults is not a nicety. */}
+            {!waiting ? (
+              <span aria-hidden className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-60 motion-reduce:animate-none" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-brand" />
+              </span>
+            ) : null}
+          </span>
+        }
         meta={run.type}
         action={<StatusPill status={run.status as never} />}
       />
@@ -95,6 +110,14 @@ export function RunProgress({
             <Callout tone="wait" title={`Stopped — waiting for ${run.waiting_for ?? 'a person'}`}>
               This will not go any further on its own. That is deliberate: the next step needs a
               person, and no part of ORCA may decide it instead.
+              {/* It said somebody was needed and gave them nowhere to go. The
+                  decision lives on Requests, so the sentence now ends in the
+                  door rather than beside it. */}
+              <div className="mt-3">
+                <LinkButton to="/patient/requests" variant="primary">
+                  Open it and decide
+                </LinkButton>
+              </div>
             </Callout>
           </div>
         ) : null}

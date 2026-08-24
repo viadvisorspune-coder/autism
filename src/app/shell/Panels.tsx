@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Button, formatDate } from '../../components/ui'
+import { Button, formatDate, formatDateTime } from '../../components/ui'
 import { useUI } from '../../state/ui'
 import { useMaturity } from '../../state/maturity'
 import { useSession } from '../../state/session'
@@ -157,7 +157,9 @@ export function NotificationPanel({ onClose }: { onClose: () => void }) {
               <span className="text-[0.72rem] font-semibold uppercase tracking-[0.06em] text-muted">
                 {n.category}
               </span>
-              <span className="text-[0.72rem] text-muted">{formatDate(n.date)}</span>
+              {/* Date and time. Six approvals all reading "24 August 2026" is
+                  not an order anybody can follow. */}
+              <span className="text-[0.72rem] tabular-nums text-muted">{formatDateTime(n.date)}</span>
             </div>
             <p className="text-[0.87rem] font-medium text-ink">{n.what}</p>
             <p className="mt-1 text-[0.82rem] leading-relaxed text-ink-2">{n.why}</p>

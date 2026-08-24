@@ -464,7 +464,9 @@ export function formatDate(iso: string) {
 
 export function formatDateTime(iso: string) {
   const [datePart, timePart] = iso.split('T')
-  return timePart ? `${formatDate(datePart)}, ${timePart}` : formatDate(datePart)
+  // Hours and minutes. The raw tail carries seconds and a UTC offset, which is
+  // machine detail nobody reading a notification needs.
+  return timePart ? `${formatDate(datePart)}, ${timePart.slice(0, 5)}` : formatDate(datePart)
 }
 
 /* --------------------------------------------------- progressive disclosure */
