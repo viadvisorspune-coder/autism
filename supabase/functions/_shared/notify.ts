@@ -62,6 +62,7 @@ export async function notifyRoles(entry: {
   what: string
   why: string
   workflowRunId?: string | null
+  reviewId?: string | null
 }): Promise<void> {
   const roles = [...new Set(entry.roles)].filter(Boolean)
   if (!roles.length) return
@@ -78,6 +79,7 @@ export async function notifyRoles(entry: {
     for_roles: [role],
     href: waitingWorkFor(role),
     workflow_run_id: entry.workflowRunId ?? null,
+    review_id: entry.reviewId ?? null,
   }))
 
   const { error } = await admin.from('notifications').insert(rows)
@@ -86,4 +88,28 @@ export async function notifyRoles(entry: {
   // rather than swallowed, because an inbox that quietly stops filling is the
   // kind of fault nobody reports.
   if (error) console.error('notification write failed', error.message)
+}
+
+/**
+ * A question, once it has been answered, stops being a question.
+ *
+ * The row raised when a review opens says "Approval required" and tells the
+ * reader to go and decide. Nothing retired it when somebody did, so an inbox
+ * held both halves at once — an ask and, a minute later, the receipt answering
+ * it — and the ask was still bold, still unread, still counted in the badge.
+ *
+ * Deleted rather than marked read. The decision receipt written alongside this
+ * says everything the ask said and more, and the permanent account of who
+ * asked and who answered is the audit log, which is append-only and untouched
+ * by any of this. Leaving a spent question in the inbox to preserve history
+ * keeps it in the one place that is not a history.
+ */
+export async function retireAsks(reviewId: string): Promise<void> {
+  if (!reviewId) return
+  const { error } = await admin
+    .from('notifications')
+    .delete()
+    .eq('review_id', reviewId)
+    .eq('category', 'Approval required')
+  if (error) console.error('could not retire the open ask', error.message)
 }

@@ -13,7 +13,7 @@
  */
 import { admin, cors, json, list, recordAudit, str } from '../_shared/yoxa.ts'
 import { actorFromRequest, forbidden, mayActOnPatient, unauthorised } from '../_shared/app.ts'
-import { type NotificationKind, notifyRoles } from '../_shared/notify.ts'
+import { type NotificationKind, notifyRoles, retireAsks } from '../_shared/notify.ts'
 
 type Action =
   | 'propose_appointment'
@@ -225,6 +225,10 @@ Deno.serve(async (req) => {
         .single()
       if (error) return json({ error: error.message }, 400)
 
+      // The ask goes before the answer arrives, so the inbox never holds both
+      // halves of the same decision at once.
+      await retireAsks(reviewId)
+
       // Back to whoever raised it, and to the patient, who is entitled to know
       // what was decided about them even when they were not the decider.
       await notify(
@@ -265,6 +269,11 @@ Deno.serve(async (req) => {
         .select('*')
         .single()
       if (error) return json({ error: error.message }, 400)
+
+      // Withdrawn closes it as surely as decided does, and leaves nothing to
+      // announce — so the ask goes and no receipt replaces it.
+      await retireAsks(reviewId)
+
       return json({ review: data })
     }
 
@@ -894,19 +903,20 @@ function label(name: string): string {
  * and wrong for every clinician it was addressed to. They live in
  * _shared/notify.ts now, worked out from the kind and the recipient.
  *
- * The review id stays out of it deliberately: a notification is a thing a
- * person reads, and the id belongs in the audit trail, which is the thing code
- * follows.
+ * The review id used to be discarded here — `void reviewId`, on the reasoning
+ * that a notification is a thing a person reads and an id belongs in the audit
+ * trail. True, and it cost the inbox its only way to find the ask again once
+ * somebody had answered it, so spent questions never left. It is stored.
  */
 const notify = (
   patientId: string,
   roles: string[],
   what: string,
   detail: string,
-  _reviewId: string,
+  reviewId: string,
   kind: NotificationKind = 'asking',
   workflowRunId: string | null = null,
-) => notifyRoles({ patientId, roles, kind, what, why: detail, workflowRunId })
+) => notifyRoles({ patientId, roles, kind, what, why: detail, workflowRunId, reviewId })
 
 
 /* --------------------------------------------------------------- accounts */
