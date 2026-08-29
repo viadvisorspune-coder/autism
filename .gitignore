@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Real function secrets. The .example alongside it is the committed one.
+supabase/.env.functions
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
