@@ -14,6 +14,7 @@
  */
 import { admin, cors, json } from '../_shared/yoxa.ts'
 import { notifyRoles } from '../_shared/notify.ts'
+import { inferFromRecentRun } from '../_shared/whoami.ts'
 
 const TOLERANCE_SECONDS = 300
 
@@ -97,17 +98,9 @@ Deno.serve(async (req) => {
   const workflowRunId = payload.workflow_run_id ? String(payload.workflow_run_id) : null
   if (!requestId) return json({ error: 'missing_request_id' }, 400)
 
-  // The stable link back to our own record is the workflow run, not Yoxa's
-  // request id — that one is only used when answering.
-  let patientId: string | null = null
-  if (workflowRunId) {
-    const { data: run } = await admin
-      .from('workflow_runs')
-      .select('patient_id')
-      .eq('id', workflowRunId)
-      .maybeSingle()
-    patientId = (run?.patient_id as string) ?? null
-  }
+  const title = String(payload.title ?? 'ORCA needs a decision')
+  const description = payload.description ? String(payload.description) : null
+  const { patientId, source } = await resolvePatient(workflowRunId, `${title}\n${description ?? ''}`)
 
   const { error: taskError } = await admin.from('hitl_requests').insert({
     request_id: requestId,
@@ -115,8 +108,9 @@ Deno.serve(async (req) => {
     deployment_id: payload.deployment_id ? String(payload.deployment_id) : null,
     workflow_run_id: workflowRunId,
     patient_id: patientId,
-    title: String(payload.title ?? 'ORCA needs a decision'),
-    description: payload.description ? String(payload.description) : null,
+    patient_source: source,
+    title,
+    description,
     options: Array.isArray(payload.options) ? payload.options : [],
   })
 
@@ -155,3 +149,91 @@ Deno.serve(async (req) => {
 
   return new Response(null, { status: 204, headers: cors })
 })
+
+/**
+ * Which patient a Yoxa approval gate is about.
+ *
+ * This used to be one lookup: take `workflow_run_id` off the event and find
+ * that run in our table. It never once succeeded. Yoxa sends *its* run id, not
+ * ours, so every one of the eleven gates it delivered was stored with no
+ * patient — and a null patient_id silently switched off everything downstream.
+ * No notification was written (that branch is guarded by the id), and the read
+ * path filters approvals by patient, so the gate never appeared on any screen.
+ *
+ * Which meant: Yoxa reached a point where it needed a person, asked us, we
+ * accepted the question, and then showed it to nobody. Yoxa waited. The run
+ * never finished. No document was ever produced by the workflow whose entire
+ * purpose is producing one — and nothing anywhere reported an error, because
+ * from each component's own point of view nothing had gone wrong.
+ *
+ * So it now tries four things, exact before approximate, and says which one
+ * answered. The middle two are not guesses: they read an id out of Yoxa's own
+ * prose and then confirm it against our tables, so a match is a fact.
+ */
+type PatientSource = 'run_id' | 'review_item' | 'named_in_text' | 'inferred' | 'unresolved'
+
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
+const PATIENT_TOKEN = /\bpt-[a-z0-9-]+\b/gi
+const USER_TOKEN = /\bu-[a-z0-9-]+\b/gi
+
+async function resolvePatient(
+  workflowRunId: string | null,
+  text: string,
+): Promise<{ patientId: string | null; source: PatientSource }> {
+  // 1. Our own run id. Exact when Yoxa echoes what we sent, which is the
+  //    contract; the rest of this function exists because it does not.
+  if (workflowRunId) {
+    const { data } = await admin
+      .from('workflow_runs')
+      .select('patient_id')
+      .eq('id', workflowRunId)
+      .maybeSingle()
+    if (data?.patient_id) return { patientId: String(data.patient_id), source: 'run_id' }
+  }
+
+  // 2. A review item quoted in the gate's own description. The safety agent
+  //    raises these through our connector, so the id is ours and the row it
+  //    names carries the patient. Confirmed against the table, never trusted
+  //    from the text alone.
+  const uuids = [...new Set(text.match(UUID) ?? [])]
+  if (uuids.length) {
+    const { data } = await admin
+      .from('review_items')
+      .select('patient_id')
+      .in('id', uuids)
+      .limit(2)
+    const found = [...new Set((data ?? []).map((r) => String(r.patient_id)))]
+    if (found.length === 1) return { patientId: found[0], source: 'review_item' }
+  }
+
+  // 3. A patient named outright. Yoxa's descriptions often carry "(pt-ananya)"
+  //    because the trigger text puts it there. Same rule: confirmed against
+  //    the patients table before it counts.
+  const tokens = [...new Set((text.match(PATIENT_TOKEN) ?? []).map((t) => t.toLowerCase()))]
+  if (tokens.length) {
+    const { data } = await admin.from('patients').select('id').in('id', tokens).limit(2)
+    const found = [...new Set((data ?? []).map((r) => String(r.id)))]
+    if (found.length === 1) return { patientId: found[0], source: 'named_in_text' }
+  }
+
+  // 4. The patient's own sign-in id. Matched only against `patients.user_id`,
+  //    never against app_users at large: a clinician's id appears in this text
+  //    too and resolves to everybody on their caseload, which is not an answer.
+  const users = [...new Set((text.match(USER_TOKEN) ?? []).map((t) => t.toLowerCase()))]
+  if (users.length) {
+    const { data } = await admin.from('patients').select('id').in('user_id', users).limit(2)
+    const found = [...new Set((data ?? []).map((r) => String(r.id)))]
+    if (found.length === 1) return { patientId: found[0], source: 'named_in_text' }
+  }
+
+  // 5. The bounded fallback the connector endpoints already use. It refuses
+  //    whenever more than one run could be meant — see _shared/whoami.ts.
+  const guess = await inferFromRecentRun()
+  if (guess?.patientId) return { patientId: guess.patientId, source: 'inferred' }
+
+  // Nothing matched. The gate is still stored and still shown — see the read
+  // path, which now surfaces unattributed approvals rather than filtering them
+  // away. An approval nobody can see is worse than one that admits it does not
+  // know whose it is.
+  return { patientId: null, source: 'unresolved' }
+}

@@ -737,11 +737,30 @@ async function read(
     case 'approvals': {
       const query = admin
         .from('hitl_requests')
-        .select('request_id, workflow_run_id, patient_id, title, description, options, status, created_at, decided_at')
+        .select(
+          'request_id, workflow_run_id, patient_id, patient_source, title, description, options, status, created_at, decided_at',
+        )
         .order('created_at', { ascending: false })
         .limit(25)
-      const { data } = patientId ? await query.eq('patient_id', patientId) : await query
-      return { approvals: data ?? [] }
+      /**
+       * Unattributed approvals are shown, not filtered away.
+       *
+       * This was `.eq('patient_id', patientId)`, which is the obviously
+       * correct scoping rule and was, here, the bug. Every gate Yoxa sent
+       * arrived without a resolvable patient, so this filter hid all of them —
+       * and a workflow that stops to ask a human, and is never shown to one,
+       * simply stops. Eleven of them, silently, for two days.
+       *
+       * A null patient is not somebody else's data; it is our own failure to
+       * work out whose it is, and the person who can fix that is the person
+       * looking at the screen. Nothing is disclosed by showing it: these carry
+       * the question and the options, and answering still goes through
+       * hitl-respond, which checks scope the moment a patient is known.
+       */
+      const { data } = patientId
+        ? await query.or(`patient_id.eq.${patientId},patient_id.is.null`)
+        : await query
+      return { approvals: (data ?? []).map((a) => ({ ...a, options: readableOptions(a.options) })) }
     }
 
     case 'workflow_runs': {
@@ -781,4 +800,35 @@ async function peopleById(ids: string[]): Promise<Record<string, { name: string;
       { name: String(u.name), role: String(u.role), organisation: u.organisation ? String(u.organisation) : null },
     ]),
   )
+}
+
+/**
+ * The choices on an approval, in the shape the approval screen reads.
+ *
+ * Yoxa names them `{option_id, title, description}`. The panel reads
+ * `option.id` and `option.label`. Both came back undefined, so every choice on
+ * every gate would have rendered as an empty radio button with no words next
+ * to it — and picking one would have sent `selected_option_id: undefined`,
+ * which the respond endpoint correctly refuses.
+ *
+ * So the approvals were invisible, and had anyone found them, unanswerable.
+ * Two independent breaks in one path, which is what happens to a path nothing
+ * has ever travelled end to end.
+ *
+ * Translated here rather than in the component because this is the boundary
+ * where a foreign shape becomes ours, and because the panel should not have to
+ * know which system asked the question.
+ */
+function readableOptions(raw: unknown): { id: string; label: string; description?: string }[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((entry) => {
+      const o = (entry ?? {}) as Record<string, unknown>
+      const id = String(o.id ?? o.option_id ?? '')
+      const label = String(o.label ?? o.title ?? '')
+      if (!id || !label) return null
+      const description = o.description ? String(o.description) : undefined
+      return { id, label, description }
+    })
+    .filter((o): o is { id: string; label: string; description?: string } => o !== null)
 }
