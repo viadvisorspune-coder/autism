@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import AppShell from './shell/AppShell'
 import { useSession } from '../state/session'
+import { WorkflowChat } from '../routes/chat/Chat'
 import { Login } from '../routes/auth/Auth'
 import Onboarding from '../routes/auth/Onboarding'
 
@@ -154,6 +155,15 @@ export default function App() {
           half-remembered URL should land somewhere sensible, not on a dead end. */}
       <Route path="/role" element={<Navigate to="/" replace />} />
       <Route path="/setup" element={signedIn ? <Onboarding /> : <Navigate to="/" replace />} />
+
+      {/* Added beside the product, not into it. A bare screen for finding out
+          whether a Yoxa workflow works at all: no shell, no navigation, no
+          dependency on anything else here. Signed-in only, because the whole
+          point is that the trigger is built from a real session. */}
+      <Route
+        path="/chat"
+        element={signedIn ? <WorkflowChat /> : <Navigate to="/" replace />}
+      />
 
       <Route
         element={

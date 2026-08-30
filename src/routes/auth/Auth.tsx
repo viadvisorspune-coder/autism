@@ -110,6 +110,28 @@ export function Login() {
               <Button type="submit" variant="primary" className="w-full">
                 Sign in
               </Button>
+
+              {/* The workflow chat, reachable only from here. It signs in the
+                  same way and then goes to a bare screen instead of the
+                  product, because the point of it is to test one workflow
+                  rather than to use ORCA. Left as a second button rather than
+                  a setting: it is a development door, and it should look like
+                  one. */}
+              <button
+                type="button"
+                onClick={() => {
+                  const account = accountFor(email)
+                  if (!account) {
+                    setError('Pick one of the people below first — the chat needs a real sign-in to build the trigger.')
+                    return
+                  }
+                  signIn(account)
+                  navigate('/chat', { replace: true })
+                }}
+                className="w-full rounded-2xl border border-line-strong px-3 py-2.5 text-[0.85rem] font-medium text-ink-2 hover:border-brand hover:text-brand"
+              >
+                Sign in to the workflow chat
+              </button>
             </form>
             <div className="mt-4 flex flex-wrap gap-4 text-[0.82rem] text-muted">
               <button className="hover:text-ink hover:underline">Forgot password</button>
