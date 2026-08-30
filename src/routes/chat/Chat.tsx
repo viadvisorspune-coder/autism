@@ -282,8 +282,20 @@ function LiveApprovalCard({
         A workflow is waiting on you
       </p>
       <p className="mt-1.5 text-[0.9rem] font-medium text-ink">{approval.title}</p>
+      {/*
+        The description, rendered rather than printed.
+
+        For a gate that asks "here is the draft — send it?", this field IS the
+        draft: paragraphs, headings, a list of what would be disclosed, often
+        several hundred words of HTML. Printing it into a single <p> ran it all
+        together into one unreadable block and asked somebody to approve a
+        disclosure they could not actually read. The same converter the answers
+        use turns it back into something a person can judge.
+      */}
       {approval.description ? (
-        <p className="mt-1 text-[0.85rem] text-ink-2">{approval.description}</p>
+        <div className="mt-2">
+          <Prose html={approval.description} />
+        </div>
       ) : null}
 
       {approval.recipient ? (
