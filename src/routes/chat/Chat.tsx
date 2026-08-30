@@ -9,6 +9,9 @@ import {
   understandPreamble,
   understandTrigger,
 } from '../../lib/trigger'
+import { useLive } from '../../lib/live'
+import { respondToApproval } from '../../lib/approvals'
+import type { PendingApproval } from '../../components/ApprovalPanel'
 
 /**
  * The workflow chat.
@@ -105,6 +108,7 @@ export function WorkflowChat() {
       </header>
 
       <main className="mx-auto max-w-3xl px-5 pb-56 pt-6">
+        <LiveApprovals actorId={option?.personId ?? null} />
         {turns.length === 0 ? <Opening onPick={send} role={String(identity.role)} /> : null}
         <ol className="space-y-6">
           {turns.map((t) => (
@@ -125,6 +129,138 @@ export function WorkflowChat() {
         busy={busy}
         willProduce={needsDocument(message)}
       />
+    </div>
+  )
+}
+
+/* ------------------------------------------------------- live approvals */
+
+/**
+ * Approvals a workflow is currently stopped on, in the conversation.
+ *
+ * These do not arrive in the reply to anything. Yoxa is asynchronous: a run
+ * that reaches an approval gate parks, and the trigger response has long since
+ * returned. The gate comes back by a different road entirely — Yoxa posts a
+ * signed event to `hitl-receiver`, which stores it — so the only way this
+ * screen learns about it is by looking.
+ *
+ * WHY POLLING AND NOT A CHANGE STREAM. Postgres change streams are filtered by
+ * row-level security, and `hitl_requests` is readable only by someone who owns
+ * or is connected to the patient. ORCA has no sign-in, so every browser here is
+ * anonymous and would subscribe successfully and then receive nothing, for
+ * ever, with no error to explain it. `app-read` runs as the service role and
+ * decides scope itself, which is both simpler and keeps the permission
+ * decision in one place rather than two.
+ *
+ * It sits above the conversation rather than inside it because a parked run is
+ * blocking someone, and because it may have been raised by a turn from a
+ * previous session — or by another person entirely.
+ */
+function LiveApprovals({ actorId }: { actorId: string | null }) {
+  const { data, refresh } = useLive<{ approvals: PendingApproval[] }>('approvals')
+  const waiting = (data?.approvals ?? []).filter((a) => a.status === 'Awaiting approval')
+  if (!waiting.length) return null
+  return (
+    <section className="mb-6 space-y-3">
+      {waiting.map((a) => (
+        <LiveApprovalCard key={a.request_id} approval={a} actorId={actorId} onDecided={refresh} />
+      ))}
+    </section>
+  )
+}
+
+function LiveApprovalCard({
+  approval, actorId, onDecided,
+}: {
+  approval: PendingApproval
+  actorId: string | null
+  onDecided: () => void
+}) {
+  const [sending, setSending] = useState(false)
+  const [failed, setFailed] = useState<string | null>(null)
+
+  /**
+   * Yoxa names its own options, so they are rendered rather than assumed. A
+   * gate that offers "Send redacted" and "Send in full" must not be flattened
+   * into Approve/Decline — the whole point of stopping was the choice. When it
+   * offers nothing, the two plain answers are the honest fallback, sent as
+   * free text because `hitl-respond` requires an option id or a message and
+   * there is no id to give.
+   */
+  const choices = approval.options.length
+    ? approval.options.map((o) => ({ id: o.id, label: o.label, message: null as string | null }))
+    : [
+        { id: null, label: 'Approve', message: 'Approved.' },
+        { id: null, label: 'Decline', message: 'Declined.' },
+      ]
+
+  async function decide(optionId: string | null, message: string | null) {
+    if (sending) return
+    setSending(true)
+    setFailed(null)
+    const problem = await respondToApproval(approval.request_id, optionId, message, actorId)
+    if (problem) {
+      setFailed(problem)
+      setSending(false)
+      return
+    }
+    // The row is now Answered. Re-read rather than hiding it locally, so what
+    // is on screen is what the record says.
+    onDecided()
+    setSending(false)
+  }
+
+  return (
+    <div className="rounded-xl border border-line-strong bg-paper p-4">
+      <p className="text-[0.72rem] font-semibold uppercase tracking-wide text-muted">
+        A workflow is waiting on you
+      </p>
+      <p className="mt-1.5 text-[0.9rem] font-medium text-ink">{approval.title}</p>
+      {approval.description ? (
+        <p className="mt-1 text-[0.85rem] text-ink-2">{approval.description}</p>
+      ) : null}
+
+      {approval.recipient ? (
+        <p className="mt-2 text-[0.83rem] text-ink-2">
+          <span className="text-muted">To </span>
+          {approval.recipient}
+        </p>
+      ) : null}
+      {approval.will_send?.length ? (
+        <ul className="mt-2 space-y-0.5">
+          {approval.will_send.map((w) => (
+            <li key={w} className="text-[0.83rem] text-ink-2">
+              <span className="text-muted">Would disclose </span>
+              {w}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {approval.withheld?.length ? (
+        <p className="mt-1.5 text-[0.83rem] text-muted">
+          Held back: {approval.withheld.join(', ')}
+        </p>
+      ) : null}
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {choices.map((c, i) => (
+          <button
+            key={`${c.id ?? c.label}-${i}`}
+            disabled={sending}
+            onClick={() => decide(c.id, c.message)}
+            className={
+              i === 0
+                ? 'rounded-lg bg-brand px-3.5 py-1.5 text-[0.82rem] font-medium text-paper disabled:opacity-50'
+                : 'rounded-lg border border-line-strong px-3.5 py-1.5 text-[0.82rem] font-medium text-ink-2 hover:bg-canvas disabled:opacity-50'
+            }
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      {sending ? <p className="mt-2 text-[0.82rem] text-muted">Sending your decision…</p> : null}
+      {failed ? <p className="mt-2 text-[0.82rem] text-ink">{failed}</p> : null}
     </div>
   )
 }
@@ -350,7 +486,6 @@ function Clarify({
  * interface could tell.
  */
 function ApprovalCard({ approval }: { approval: { what: string; to: string; why: string } }) {
-  const [decision, setDecision] = useState<string | null>(null)
   return (
     <div className="rounded-xl border border-line-strong bg-paper p-4">
       <p className="text-[0.72rem] font-semibold uppercase tracking-wide text-muted">
@@ -366,28 +501,20 @@ function ApprovalCard({ approval }: { approval: { what: string; to: string; why:
           ),
         )}
       </dl>
-      {decision ? (
-        <p className="mt-3 rounded-lg bg-canvas px-3 py-2 text-[0.82rem] text-ink-2">
-          Recorded as <strong className="text-ink">{decision}</strong>. Nothing was sent —
-          delivery is not built in this prototype.
-        </p>
-      ) : (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {['Approve', 'Edit first', 'Decline'].map((d) => (
-            <button
-              key={d}
-              onClick={() => setDecision(d.toLowerCase())}
-              className={
-                d === 'Approve'
-                  ? 'rounded-lg bg-brand px-3.5 py-1.5 text-[0.82rem] font-medium text-paper'
-                  : 'rounded-lg border border-line-strong px-3.5 py-1.5 text-[0.82rem] font-medium text-ink-2 hover:bg-canvas'
-              }
-            >
-              {d}
-            </button>
-          ))}
-        </div>
-      )}
+      {/*
+        No buttons here, deliberately.
+
+        This card is built from what the trigger response said the run intends
+        to disclose. It carries no request id, because at this point Yoxa has
+        not yet raised the gate — so there is nothing a decision could be sent
+        against, and a button here would be a button that does nothing. The
+        answerable card appears at the top of the screen the moment the webhook
+        delivers, usually within a few seconds.
+      */}
+      <p className="mt-3 rounded-lg bg-canvas px-3 py-2 text-[0.82rem] text-ink-2">
+        Nothing has been sent. The run has paused, and the decision will appear at the top of
+        this screen as soon as it reaches you.
+      </p>
     </div>
   )
 }

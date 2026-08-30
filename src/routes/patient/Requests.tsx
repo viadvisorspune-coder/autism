@@ -19,11 +19,13 @@ import { requests, requestsFor, reviewItems } from '../../data/db'
 import { useOrcaRead } from '../../lib/orca'
 import { respondToApproval } from '../../lib/approvals'
 import { useUI } from '../../state/ui'
+import { useSession } from '../../state/session'
 import { useRecordId } from '../../state/record'
 
 /** 13.1 My requests. */
 export function PatientRequests() {
   const patientId = useRecordId()
+  const { option } = useSession()
   const [tab, setTab] = useState('Requires action')
   const [open, setOpen] = useState<PendingApproval | null>(null)
   const all = requestsFor(patientId)
@@ -122,7 +124,9 @@ export function PatientRequests() {
         <ApprovalPanel
           approval={open}
           onClose={() => setOpen(null)}
-          onDecide={(optionId, message) => respondToApproval(open.request_id, optionId, message)}
+          onDecide={(optionId, message) =>
+            respondToApproval(open.request_id, optionId, message, option?.personId ?? null)
+          }
         />
       ) : null}
     </div>
