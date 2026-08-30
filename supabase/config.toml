@@ -55,3 +55,16 @@ verify_jwt = false
 
 [functions.hitl-respond]
 verify_jwt = false
+
+# The chat orchestrator. Called by ORCA's own frontend, so the same reasoning
+# as workflow-trigger applies: no sign-in yet, the function resolves the actor
+# itself and enforces scope before it starts anything. The deployment secrets
+# live here and never reach the browser.
+[functions.orca-chat]
+verify_jwt = false
+
+# Where a finished run's answer arrives. Called from outside ORCA — a Yoxa
+# completion webhook, an output tool, or a poller — so the gateway check is off
+# and the function authenticates with YOXA_CONNECTOR_TOKEN instead.
+[functions.orca-result]
+verify_jwt = false

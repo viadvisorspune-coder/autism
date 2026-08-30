@@ -766,7 +766,15 @@ async function read(
     case 'workflow_runs': {
       const query = admin
         .from('workflow_runs')
-        .select('id, patient_id, type, stakeholder, current_step, status, waiting_for, steps, started_at, updated_at')
+        // answer_html and result join this list because the chat reads a run's
+        // answer from here. Yoxa is asynchronous, so the reply to a question
+        // never arrives in the response to the request that asked it — the run
+        // row is the only place the answer exists.
+        .select(
+          'id, patient_id, type, stakeholder, current_step, status, waiting_for, steps, ' +
+            'started_at, updated_at, workflow_name, answer_html, result, trigger_text, ' +
+            'chained_from, yoxa_run_id, finished_at',
+        )
         .order('started_at', { ascending: false })
         .limit(25)
       const { data } = patientId ? await query.eq('patient_id', patientId) : await query

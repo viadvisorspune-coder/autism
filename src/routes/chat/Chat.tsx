@@ -11,7 +11,19 @@ import {
 } from '../../lib/trigger'
 import { useLive } from '../../lib/live'
 import { respondToApproval } from '../../lib/approvals'
+import { type RunStatus, parseEnvelope } from '../../lib/envelope'
 import type { PendingApproval } from '../../components/ApprovalPanel'
+
+/** One row of `workflow_runs`, as `app-read` returns it. */
+interface RunRow {
+  id: string
+  status: string
+  current_step: string
+  workflow_name: string | null
+  answer_html: string | null
+  result: unknown
+  trigger_text: string | null
+}
 
 /**
  * The workflow chat.
@@ -29,7 +41,7 @@ import type { PendingApproval } from '../../components/ApprovalPanel'
  * exactly right, because identity that can be edited can be claimed.
  */
 
-type Status = 'done' | 'needs_clarification' | 'needs_approval' | 'blocked' | 'error'
+type Status = RunStatus
 
 interface Turn {
   id: string
@@ -37,7 +49,19 @@ interface Turn {
   message: string
   trigger: string
   workflow: 'ORCA_UNDERSTAND' | 'ORCA_PRODUCE'
-  state: 'sending' | 'settled'
+  /**
+   * Three states, not two, because Yoxa is asynchronous.
+   *
+   * `sending` is the moment between pressing the button and Yoxa accepting the
+   * trigger — seconds. `running` is everything after: the run is queued or
+   * working, and may stay there for a minute or stop for a person's approval.
+   * Collapsing the two would mean showing a spinner that means "we are still
+   * talking to the server" for something that is actually "your question is
+   * being worked on and you can close this tab".
+   */
+  state: 'sending' | 'running' | 'settled'
+  /** ORCA's own run id, which is how a result finds its way back to this turn. */
+  runId?: string
   status?: Status
   answer?: string
   sources?: { id?: string; reporter?: string; date?: string; label?: string }[]
@@ -82,10 +106,48 @@ export function WorkflowChat() {
     setMessage('')
     setBusy(true)
 
-    const settled = await runWorkflow(trigger, turn.workflow)
-    setTurns((t) => t.map((x) => (x.id === turn.id ? { ...x, ...settled, state: 'settled' } : x)))
+    const started = await startRun({
+      message: body,
+      actorId: option?.personId ?? null,
+      patientId: patientId ?? null,
+    })
+    setTurns((t) => t.map((x) => (x.id === turn.id ? { ...x, ...started } : x)))
+    // Only the handshake blocks the composer. Once a run is queued the person
+    // is free to ask something else — the answer finds its own turn by run id.
     setBusy(false)
   }
+
+  /**
+   * Answers finding their way back to the turn that asked.
+   *
+   * A run's result is written to its row by whatever transport delivered it,
+   * minutes after the request that started it returned. So the conversation
+   * reconciles against the record rather than waiting on a promise: every poll,
+   * any turn still running is matched by run id and settled if its row now has
+   * an answer.
+   *
+   * Doing it this way rather than awaiting inside `send` means a reload, a
+   * second question asked while the first is working, or a tab left in the
+   * background all behave correctly without any of them being special cases.
+   */
+  const { data: runData } = useLive<{ runs: RunRow[] }>('workflow_runs')
+  useEffect(() => {
+    const rows = runData?.runs ?? []
+    if (!rows.length) return
+    setTurns((current) => {
+      let changed = false
+      const next = current.map((t) => {
+        if (t.state !== 'running' || !t.runId) return t
+        const row = rows.find((r) => r.id === t.runId)
+        if (!row) return t
+        const settled = settleFrom(row)
+        if (!settled) return t
+        changed = true
+        return { ...t, ...settled }
+      })
+      return changed ? next : current
+    })
+  }, [runData])
 
   return (
     <div className="min-h-screen bg-canvas text-ink">
@@ -114,7 +176,11 @@ export function WorkflowChat() {
           {turns.map((t) => (
             <li key={t.id}>
               <Asked turn={t} />
-              {t.state === 'sending' ? <Working /> : <Answered turn={t} onPick={send} />}
+              {t.state === 'settled' ? (
+                <Answered turn={t} onPick={send} />
+              ) : (
+                <Working state={t.state} />
+              )}
             </li>
           ))}
         </ol>
@@ -360,7 +426,7 @@ function Asked({ turn }: { turn: Turn }) {
   )
 }
 
-function Working() {
+function Working({ state }: { state: 'sending' | 'running' }) {
   return (
     <div className="flex items-center gap-2 px-1 py-2 text-[0.85rem] text-muted">
       <span className="flex gap-1" aria-hidden>
@@ -372,7 +438,15 @@ function Working() {
           />
         ))}
       </span>
-      Running the workflow
+      {/*
+        Two different waits, said differently. "Starting" is a handshake and
+        lasts seconds; "working on it" can last minutes and may pause for an
+        approval, so it also says the tab can be closed — otherwise people sit
+        and watch a spinner that has no reason to be watched.
+      */}
+      {state === 'sending'
+        ? 'Starting the workflow'
+        : 'Working on it — this can take a minute, and you can leave this page'}
     </div>
   )
 }
@@ -642,41 +716,89 @@ const STARTERS: Record<string, string[]> = {
 /* ------------------------------------------------------------ the call */
 
 /**
- * The one place the workflow is invoked.
+ * Starting a run.
  *
- * Deliberately the only function in this file that knows there is a backend at
- * all, so the screen above can be built and looked at before the orchestrator
- * exists. It calls `orca-chat` and, until that endpoint is deployed, says so
- * rather than inventing a reply — a chat interface that fabricates an answer
- * when the workflow did not run is worse than one that plainly failed.
+ * Sends the person's sentence and who they are — not a composed trigger. The
+ * preamble is built on the server from the actor it resolves, because a
+ * preamble composed in the page is a preamble the page can change, and the
+ * preamble is the whole statement of who is asking and what they may ask for.
+ * The screen shows a preview of it before sending; the server returns the text
+ * it actually used, and that is the one displayed afterwards.
+ *
+ * This returns as soon as Yoxa has accepted the trigger, which is long before
+ * there is an answer. What comes back is a run id.
  */
-async function runWorkflow(trigger: string, workflow: string): Promise<Partial<Turn>> {
+async function startRun(args: {
+  message: string
+  actorId: string | null
+  patientId: string | null
+}): Promise<Partial<Turn>> {
   try {
     const { isSupabaseConfigured, supabase } = await import('../../lib/supabase')
     if (!isSupabaseConfigured) {
-      return { status: 'error', detail: 'No backend is configured in this build.' }
+      return { state: 'settled', status: 'error', detail: 'No backend is configured in this build.' }
     }
+
     const { data, error } = await supabase.functions.invoke('orca-chat', {
-      body: { trigger_text: trigger, workflow_name: workflow },
+      body: {
+        message: args.message,
+        actor_id: args.actorId,
+        patient_id: args.patientId,
+      },
     })
-    if (error) {
-      return {
-        status: 'error',
-        detail:
-          'The workflow could not be reached. Nothing was run, and no answer has been made up in its place.',
-      }
+
+    if (error || !data?.run_id) {
+      // A refusal carries a reason worth showing; a network failure does not.
+      const detail =
+        typeof data?.detail === 'string'
+          ? data.detail
+          : 'The workflow could not be started. Nothing was run, and no answer has been made up in its place.'
+      return { state: 'settled', status: 'error', detail }
     }
+
     return {
-      status: (data?.status as Status) ?? 'error',
-      answer: data?.answer,
-      sources: data?.sources,
-      withheld: data?.withheld,
-      question: data?.next?.detail,
-      options: data?.next?.options,
-      approval: data?.approval,
-      detail: data?.reason ?? data?.detail,
+      state: 'running',
+      runId: String(data.run_id),
+      workflow: data.workflow === 'produce' ? 'ORCA_PRODUCE' : 'ORCA_UNDERSTAND',
+      // The authoritative text, replacing the preview composed in the browser.
+      trigger: typeof data.trigger_text === 'string' ? data.trigger_text : undefined,
     }
   } catch {
-    return { status: 'error', detail: 'The request failed before it reached the workflow.' }
+    return {
+      state: 'settled',
+      status: 'error',
+      detail: 'The request failed before it reached the workflow.',
+    }
+  }
+}
+
+/**
+ * Whether a run row has become an answer yet, and what that answer is.
+ *
+ * Returns null while there is still nothing to show, which is what keeps a
+ * queued run looking queued instead of flickering into an empty reply. A run
+ * that ended without an answer still settles — "Blocked" with no text is a
+ * real outcome and the person is owed it, rather than a spinner that never
+ * stops.
+ */
+function settleFrom(row: RunRow): Partial<Turn> | null {
+  const finished = ['Completed', 'Blocked', 'Escalated', 'Cancelled'].includes(row.status)
+  if (!row.answer_html && !finished) return null
+
+  const envelope = parseEnvelope(row.result ?? row.answer_html ?? null)
+  return {
+    state: 'settled',
+    status: envelope.status,
+    answer: envelope.answerHtml ?? row.answer_html ?? undefined,
+    sources: envelope.sources,
+    withheld: envelope.withheld,
+    question: envelope.question ?? undefined,
+    options: envelope.options,
+    approval: envelope.approval ?? undefined,
+    detail:
+      envelope.detail ??
+      (finished && !row.answer_html
+        ? `The run ended at "${row.current_step}" without producing an answer.`
+        : undefined),
   }
 }
