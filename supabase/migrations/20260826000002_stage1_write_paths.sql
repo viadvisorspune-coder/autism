@@ -143,7 +143,21 @@ comment on function orca_supersede is
 
 /* ------------------------------------------------- what was tried, and how */
 
-create table if not exists strategies (
+/**
+ * support_strategies, not strategies.
+ *
+ * `strategies` is already a table in this database — part of the original ORCA
+ * schema, keyed on id and patient_id. Taking the name would have been the runs
+ * collision again, and worse: `create table if not exists` skips silently, so
+ * the older table would have survived and the foreign key below would have
+ * failed on a strategy_id that does not exist. Which is exactly what happened
+ * before this rename.
+ *
+ * The lesson is the check, not the name. Six Stage 1 tables were checked
+ * against the existing schema; these four were added later and were not.
+ */
+
+create table if not exists support_strategies (
   strategy_id  uuid primary key default gen_random_uuid(),
   subject_id   uuid not null references subjects (subject_id) on delete cascade,
   title        text not null,
@@ -161,9 +175,9 @@ create table if not exists strategies (
   updated_at   timestamptz not null default now()
 );
 
-create table if not exists outcomes (
+create table if not exists support_outcomes (
   outcome_id   uuid primary key default gen_random_uuid(),
-  strategy_id  uuid not null references strategies (strategy_id) on delete cascade,
+  strategy_id  uuid not null references support_strategies (strategy_id) on delete cascade,
   subject_id   uuid not null references subjects (subject_id) on delete cascade,
   reported_by  uuid references users (user_id) on delete set null,
   reporter_role stakeholder_role not null,
@@ -213,16 +227,16 @@ create table if not exists consents (
   updated_at   timestamptz not null default now()
 );
 
-create index if not exists strategies_subject_idx on strategies (subject_id, started_on desc);
-create index if not exists outcomes_strategy_idx on outcomes (strategy_id, reported_on desc);
+create index if not exists support_strategies_subject_idx on support_strategies (subject_id, started_on desc);
+create index if not exists support_outcomes_strategy_idx on support_outcomes (strategy_id, reported_on desc);
 create index if not exists files_subject_idx on files (subject_id, occurred_on desc);
 create index if not exists consents_subject_idx on consents (subject_id, user_id);
 
-drop trigger if exists strategies_touch on strategies;
-create trigger strategies_touch before update on strategies
+drop trigger if exists support_strategies_touch on support_strategies;
+create trigger support_strategies_touch before update on support_strategies
   for each row execute function orca_touch_updated_at();
-drop trigger if exists outcomes_touch on outcomes;
-create trigger outcomes_touch before update on outcomes
+drop trigger if exists support_outcomes_touch on support_outcomes;
+create trigger support_outcomes_touch before update on support_outcomes
   for each row execute function orca_touch_updated_at();
 drop trigger if exists files_touch on files;
 create trigger files_touch before update on files

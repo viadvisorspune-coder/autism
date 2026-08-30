@@ -18,8 +18,8 @@
 
 begin;
 
-delete from outcomes;
-delete from strategies;
+delete from support_outcomes;
+delete from support_strategies;
 delete from files;
 delete from consents;
 delete from record_items where subject_id in (select subject_id from subjects
@@ -652,7 +652,7 @@ select orca_supersede('f0000000-0000-0000-0000-000000000001',
 -- 9 strategies: 3 worked, 3 partial, 2 failed, 1 still running. A seed where
 -- everything worked would train a planner to be confident about advice that
 -- has never survived contact with a bad week.
-insert into strategies (strategy_id, subject_id, title, description, proposed_by, proposer_role, domain, started_on, ended_on, state) values
+insert into support_strategies (strategy_id, subject_id, title, description, proposed_by, proposer_role, domain, started_on, ended_on, state) values
   ('b0000000-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-00000000000a', 'Fixed evening wind-down routine', 'Same sequence every evening: no screens after 21:30, reading, lights out at 22:30.', 'e0000000-0000-0000-0000-000000000001', 'patient', 'support'::record_domain, '2025-10-16', '2025-12-23', 'failed'),
   ('b0000000-0000-0000-0000-000000000002', 'aaaaaaaa-0000-0000-0000-00000000000a', 'Written advance notice of schedule changes', 'Any change to the day communicated in writing, ideally the day before.', 'e0000000-0000-0000-0000-000000000003', 'psychologist', 'support'::record_domain, '2025-11-04', null, 'running'),
   ('b0000000-0000-0000-0000-000000000003', 'aaaaaaaa-0000-0000-0000-00000000000a', 'Session recordings for the course', 'Recordings of live sessions made available so nothing depends on capturing it first time.', 'e0000000-0000-0000-0000-00000000000a', 'university', 'education'::record_domain, '2026-01-08', '2026-06-30', 'worked'),
@@ -666,7 +666,7 @@ insert into strategies (strategy_id, subject_id, title, description, proposed_by
 -- 14 outcomes, and never all reported by the subject. A record in which only
 -- the person themselves ever says whether something helped is a record that
 -- has quietly made them responsible for evaluating their own support.
-insert into outcomes (strategy_id, subject_id, reported_by, reporter_role, reported_on, effectiveness, what_worked, what_did_not_work, context) values
+insert into support_outcomes (strategy_id, subject_id, reported_by, reporter_role, reported_on, effectiveness, what_worked, what_did_not_work, context) values
   ('b0000000-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000001', 'patient'::stakeholder_role, '2025-11-27', 'worked', 'Getting to bed earlier and stopping checking work things.', null, 'Stable weeks, nothing unusual at home.'),
   ('b0000000-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000001', 'patient'::stakeholder_role, '2025-12-23', 'made_worse', null, 'Could not be done at all once the house was full. The routine needed a quiet evening, which is the condition under which it was least needed.', 'Twelve visitors over the festival period.'),
   ('b0000000-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000003', 'psychologist'::stakeholder_role, '2025-12-24', 'no_benefit', null, 'Sustained nine weeks under stable conditions and abandoned within eleven days of disruption.', 'Recorded at the December review.'),

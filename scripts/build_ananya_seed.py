@@ -447,8 +447,8 @@ w("-- so is_current and superseded_by cannot disagree.")
 w("")
 w("begin;")
 w("")
-w("delete from outcomes;")
-w("delete from strategies;")
+w("delete from support_outcomes;")
+w("delete from support_strategies;")
 w("delete from files;")
 w("delete from consents;")
 w("delete from record_items where subject_id in (select subject_id from subjects")
@@ -536,7 +536,7 @@ STRAT = [
  ('s8','Noise-cancelling headphones for the full commute','Noise-cancelling headphones for the full commute','patient','functional','2026-07-30','2026-08-11','failed'),
  ('s9','Staggered start at 10:00','Start at 10:00 to travel after the peak.','employer','workplace','2026-08-11',None,'worked')]
 SID = {k: 'b0000000-0000-0000-0000-00000000000%d' % (i+1) for i,(k,*_ ) in enumerate(STRAT)}
-w("insert into strategies (strategy_id, subject_id, title, description, proposed_by, proposer_role, domain, started_on, ended_on, state) values")
+w("insert into support_strategies (strategy_id, subject_id, title, description, proposed_by, proposer_role, domain, started_on, ended_on, state) values")
 rows = []
 for k,t,d,role,dom,st,en,state in STRAT:
     rows.append("  (%s, %s, %s, %s, %s, %s, %s::record_domain, %s, %s, %s)" % (
@@ -561,7 +561,7 @@ OUT_ = [
  ('s7','employer','2026-04-14','worked','Recorded as implemented alongside the other two adjustments.',None,'HR administrative record.'),
  ('s7','patient','2026-04-29','no_benefit','The desk move helped.','Written instructions never actually started. Asked twice. Still told things in the corridor.','Four months after it was agreed.'),
  ('s8','patient','2026-08-11','made_worse',None,'Removing ambient sound made it harder to judge distance and crowd movement. Felt more disoriented on the platform, not less. Two near-misses on the stairs.','Peak-hour Pune Metro, standing.')]
-w("insert into outcomes (strategy_id, subject_id, reported_by, reporter_role, reported_on, effectiveness, what_worked, what_did_not_work, context) values")
+w("insert into support_outcomes (strategy_id, subject_id, reported_by, reporter_role, reported_on, effectiveness, what_worked, what_did_not_work, context) values")
 rows = []
 for k,role,d,eff,ww,wn,ctx in OUT_:
     rows.append("  (%s, %s, %s, %s::stakeholder_role, %s, %s, %s, %s, %s)" % (
