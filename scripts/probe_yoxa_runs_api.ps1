@@ -34,13 +34,22 @@ Write-Host ''
 
 foreach ($path in $candidates) {
   $uri = "$origin$path"
+  $response = $null
   try {
     $response = Invoke-WebRequest -Method Get -Uri $uri `
       -Headers @{ 'X-Yoxa-Deployment-Secret' = $secret } `
-      -SkipHttpErrorCheck -TimeoutSec 20
-    $code = $response.StatusCode
+      -TimeoutSec 20 -ErrorAction Stop
+    $code = [int]$response.StatusCode
   } catch {
-    $code = 'ERR'
+    # Windows PowerShell 5.1 throws on any non-2xx and has no
+    # -SkipHttpErrorCheck, so the status has to be dug out of the exception.
+    # Without this every 404 would report as a connection failure and the
+    # whole probe would be unreadable.
+    if ($_.Exception.Response) {
+      $code = [int]$_.Exception.Response.StatusCode
+    } else {
+      $code = 'ERR'
+    }
   }
 
   # 200 is the prize. 401/403 still means the route EXISTS and only the auth
