@@ -6,7 +6,7 @@
 
 /* ---------------------------------------------------------------- people */
 
-create table users (
+create table if not exists users (
   user_id      uuid primary key default gen_random_uuid(),
   -- Supabase's auth.users id when there is a sign-in, null when there is not.
   -- Nullable on purpose: a GP who appears in somebody's record but has never
@@ -26,7 +26,7 @@ comment on column users.primary_role is
 -- The person the record is about. Called subject rather than patient because
 -- most of what is held here is not clinical, and "patient" quietly reframes an
 -- entire life as a medical one.
-create table subjects (
+create table if not exists subjects (
   subject_id   uuid primary key default gen_random_uuid(),
   display_name text,
   date_of_birth date,
@@ -39,7 +39,7 @@ create table subjects (
 -- The edge that makes access possible at all. A role on its own grants
 -- nothing: being a psychologist is not a reason to read this record, being
 -- *this person's* psychologist is.
-create table stakeholder_relationships (
+create table if not exists stakeholder_relationships (
   relationship_id uuid primary key default gen_random_uuid(),
   subject_id      uuid not null references subjects (subject_id) on delete cascade,
   user_id         uuid not null references users (user_id) on delete cascade,
@@ -57,7 +57,7 @@ create table stakeholder_relationships (
 
 /* ---------------------------------------------------------- the record */
 
-create table record_items (
+create table if not exists record_items (
   item_id           uuid primary key default gen_random_uuid(),
   subject_id        uuid not null references subjects (subject_id) on delete cascade,
   domain            record_domain not null,
@@ -107,7 +107,7 @@ create table record_items (
 -- than a chain of conditions in application code means the rules can be read,
 -- queried, diffed and shown to the person they are about — and that a change
 -- to who may see what is a row, not a deploy.
-create table access_policies (
+create table if not exists access_policies (
   policy_id        uuid primary key default gen_random_uuid(),
   role             stakeholder_role not null,
   domain           record_domain not null,
@@ -123,7 +123,25 @@ create table access_policies (
 
 /* ----------------------------------------------------------------- runs */
 
-create table runs (
+/**
+ * The one table here that may already exist.
+ *
+ * A `runs` table was created in the live project outside these migrations,
+ * holding a workflow run this file knows nothing about. Its columns match what
+ * is written below except that it has no started_at or ended_at.
+ *
+ * So this creates only if absent, and adds the two missing columns either way.
+ * The alternative — dropping and recreating to get one clean definition —
+ * would delete a real row to make a migration tidier, which is never the trade.
+ *
+ * One consequence, stated rather than hidden: where the table already exists
+ * `if not exists` skips the whole definition, so that table keeps whatever
+ * constraints it was created with and does not gain the foreign keys below.
+ * Nothing in this stage depends on them — orca_scope and orca_retrieve read
+ * runs.context, not the id columns — and adding constraints to a table this
+ * file did not create is a bigger decision than making the file rerunnable.
+ */
+create table if not exists runs (
   run_id        uuid primary key default gen_random_uuid(),
   lane          text,
   workflow_name text,
@@ -143,35 +161,45 @@ create table runs (
   updated_at    timestamptz not null default now()
 );
 
+-- Added separately so they also arrive on a runs table this file did not create.
+alter table runs add column if not exists started_at timestamptz;
+alter table runs add column if not exists ended_at   timestamptz;
+
 /* -------------------------------------------------------------- indexes */
 
 -- Partial on is_current: every read path in this stage asks for the live
 -- record, and superseded rows would otherwise sit in the index making every
 -- one of those reads pay for history it did not ask for.
-create index record_items_domain_recent_idx
+create index if not exists record_items_domain_recent_idx
   on record_items (subject_id, domain, occurred_at desc) where is_current;
-create index record_items_recent_idx
+create index if not exists record_items_recent_idx
   on record_items (subject_id, occurred_at desc) where is_current;
-create index record_items_search_idx on record_items using gin (search_vector);
-create index record_items_tags_idx on record_items using gin (tags);
+create index if not exists record_items_search_idx on record_items using gin (search_vector);
+create index if not exists record_items_tags_idx on record_items using gin (tags);
 
-create index stakeholder_relationships_active_idx
+create index if not exists stakeholder_relationships_active_idx
   on stakeholder_relationships (subject_id, user_id) where is_active;
 
-create index runs_status_idx on runs (status, updated_at desc);
+create index if not exists runs_status_idx on runs (status, updated_at desc);
 
 /* ------------------------------------------------------------- triggers */
 
+drop trigger if exists users_touch on users;
 create trigger users_touch before update on users
   for each row execute function orca_touch_updated_at();
+drop trigger if exists subjects_touch on subjects;
 create trigger subjects_touch before update on subjects
   for each row execute function orca_touch_updated_at();
+drop trigger if exists stakeholder_relationships_touch on stakeholder_relationships;
 create trigger stakeholder_relationships_touch before update on stakeholder_relationships
   for each row execute function orca_touch_updated_at();
+drop trigger if exists record_items_touch on record_items;
 create trigger record_items_touch before update on record_items
   for each row execute function orca_touch_updated_at();
+drop trigger if exists access_policies_touch on access_policies;
 create trigger access_policies_touch before update on access_policies
   for each row execute function orca_touch_updated_at();
+drop trigger if exists runs_touch on runs;
 create trigger runs_touch before update on runs
   for each row execute function orca_touch_updated_at();
 
@@ -198,6 +226,7 @@ begin
 end;
 $$;
 
+drop trigger if exists record_items_search on record_items;
 create trigger record_items_search
   before insert or update of title, content on record_items
   for each row execute function orca_record_items_search();

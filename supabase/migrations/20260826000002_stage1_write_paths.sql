@@ -218,11 +218,15 @@ create index if not exists outcomes_strategy_idx on outcomes (strategy_id, repor
 create index if not exists files_subject_idx on files (subject_id, occurred_on desc);
 create index if not exists consents_subject_idx on consents (subject_id, user_id);
 
+drop trigger if exists strategies_touch on strategies;
 create trigger strategies_touch before update on strategies
   for each row execute function orca_touch_updated_at();
+drop trigger if exists outcomes_touch on outcomes;
 create trigger outcomes_touch before update on outcomes
   for each row execute function orca_touch_updated_at();
+drop trigger if exists files_touch on files;
 create trigger files_touch before update on files
   for each row execute function orca_touch_updated_at();
+drop trigger if exists consents_touch on consents;
 create trigger consents_touch before update on consents
   for each row execute function orca_touch_updated_at();

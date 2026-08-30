@@ -20,47 +20,75 @@ create extension if not exists unaccent;
 -- Who is asking. Wider than a clinical team on purpose: the people who shape
 -- an autistic adult's week include an employer and a sister, and a model that
 -- can only describe clinicians cannot describe the actual problem.
-create type stakeholder_role as enum (
-  'patient', 'parent_caregiver', 'psychologist', 'psychiatrist', 'therapist',
-  'ot', 'gp', 'clinic', 'educator', 'university', 'employer', 'coordinator',
-  'trusted_person', 'statutory', 'admin'
-);
+do $do$ begin
+  if not exists (select 1 from pg_type where typname = 'stakeholder_role') then
+  create type stakeholder_role as enum (
+    'patient', 'parent_caregiver', 'psychologist', 'psychiatrist', 'therapist',
+    'ot', 'gp', 'clinic', 'educator', 'university', 'employer', 'coordinator',
+    'trusted_person', 'statutory', 'admin'
+  );
+  end if;
+end $do$;
 
 -- What kind of information. This is the axis that keeps a workplace adjustment
 -- out of a clinical record and a diagnosis out of an employer's inbox.
-create type record_domain as enum (
-  'personal', 'functional', 'clinical', 'support', 'workplace', 'education', 'outcome'
-);
+do $do$ begin
+  if not exists (select 1 from pg_type where typname = 'record_domain') then
+  create type record_domain as enum (
+    'personal', 'functional', 'clinical', 'support', 'workplace', 'education', 'outcome'
+  );
+  end if;
+end $do$;
 
 -- How much it costs the subject if it reaches the wrong person.
-create type sensitivity_level as enum ('low', 'moderate', 'high', 'restricted');
+do $do$ begin
+  if not exists (select 1 from pg_type where typname = 'sensitivity_level') then
+  create type sensitivity_level as enum ('low', 'moderate', 'high', 'restricted');
+  end if;
+end $do$;
 
 -- Where a line came from. Kept separate from validation deliberately: an
 -- unverified professional note and a confirmed self-report are different
 -- things, and collapsing origin into confidence loses the distinction that
 -- matters most to the person being described.
-create type source_type as enum (
-  'self_reported', 'professional_reported', 'document_derived',
-  'system_derived', 'ai_derived'
-);
+do $do$ begin
+  if not exists (select 1 from pg_type where typname = 'source_type') then
+  create type source_type as enum (
+    'self_reported', 'professional_reported', 'document_derived',
+    'system_derived', 'ai_derived'
+  );
+  end if;
+end $do$;
 
 -- What has happened to it since. 'disputed' exists because a record the
 -- subject disagrees with must be able to say so without being deleted.
-create type validation_status as enum (
-  'unvalidated', 'professional_validated', 'subject_confirmed', 'disputed', 'outdated'
-);
+do $do$ begin
+  if not exists (select 1 from pg_type where typname = 'validation_status') then
+  create type validation_status as enum (
+    'unvalidated', 'professional_validated', 'subject_confirmed', 'disputed', 'outdated'
+  );
+  end if;
+end $do$;
 
 -- Why it is being read. The same person, the same record, a different purpose
 -- is a different answer — an employer may see a functional note to arrange an
 -- adjustment and not to satisfy curiosity.
-create type purpose_type as enum (
-  'care', 'support_planning', 'accommodation', 'coordination', 'statutory',
-  'personal_understanding'
-);
+do $do$ begin
+  if not exists (select 1 from pg_type where typname = 'purpose_type') then
+  create type purpose_type as enum (
+    'care', 'support_planning', 'accommodation', 'coordination', 'statutory',
+    'personal_understanding'
+  );
+  end if;
+end $do$;
 
-create type run_status as enum (
-  'pending', 'done', 'needs_clarification', 'needs_approval', 'blocked'
-);
+do $do$ begin
+  if not exists (select 1 from pg_type where typname = 'run_status') then
+  create type run_status as enum (
+    'pending', 'done', 'needs_clarification', 'needs_approval', 'blocked'
+  );
+  end if;
+end $do$;
 
 /* ---------------------------------------------------------------- touched */
 
