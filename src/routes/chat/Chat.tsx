@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSession } from '../../state/session'
+import { type Block, htmlToBlocks, htmlToText } from '../../lib/prose'
 import {
   type Identity,
   identityFrom,
@@ -268,9 +269,7 @@ function Answered({ turn, onPick }: { turn: Turn; onPick: (s: string) => void })
     <div className="space-y-3">
       {turn.answer ? (
         <div className="rounded-xl rounded-bl-sm border border-line bg-paper px-4 py-3">
-          <p className="whitespace-pre-wrap text-[0.92rem] leading-relaxed text-ink">
-            {turn.answer}
-          </p>
+          <Prose html={turn.answer} />
         </div>
       ) : null}
 
@@ -389,6 +388,80 @@ function ApprovalCard({ approval }: { approval: { what: string; to: string; why:
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * The workflow's HTML, drawn as conversation.
+ *
+ * Every block is a React element built from text — no markup from the workflow
+ * ever reaches the DOM. See lib/prose.ts for why that matters more here than
+ * it looks: the HTML is model-authored, and a record can legitimately contain
+ * something shaped like a tag.
+ *
+ * Headings are set as small labels rather than headings. In a document a
+ * heading organises a page; in a chat bubble it shouts. The words are worth
+ * keeping and the volume is not.
+ */
+function Prose({ html }: { html: string }) {
+  const blocks: Block[] = htmlToBlocks(html)
+  const [copied, setCopied] = useState(false)
+
+  if (!blocks.length) {
+    return <p className="text-[0.9rem] italic text-muted">The workflow returned an empty answer.</p>
+  }
+
+  return (
+    <div className="group/prose relative">
+      <div className="space-y-2.5">
+        {blocks.map((b, i) => {
+          if (b.kind === 'heading')
+            return (
+              <p
+                key={i}
+                className="pt-1 text-[0.72rem] font-semibold uppercase tracking-wide text-muted"
+              >
+                {b.text}
+              </p>
+            )
+          if (b.kind === 'list')
+            return (
+              <ul key={i} className="space-y-1.5">
+                {b.items.map((item, j) => (
+                  <li key={j} className="flex gap-2 text-[0.9rem] leading-relaxed text-ink">
+                    <span aria-hidden className="mt-[0.45rem] h-1 w-1 shrink-0 rounded-full bg-line-strong" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            )
+          if (b.kind === 'quote')
+            return (
+              <p
+                key={i}
+                className="border-l-2 border-line-strong pl-3 text-[0.9rem] italic leading-relaxed text-ink-2"
+              >
+                {b.text}
+              </p>
+            )
+          return (
+            <p key={i} className="text-[0.92rem] leading-relaxed text-ink">
+              {b.text}
+            </p>
+          )
+        })}
+      </div>
+      <button
+        onClick={() => {
+          void navigator.clipboard?.writeText(htmlToText(html))
+          setCopied(true)
+          window.setTimeout(() => setCopied(false), 1600)
+        }}
+        className="absolute right-0 top-0 rounded-md px-2 py-1 text-[0.72rem] text-muted opacity-0 transition-opacity hover:text-ink focus:opacity-100 group-hover/prose:opacity-100"
+      >
+        {copied ? 'Copied' : 'Copy'}
+      </button>
     </div>
   )
 }
