@@ -257,3 +257,44 @@ html,
 body {
   overflow-x: clip;
 }
+
+/*
+ * Low-stimulus palette.
+ *
+ * Not a dark theme and not a filter over the standard one. The brief asks for
+ * muted colour, reduced contrast in large areas, and fewer decorative
+ * elements — so this lowers the saturation of every accent and softens the
+ * grounds, while leaving the text tokens alone. Text contrast is the one thing
+ * that must not drop: "reduced contrast" means calmer surfaces, never harder
+ * reading.
+ *
+ * Every value below was checked against the same 4.5:1 audit as the standard
+ * palette, on every ground it can appear on.
+ */
+html[data-palette='low'] {
+  --color-canvas: #f2f1f4;
+  --color-surface: #fbfbfc;
+  --color-surface-2: #f4f3f6;
+  --color-paper: #fbfbfc;
+  --color-line: #e8e7ec;
+  --color-line-strong: #dedce4;
+
+  --color-brand: #5c5480;
+  --color-brand-ink: #494269;
+  --color-brand-tint: #eeedf3;
+  --color-clinical: #47566f;
+  --color-clinical-tint: #ecEEF2;
+  --color-org: #6f5c47;
+  --color-org-tint: #f2eee9;
+  --color-admin: #575a63;
+  --color-admin-tint: #eeeff2;
+
+  --color-state-info: #43566d;
+  --color-state-info-tint: #eceef2;
+  --color-state-wait: #6f5a2e;
+  --color-state-wait-tint: #f3efe6;
+  --color-state-good: #3c5f4a;
+  --color-state-good-tint: #eaf0ec;
+  --color-state-alert: #74474a;
+  --color-state-alert-tint: #f3eaea;
+}

@@ -22,7 +22,27 @@ type TextSize = 'default' | 'large' | 'xlarge'
  */
 export type Density = 'calm' | 'full'
 
+/**
+ * How loud the colours are.
+ *
+ *   standard — the full palette, accents at their intended saturation.
+ *   low      — every accent desaturated and the grounds softened.
+ *
+ * A separate axis from density, and deliberately not folded into it. Density
+ * is about how much is on the screen; this is about how hard the screen
+ * pushes. Somebody who wants everything visible at once may still find
+ * saturated colour difficult, and pairing the two would force a trade nobody
+ * asked for.
+ *
+ * Text tokens are untouched by it. "Reduced contrast" in the brief means
+ * calmer surfaces, never harder reading — so the low palette lowers the
+ * saturation of accents and grounds and leaves ink where it is.
+ */
+export type Palette = 'standard' | 'low'
+
 interface UIValue {
+  palette: Palette
+  setPalette: (p: Palette) => void
   textSize: TextSize
   setTextSize: (t: TextSize) => void
   reducedMotion: boolean
@@ -64,6 +84,9 @@ export function UIProvider({ children }: { children: ReactNode }) {
     () => stored<'default' | 'reduced'>('orca.motion', 'default') === 'reduced',
   )
   const [density, setDensityState] = useState<Density>(() => stored<Density>('orca.density', 'calm'))
+  const [palette, setPaletteState] = useState<Palette>(() =>
+    stored<Palette>('orca.palette', 'standard'),
+  )
   const [evidence, setEvidence] = useState<UIValue['evidence']>(null)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -78,6 +101,10 @@ export function UIProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.dataset.density = density
   }, [density])
+
+  useEffect(() => {
+    document.documentElement.dataset.palette = palette
+  }, [palette])
 
   // Long enough to read twice at a slower reading speed, and dismissible.
   useEffect(() => {
@@ -94,6 +121,11 @@ export function UIProvider({ children }: { children: ReactNode }) {
   const setReducedMotion = useCallback((v: boolean) => {
     setReducedMotionState(v)
     remember('orca.motion', v ? 'reduced' : 'default')
+  }, [])
+
+  const setPalette = useCallback((p: Palette) => {
+    setPaletteState(p)
+    remember('orca.palette', p)
   }, [])
 
   const setDensity = useCallback((d: Density) => {
@@ -113,6 +145,8 @@ export function UIProvider({ children }: { children: ReactNode }) {
       setReducedMotion,
       density,
       setDensity,
+      palette,
+      setPalette,
       evidence,
       openEvidence,
       closeEvidence: () => setEvidence(null),
@@ -120,7 +154,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
       say: (message: string) => setToast(message),
       dismissToast: () => setToast(null),
     }),
-    [textSize, setTextSize, reducedMotion, setReducedMotion, density, setDensity, evidence, openEvidence, toast],
+    [textSize, setTextSize, reducedMotion, setReducedMotion, density, setDensity, palette, setPalette, evidence, openEvidence, toast],
   )
 
   return <UIContext.Provider value={value}>{children}</UIContext.Provider>

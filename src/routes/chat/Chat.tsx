@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSession } from '../../state/session'
+import { useUI } from '../../state/ui'
 import { type Block, htmlToBlocks, htmlToText } from '../../lib/prose'
 import { type Identity, identityFrom, needsDocument, understandTrigger } from '../../lib/trigger'
 import { type Attachment, type ConversationData, persistMessage, useLive } from '../../lib/live'
@@ -365,6 +366,76 @@ export function WorkflowChat() {
  * type, how long it takes, and who to reach if it matters — rather than
  * documenting the product.
  */
+/**
+ * How much the screen does to you.
+ *
+ * Two axes, kept separate on purpose. Colour intensity and movement are
+ * different discomforts, and pairing them forces a trade nobody asked for:
+ * somebody who finds motion unbearable should not have to accept a washed-out
+ * palette to stop it.
+ *
+ * Both are remembered between visits. Re-choosing them every time is a small
+ * cost for most people and a large one for exactly the people these exist for.
+ * They sit inside Help because that is the one place on this screen that is
+ * about the screen rather than about the record.
+ */
+function Comfort() {
+  const { palette, setPalette, reducedMotion, setReducedMotion } = useUI()
+
+  const Choice = ({
+    on,
+    onSelect,
+    children,
+  }: {
+    on: boolean
+    onSelect: () => void
+    children: string
+  }) => (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={onSelect}
+      className={
+        on
+          ? 'rounded-lg border border-brand bg-brand-tint px-3.5 py-2 text-[0.83rem] font-medium text-brand-ink'
+          : 'rounded-lg border border-line-strong px-3.5 py-2 text-[0.83rem] text-ink-2 hover:border-brand hover:text-brand'
+      }
+    >
+      {children}
+    </button>
+  )
+
+  return (
+    <div className="mt-4 border-t border-line pt-3">
+      <h3 className="text-[0.85rem] font-medium text-ink">How this screen looks</h3>
+      <p className="mt-0.5 text-[0.83rem] leading-relaxed text-ink-2">
+        These are remembered on this device. Nothing you change here affects your record or
+        what anyone else sees.
+      </p>
+
+      <p className="mt-2.5 text-[0.83rem] text-muted">Colour</p>
+      <div className="mt-1 flex flex-wrap gap-2">
+        <Choice on={palette === 'standard'} onSelect={() => setPalette('standard')}>
+          Standard
+        </Choice>
+        <Choice on={palette === 'low'} onSelect={() => setPalette('low')}>
+          Muted
+        </Choice>
+      </div>
+
+      <p className="mt-3 text-[0.83rem] text-muted">Movement</p>
+      <div className="mt-1 flex flex-wrap gap-2">
+        <Choice on={!reducedMotion} onSelect={() => setReducedMotion(false)}>
+          Standard
+        </Choice>
+        <Choice on={reducedMotion} onSelect={() => setReducedMotion(true)}>
+          Reduced
+        </Choice>
+      </div>
+    </div>
+  )
+}
+
 function Help() {
   const items: [string, string][] = [
     ['What this screen does', 'You ask a question about your record. ORCA reads the record and answers here.'],
@@ -397,6 +468,7 @@ function Help() {
             </div>
           ))}
         </dl>
+        <Comfort />
       </div>
     </div>
   )
