@@ -192,19 +192,53 @@ export function composeTrigger(args: {
 export interface Deployment {
   id: string
   secret: string
+  url: string
 }
+
+const TRIGGER_ORIGIN = Deno.env.get('YOXA_ORIGIN') ?? 'https://yoxa.ai'
+
+/** The deployment id out of a full trigger URL, for when that is what was set. */
+const idFromUrl = (url: string): string | null =>
+  url.match(/workflow-deployments\/([0-9a-f-]{36})/i)?.[1] ?? null
 
 /**
  * Which deployment a workflow name points at.
  *
- * Two deployments, two secrets, and no default between them. Falling back from
- * a missing PRODUCE configuration to the UNDERSTAND deployment would send a
- * document request to a workflow that answers questions, and the failure would
- * look like a bad answer rather than a bad configuration.
+ * Configured EITHER as a deployment id or as the whole trigger URL, because
+ * the URL is what Yoxa's Integrate tab puts on your clipboard and pasting it
+ * is the obvious thing to do. Accepting only the id meant a correct-looking
+ * configuration produced "workflow not configured", and the message named a
+ * variable the person had, in spirit, already set.
+ *
+ * Two deployments, two secrets, and deliberately no default between them.
+ * Falling back from a missing PRODUCE configuration to the UNDERSTAND
+ * deployment would send a document request to a workflow that answers
+ * questions, and the failure would read as a bad answer rather than a bad
+ * setting.
  */
 export function deploymentFor(workflow: WorkflowName): Deployment | null {
   const prefix = workflow === 'understand' ? 'YOXA_UNDERSTAND' : 'YOXA_PRODUCE'
-  const id = Deno.env.get(`${prefix}_DEPLOYMENT_ID`)
   const secret = Deno.env.get(`${prefix}_DEPLOYMENT_SECRET`)
-  return id && secret ? { id, secret } : null
+  if (!secret) return null
+
+  const explicitUrl = Deno.env.get(`${prefix}_TRIGGER_URL`)
+  if (explicitUrl) {
+    // A pasted URL may or may not already end in /trigger. Both are meant the
+    // same way, and guessing wrong here produces a 404 that looks like a dead
+    // deployment.
+    const url = explicitUrl.replace(/\/+$/, '')
+    return {
+      id: idFromUrl(url) ?? '',
+      secret,
+      url: url.endsWith('/trigger') ? url : `${url}/trigger`,
+    }
+  }
+
+  const id = Deno.env.get(`${prefix}_DEPLOYMENT_ID`)
+  if (!id) return null
+  return {
+    id,
+    secret,
+    url: `${TRIGGER_ORIGIN}/api/v1/public/workflow-deployments/${id}/trigger`,
+  }
 }

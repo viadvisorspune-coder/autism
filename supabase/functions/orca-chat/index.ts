@@ -31,8 +31,6 @@ import {
   routeFor,
 } from '../_shared/compose.ts'
 
-const TRIGGER_ORIGIN = Deno.env.get('YOXA_ORIGIN') ?? 'https://yoxa.ai'
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
@@ -77,8 +75,9 @@ Deno.serve(async (req) => {
         error: 'workflow_not_configured',
         detail:
           `No deployment is configured for the ${workflow} workflow. Set ` +
-          `YOXA_${workflow.toUpperCase()}_DEPLOYMENT_ID and ` +
-          `YOXA_${workflow.toUpperCase()}_DEPLOYMENT_SECRET.`,
+          `YOXA_${workflow.toUpperCase()}_DEPLOYMENT_SECRET, plus either ` +
+          `YOXA_${workflow.toUpperCase()}_TRIGGER_URL (the whole URL from Yoxa's ` +
+          `Integrate tab) or YOXA_${workflow.toUpperCase()}_DEPLOYMENT_ID.`,
       },
       503,
     )
@@ -141,7 +140,10 @@ Deno.serve(async (req) => {
       status: 'In progress',
       trigger_text: triggerText,
       idempotency_key: idempotencyKey,
-      deployment_id: deployment.id,
+      // Empty when configured by a URL that carries no recognisable id. Null
+      // says "we do not know it"; an empty string would read as a real value
+      // and quietly fail any later lookup that tried to match on it.
+      deployment_id: deployment.id || null,
       chained_from: chainedFrom,
     })
     .select('id')
@@ -151,18 +153,15 @@ Deno.serve(async (req) => {
 
   let upstream: Response
   try {
-    upstream = await fetch(
-      `${TRIGGER_ORIGIN}/api/v1/public/workflow-deployments/${deployment.id}/trigger`,
-      {
-        method: 'POST',
-        headers: {
-          'X-Yoxa-Deployment-Secret': deployment.secret,
-          'Idempotency-Key': idempotencyKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ trigger_text: triggerText }),
+    upstream = await fetch(deployment.url, {
+      method: 'POST',
+      headers: {
+        'X-Yoxa-Deployment-Secret': deployment.secret,
+        'Idempotency-Key': idempotencyKey,
+        'Content-Type': 'application/json',
       },
-    )
+      body: JSON.stringify({ trigger_text: triggerText }),
+    })
   } catch (error) {
     // Never log the secret, only that the call failed.
     console.error('trigger failed', String(error))
