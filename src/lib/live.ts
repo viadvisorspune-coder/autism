@@ -25,12 +25,27 @@ export interface LiveResult<T> {
   refresh: () => void
 }
 
+/**
+ * Whose record, when the caller does not say.
+ *
+ * This defaulted to the literal 'pt-ananya'. In the seeded demo that is the
+ * right answer, which is exactly what made it dangerous: it was silently
+ * correct and would have stayed silently correct right up until the first
+ * session belonging to somebody else, at which point every screen that omitted
+ * the argument would have read one particular person's medical record.
+ *
+ * `undefined` now means "the record this session is about" and is resolved
+ * from the session. An explicit `null` still means "no particular record",
+ * which the caseload and admin reads rely on, so the two cases stay
+ * distinguishable rather than collapsing into one default.
+ */
 export function useLive<T>(
   resource: string,
-  patientId: string | null = 'pt-ananya',
+  patientId?: string | null,
   intervalMs = 4000,
 ): LiveResult<T> {
-  const { role, option } = useSession()
+  const { role, option, patientId: sessionPatient } = useSession()
+  const forRecord = patientId === undefined ? sessionPatient : patientId
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(true)
   const timer = useRef<number | null>(null)
@@ -43,7 +58,7 @@ export function useLive<T>(
     }
     try {
       const { data: body, error } = await supabase.functions.invoke('app-read', {
-        body: { resource, role, actor_id: option?.personId ?? null, patient_id: patientId },
+        body: { resource, role, actor_id: option?.personId ?? null, patient_id: forRecord },
       })
       if (!alive.current) return
       if (!error && body?.permitted) setData((body.data as T) ?? null)
@@ -52,7 +67,7 @@ export function useLive<T>(
     } finally {
       if (alive.current) setLoading(false)
     }
-  }, [resource, role, option?.personId, patientId])
+  }, [resource, role, option?.personId, forRecord])
 
   useEffect(() => {
     alive.current = true

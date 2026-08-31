@@ -53,6 +53,25 @@ const TYPE_LABEL: Record<WorkflowName, string> = {
 }
 
 export async function launch(req: LaunchRequest): Promise<LaunchResult> {
+  /**
+   * A run needs to know whose record it is about.
+   *
+   * This used to fall back to the literal 'ANANYA-001' — an id that exists
+   * nowhere in this system, since the record is 'pt-ananya'. So a request
+   * without a subject composed a trigger naming a patient the connectors could
+   * never resolve; the workflow would have retrieved nothing and reported that
+   * confidently, which is worse than failing. Refusing is the honest answer:
+   * there is no sensible default for whose medical record to read.
+   */
+  if (!req.patientId) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'no_subject',
+      detail: 'This request does not say whose record it is about.',
+    }
+  }
+
   const lookup = deploymentFor(req.lane)
   if (!lookup.ok) {
     return { ok: false, status: 503, error: 'workflow_not_configured', detail: lookup.reason }
@@ -111,7 +130,7 @@ export async function launch(req: LaunchRequest): Promise<LaunchResult> {
 
   if (runError || !run) return { ok: false, status: 500, error: 'could_not_record_run' }
 
-  const identity = identityFor(req.actor, req.patientId ?? 'ANANYA-001')
+  const identity = identityFor(req.actor, req.patientId)
   const triggerText = composeTrigger({
     workflow: req.lane,
     identity,

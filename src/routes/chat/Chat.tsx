@@ -80,13 +80,22 @@ export function WorkflowChat() {
   const [helpOpen, setHelpOpen] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
 
-  const subjectId = patientId ?? 'ANANYA-001'
+  /**
+   * Whose record this conversation is about.
+   *
+   * No fallback. The previous default was the literal 'ANANYA-001', which is
+   * not an id this system uses anywhere — the record is 'pt-ananya' — so a
+   * session without a record composed a trigger naming a subject the
+   * connectors could never resolve, and the workflow would have looked up
+   * nothing and said so confidently.
+   */
+  const subjectId = patientId
   const identity: Identity = useMemo(
     () =>
       identityFrom(
         personName || option?.name || 'Unknown',
         role,
-        subjectId,
+        subjectId ?? '',
         option?.personId ?? '',
       ),
     [personName, option?.name, role, subjectId],

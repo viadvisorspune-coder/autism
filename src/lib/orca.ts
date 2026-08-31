@@ -35,8 +35,23 @@ export type Resource =
   | 'approvals'
   | 'workflow_runs'
 
-export function useOrcaRead<T>(resource: Resource, patientId: string | null = 'pt-ananya'): ReadResult<T> {
-  const { role, option } = useSession()
+/**
+ * Whose record, when the caller does not say.
+ *
+ * This defaulted to the literal 'pt-ananya'. In the seeded demo that is the
+ * right answer, which is exactly what made it dangerous: it was silently
+ * correct and would have stayed silently correct right up until the first
+ * session belonging to somebody else, at which point every screen that omitted
+ * the argument would have read one particular person's medical record.
+ *
+ * `undefined` now means "the record this session is about" and is resolved
+ * from the session. An explicit `null` still means "no particular record",
+ * which the caseload and admin reads rely on, so the two cases stay
+ * distinguishable rather than collapsing into one default.
+ */
+export function useOrcaRead<T>(resource: Resource, patientId?: string | null): ReadResult<T> {
+  const { role, option, patientId: sessionPatient } = useSession()
+  const forRecord = patientId === undefined ? sessionPatient : patientId
   const [result, setResult] = useState<ReadResult<T>>({ state: 'loading', data: null, reason: null })
 
   useEffect(() => {
@@ -49,7 +64,7 @@ export function useOrcaRead<T>(resource: Resource, patientId: string | null = 'p
 
     supabase.functions
       .invoke('app-read', {
-        body: { resource, role, actor_id: option?.personId ?? null, patient_id: patientId },
+        body: { resource, role, actor_id: option?.personId ?? null, patient_id: forRecord },
       })
       .then(({ data, error }) => {
         if (cancelled) return
@@ -85,7 +100,7 @@ export function useOrcaRead<T>(resource: Resource, patientId: string | null = 'p
     return () => {
       cancelled = true
     }
-  }, [resource, role, option?.personId, patientId])
+  }, [resource, role, option?.personId, forRecord])
 
   return result
 }

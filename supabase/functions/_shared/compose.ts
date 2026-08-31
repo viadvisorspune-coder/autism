@@ -232,15 +232,26 @@ export function composeTrigger(args: {
   runId?: string | null
 }): string {
   const { workflow, identity, message, previous, runId } = args
-  const head =
-    workflow === 'produce'
-      ? producePreamble(
-          identity,
-          args.recipient ?? { name: identity.name, role: identity.role, org: 'ORCA' },
-          args.artifactType ?? 'summary',
-          runId,
-        )
-      : understandPreamble(identity, runId)
+
+  /**
+   * Which preamble, by what the lane produces rather than by its name.
+   *
+   * PRODUCE and the 15-step both end in a document for somebody, so both need
+   * the recipient and the artifact type stated. The 15-step was getting the
+   * question preamble — no recipient, no artifact type — which is the one lane
+   * where those are least optional: it exists to send a formal document to an
+   * external party, and a workflow told none of that has to guess who it is
+   * writing to.
+   */
+  const makesDocument = workflow === 'produce' || workflow === 'fifteen'
+  const head = makesDocument
+    ? producePreamble(
+        identity,
+        args.recipient ?? { name: identity.name, role: identity.role, org: 'ORCA' },
+        args.artifactType ?? 'summary',
+        runId,
+      )
+    : understandPreamble(identity, runId)
 
   const parts = [head, '', `"${message.trim()}"`]
   const handoff = previous ? handoffBlock(previous) : null
