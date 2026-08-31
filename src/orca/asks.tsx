@@ -84,11 +84,26 @@ export interface Source {
  * treatment is learnable once:
  *
  *   answer  — it was answered
+ *   clarify — the workflow needs one more detail before it can answer
+ *   unknown — it ran, nothing went wrong, and the record does not settle it
  *   refusal — this person may not ask this, and there is no route
  *   gate    — this person may not ask this, and the route runs through Ananya
  *   waiting — a run is going, or has stopped for someone
+ *   error   — it did not run, or ended without finishing
+ *
+ * `unknown` and `refusal` are deliberately separate, and the distinction is
+ * the most important one on this list. "You may not see this" is a boundary
+ * around access; "the record does not say" is a boundary around evidence.
+ * Collapsing them would tell somebody their record is closed to them when in
+ * fact it is silent, or tell them nothing happened when in fact nobody wrote
+ * it down. For a record-based system those are opposite failures.
+ *
+ * `clarify` exists because the envelope has carried a question and options
+ * since the beginning and this interface was dropping both on the floor — a
+ * workflow that stopped to ask which period was meant showed up here as a
+ * blank answer.
  */
-export type Shape = 'answer' | 'refusal' | 'gate' | 'waiting'
+export type Shape = 'answer' | 'clarify' | 'unknown' | 'refusal' | 'gate' | 'waiting' | 'error'
 
 export interface Ask {
   id: string
@@ -103,6 +118,16 @@ export interface Ask {
   answer?: string
   sources?: Source[]
   withheld?: { domain?: string; reason?: string }[]
+  /**
+   * What the workflow needs to know, when it stopped to ask.
+   *
+   * Named apart from `question`, which is the person's own words and must
+   * never be overwritten by the system's — the heading of this screen is the
+   * thing they typed, and it stays that way whatever comes back.
+   */
+  clarifyQuestion?: string
+  /** Answers it will accept, so the person taps rather than retypes. */
+  clarifyOptions?: string[]
   files?: Attachment[]
   detail?: string
   reason?: string
@@ -477,7 +502,7 @@ async function startRun(args: {
     const { isSupabaseConfigured, supabase } = await import('../lib/supabase')
     if (!isSupabaseConfigured) {
       return {
-        shape: 'answer',
+        shape: 'error',
         status: 'error',
         detail: 'No backend is configured in this build, so nothing was read and nothing was answered.',
       }
@@ -499,7 +524,7 @@ async function startRun(args: {
         typeof data?.detail === 'string'
           ? data.detail
           : 'Your question could not be sent. Nothing was read from the record, and no answer has been invented in its place.'
-      return { shape: 'answer', status: 'error', detail }
+      return { shape: 'error', status: 'error', detail }
     }
 
     return {
@@ -511,7 +536,7 @@ async function startRun(args: {
     }
   } catch {
     return {
-      shape: 'answer',
+      shape: 'error',
       status: 'error',
       detail: 'Your question did not send. This is usually a connection problem. Send it again when you are ready.',
     }
@@ -548,14 +573,37 @@ function settleFrom(row: RunRow): Partial<Ask> | null {
         ? 'needs_clarification'
         : envelope.status
 
+  const answer = envelope.answerHtml ?? row.answer_html ?? undefined
+
+  /**
+   * Which of the seven shapes this settled into.
+   *
+   * A finished run with no answer used to render as an answer with nothing in
+   * it. It is not that: it is the record failing to settle the question, which
+   * is a real and frequently correct outcome for a record that has gaps in it,
+   * and the person is owed those words rather than an empty card.
+   */
+  const shape: Shape =
+    status === 'needs_approval'
+      ? 'waiting'
+      : status === 'needs_clarification'
+        ? 'clarify'
+        : status === 'error' || status === 'blocked'
+          ? 'error'
+          : answer
+            ? 'answer'
+            : 'unknown'
+
   return {
-    shape: status === 'needs_approval' || status === 'needs_clarification' ? 'waiting' : 'answer',
+    shape,
     status,
     path: row.path ?? undefined,
     reason: row.route_reason ?? undefined,
-    answer: envelope.answerHtml ?? row.answer_html ?? undefined,
+    answer,
     sources: envelope.sources,
     withheld: envelope.withheld,
+    clarifyQuestion: envelope.question ?? undefined,
+    clarifyOptions: envelope.options,
     detail:
       envelope.detail ??
       (finished && !row.answer_html

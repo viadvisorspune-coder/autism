@@ -22,6 +22,20 @@ import { useSession } from '../state/session'
 export interface LiveResult<T> {
   data: T | null
   loading: boolean
+  /**
+   * True once a read has failed and none has since succeeded.
+   *
+   * Without this every failure was silent, and a screen that could not reach
+   * the record rendered exactly like a screen whose record is empty. That is
+   * the worst confusion this interface can produce: "you have no decisions
+   * waiting" and "we could not find out whether you have decisions waiting"
+   * are different facts, and only one of them means you can stop looking.
+   *
+   * Set only after a real attempt, and cleared by the next success, so a
+   * single dropped poll on a flaky connection does not put a warning on
+   * screen that the following second contradicts.
+   */
+  failed: boolean
   refresh: () => void
 }
 
@@ -48,6 +62,7 @@ export function useLive<T>(
   const forRecord = patientId === undefined ? sessionPatient : patientId
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
   const timer = useRef<number | null>(null)
   const alive = useRef(true)
 
@@ -61,9 +76,17 @@ export function useLive<T>(
         body: { resource, role, actor_id: option?.personId ?? null, patient_id: forRecord },
       })
       if (!alive.current) return
-      if (!error && body?.permitted) setData((body.data as T) ?? null)
+      if (!error && body?.permitted) {
+        setData((body.data as T) ?? null)
+        setFailed(false)
+      } else {
+        // A refusal is not a failure — it is an answer, and the screens that
+        // ask for a resource they may not have already handle it. Only an
+        // actual inability to find out counts here.
+        setFailed(Boolean(error))
+      }
     } catch {
-      /* A missed poll is not worth showing anyone; the next one will land. */
+      if (alive.current) setFailed(true)
     } finally {
       if (alive.current) setLoading(false)
     }
@@ -98,7 +121,7 @@ export function useLive<T>(
     }
   }, [read, intervalMs])
 
-  return { data, loading, refresh: read }
+  return { data, loading, failed, refresh: read }
 }
 
 /* ------------------------------------------------------------------- writes */

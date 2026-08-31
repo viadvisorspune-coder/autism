@@ -10,8 +10,8 @@
  * have been replaced. History is the product — an entry that was superseded
  * says so, dated, with the current version one tap away.
  */
-import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useMemo } from 'react'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useSession } from '../state/session'
 import { useRecordStatus } from '../data/RecordProvider'
 import { eventsFor, personName } from '../data/db'
@@ -48,7 +48,26 @@ export default function Record() {
   // under these screens are no longer the seeded ones.
   const { status } = useRecordStatus()
   const { subjectId, subjectName, choosable } = useSubject()
-  const [filter, setFilter] = useState<EventCategory | 'Everything'>('Everything')
+
+  /**
+   * The filter lives in the URL, not in component state.
+   *
+   * Held in state, it was lost the moment somebody opened an entry and pressed
+   * Back — they returned to the whole record with no memory of the slice they
+   * had been reading, and no indication that anything had changed. In the URL
+   * it survives Back, it survives a reload, and it can be linked to.
+   *
+   * `replace` on change, so filtering does not fill the browser's history with
+   * one entry per press and turn the Back button into a list of filters.
+   */
+  const [params, setParams] = useSearchParams()
+  const filter = (params.get('only') as EventCategory | null) ?? 'Everything'
+  const setFilter = (next: EventCategory | 'Everything') => {
+    const updated = new URLSearchParams(params)
+    if (next === 'Everything') updated.delete('only')
+    else updated.set('only', next)
+    setParams(updated, { replace: true })
+  }
 
   const mine = role === 'patient'
   const events = useMemo(() => {
@@ -106,11 +125,33 @@ export default function Record() {
         </div>
       ) : null}
 
+      {/*
+        What is being hidden, and how to stop hiding it.
+
+        A filtered list with no statement of the filter is a record that
+        appears to have lost half its entries. The count is part of it: "Health
+        · 12 of 47 entries" answers the question the missing entries raise
+        before somebody has to ask it.
+      */}
+      {filter !== 'Everything' ? (
+        <div className="mb-10 flex flex-wrap items-center justify-between gap-4 border border-black p-5">
+          <p className="o-body">
+            <span className="font-semibold">{filter}</span> · {shown.length} of {events.length}{' '}
+            {events.length === 1 ? 'entry' : 'entries'}
+          </p>
+          <button type="button" className="o-btn o-btn-small" onClick={() => setFilter('Everything')}>
+            Show everything
+          </button>
+        </div>
+      ) : null}
+
       {!shown.length ? (
         <Nothing>
-          {mine
-            ? 'There is nothing in your record under this heading yet. Anything you write, and anything a professional writes about you, appears here.'
-            : 'There is nothing here that is part of your access to this record.'}
+          {filter !== 'Everything'
+            ? `No entries in your record are filed under ${filter}. Other entries exist — this heading is empty, not the record.`
+            : mine
+              ? 'There is nothing in your record yet. Anything you write, and anything a professional writes about you, appears here.'
+              : 'There is nothing here that is part of your access to this record.'}
         </Nothing>
       ) : null}
 

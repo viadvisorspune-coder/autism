@@ -15,7 +15,7 @@ import { useMemo, useState } from 'react'
 import { useLive } from '../lib/live'
 import { connections, patients, people } from '../data/db'
 import { isSupabaseConfigured } from '../lib/supabase'
-import { Nothing, PageTitle, SectionHead, longDate } from './parts'
+import { CouldNotLoad, Nothing, PageTitle, SectionHead, longDate } from './parts'
 
 interface AdminRun {
   id: string
@@ -62,7 +62,7 @@ function stamp(value: string | null): string {
 const FAILED = new Set(['Blocked', 'Cancelled', 'Escalated'])
 
 export function Runs() {
-  const { data, loading } = useRuns()
+  const { data, loading, failed, refresh } = useRuns()
   const runs = data?.runs ?? []
 
   const [status, setStatus] = useState('Everything')
@@ -111,8 +111,9 @@ export function Runs() {
         </div>
       </div>
 
-      {loading && !runs.length ? <Nothing>Reading the run log.</Nothing> : null}
-      {!loading && !shown.length ? (
+      {failed ? <CouldNotLoad what="The run log" onRetry={refresh} /> : null}
+      {loading && !runs.length && !failed ? <Nothing>Reading the run log.</Nothing> : null}
+      {!loading && !shown.length && !failed ? (
         <Nothing>No runs match those filters.</Nothing>
       ) : null}
 
@@ -250,14 +251,17 @@ export function Access() {
  * table underneath it is worse than no dashboard.
  */
 export function Health() {
-  const { data, loading } = useRuns()
+  const { data, loading, failed } = useRuns()
   const runs = data?.runs ?? []
 
   const open = runs.filter((r) => r.status === 'In progress' || r.status === 'Queued')
   const waiting = runs.filter((r) => (r.status ?? '').startsWith('Awaiting'))
-  const failed = runs.filter((r) => FAILED.has(r.status ?? ''))
+  // Named apart from the read's own `failed`: one is "runs that did not
+  // complete", the other is "this screen could not find out". Sharing a name
+  // made the second silently shadow the first.
+  const notCompleted = runs.filter((r) => FAILED.has(r.status ?? ''))
   const done = runs.filter((r) => r.status === 'Completed')
-  const rate = runs.length ? Math.round((failed.length / runs.length) * 100) : 0
+  const rate = runs.length ? Math.round((notCompleted.length / runs.length) * 100) : 0
 
   return (
     <>
@@ -268,7 +272,13 @@ export function Health() {
         <dl className="space-y-5">
           <Line
             label="Record and workflow API"
-            value={isSupabaseConfigured ? 'Configured and answering' : 'Not configured in this build'}
+            value={
+              !isSupabaseConfigured
+                ? 'Not configured in this build'
+                : failed
+                  ? 'Not answering'
+                  : 'Answering'
+            }
           />
           <Line
             label="Run log"
@@ -293,7 +303,7 @@ export function Health() {
       <section className="o-section">
         <SectionHead>Errors</SectionHead>
         <dl className="space-y-5">
-          <Line label="Runs that did not complete" value={String(failed.length)} />
+          <Line label="Runs that did not complete" value={String(notCompleted.length)} />
           <Line label="Share of runs" value={`${rate}%`} />
         </dl>
       </section>

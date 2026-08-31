@@ -1,12 +1,24 @@
 /**
- * The answer, and the three other things an answer can turn out to be.
+ * The answer, and the six other things an answer can turn out to be.
  *
- * Four shapes, one treatment each, the same for every user so the shape is
- * learnable once: answered, waiting on someone, not available, or needs a
- * permission that only Ananya can give. Which one you get is decided by who is
- * asking and what they asked about — never by whether the record happens to
- * hold it, because a difference between "there is nothing" and "you may not see
- * it" is itself a disclosure.
+ * Seven shapes, one treatment each, the same for every user so each shape is
+ * learnable once: answered, needs one more detail, the record cannot settle it,
+ * waiting on someone, not available to you, needs a permission only Ananya can
+ * give, or it did not run.
+ *
+ * Which one you get is decided by who is asking and what they asked about —
+ * never by whether the record happens to hold it, because a difference between
+ * "there is nothing" and "you may not see it" is itself a disclosure.
+ *
+ * The three that are easiest to collapse into each other, and must not be:
+ *
+ *   NOT AVAILABLE  a boundary around access. Somebody else can see this.
+ *   CANNOT ANSWER  a boundary around evidence. Nobody wrote it down.
+ *   DID NOT RUN    neither. The question never reached the record.
+ *
+ * Rendering any of those as the others tells the person something false about
+ * their own life, and for a record made mostly of gaps that is the most likely
+ * way this interface could mislead somebody.
  */
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -51,7 +63,9 @@ export default function Answer() {
   return (
     <>
       <Back to="/ask">Back to Ask</Back>
-      <h1 className="o-h2 o-measure mb-3">{item.question}</h1>
+      <h1 className="o-h2 o-measure mb-3" tabIndex={-1} data-focus-target>
+        {item.question}
+      </h1>
       <Routing item={item} />
 
       {item.attached ? (
@@ -100,11 +114,91 @@ export default function Answer() {
         </Card>
       ) : null}
 
-      {item.shape === 'answer' && !item.answer ? (
-        <Nothing>
-          {item.detail ??
-            'The run finished without producing an answer. Nothing was retried and nothing else was run in its place.'}
-        </Nothing>
+      {/*
+        One more detail needed — a conversational state, not a failure.
+
+        The options come from the workflow, so they are rendered rather than
+        invented, and tapping one asks the question again with that answer
+        appended. The person can also ignore them and type something else:
+        offering choices should never become a requirement to pick one.
+      */}
+      {item.shape === 'clarify' ? (
+        <Card tone="decision">
+          <div className="o-card-body">
+            <h2 className="o-h2 mb-6">One more detail</h2>
+            <p className="o-body o-measure">
+              {item.clarifyQuestion ??
+                'Something is missing before this can be answered from the record.'}
+            </p>
+            {item.clarifyOptions?.length ? (
+              <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:flex-wrap">
+                {item.clarifyOptions.map((o) => (
+                  <button
+                    key={o}
+                    type="button"
+                    className="o-btn"
+                    onClick={async () => {
+                      const id = await ask(`${item.question} ${o}`)
+                      navigate(`/ask/${id}`)
+                    }}
+                  >
+                    {o}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <p className="o-meta o-measure mt-6">
+              Nothing has been answered yet. You can also go back and ask it differently.
+            </p>
+          </div>
+        </Card>
+      ) : null}
+
+      {/*
+        The record does not settle it.
+
+        Kept strictly apart from a refusal, which is the single most important
+        distinction on this screen. "You may not see this" is a boundary around
+        access. "The record does not say" is a boundary around evidence. Told
+        the first when the truth is the second, a person concludes their record
+        is closed to them; told the second when the truth is the first, they
+        conclude nothing happened. For a record built out of gaps, those are
+        opposite and equally damaging mistakes.
+      */}
+      {item.shape === 'unknown' ? (
+        <Card tone="past">
+          <div className="o-card-body">
+            <h2 className="o-h2 mb-6">The record does not answer this</h2>
+            <p className="o-body o-measure">
+              {item.detail ??
+                'Your record was read and it does not contain enough to settle this question.'}
+            </p>
+            <h3 className="o-h3 mb-2 mt-8">What this does not mean</h3>
+            <p className="o-body o-measure">
+              It does not mean nothing happened. A record shows what somebody wrote down, and
+              silence in it is silence about the writing, not about the life.
+            </p>
+          </div>
+        </Card>
+      ) : null}
+
+      {item.shape === 'error' ? (
+        <Card tone="past">
+          <div className="o-card-body">
+            <h2 className="o-h2 mb-6">This did not run</h2>
+            <p className="o-body o-measure">
+              {item.detail ?? 'No reason was given for this stopping.'}
+            </p>
+            <h3 className="o-h3 mb-2 mt-8">What happened to your question</h3>
+            <p className="o-body o-measure">
+              Nothing was read from the record, nothing was retried, and nothing else was run in
+              its place. Asking again is safe.
+            </p>
+            <Link to="/ask" className="o-btn o-btn-primary mt-8 no-underline">
+              Ask it again
+            </Link>
+          </div>
+        </Card>
       ) : null}
 
       {/*

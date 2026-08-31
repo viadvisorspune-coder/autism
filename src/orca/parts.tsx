@@ -40,7 +40,16 @@ export function Card({
 export function PageTitle({ children, sub }: { children: ReactNode; sub?: ReactNode }) {
   return (
     <div className="mb-10">
-      <h1 className="o-title o-measure">{children}</h1>
+      {/*
+        Where focus lands after a navigation.
+
+        tabIndex -1 so it can be focused programmatically without joining the
+        tab order — a heading that traps a Tab press on the way past would be a
+        worse problem than the one this solves.
+      */}
+      <h1 className="o-title o-measure" tabIndex={-1} data-focus-target>
+        {children}
+      </h1>
       {sub ? <p className="o-meta mt-3 o-measure">{sub}</p> : null}
     </div>
   )
@@ -302,6 +311,42 @@ export function shortDate(value: string | undefined): string {
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return value
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+}
+
+/**
+ * A read that failed, said as a failure.
+ *
+ * The distinction this exists for: **empty is not unavailable is not broken.**
+ * "You have no decisions waiting" and "we could not find out whether you have
+ * decisions waiting" are different facts, and only the first one means you can
+ * stop looking. Rendering the second as the first is how somebody misses the
+ * thing that was waiting for them.
+ *
+ * Three parts, like every other failure in this interface: what happened, why,
+ * and what to do. It keeps retrying on its own, so the honest instruction is
+ * usually "wait" rather than a button that does what is already happening.
+ */
+export function CouldNotLoad({ what, onRetry }: { what: string; onRetry?: () => void }) {
+  return (
+    <div className="o-card">
+      <div className="o-card-body">
+        <h2 className="o-h3 mb-3">{what} could not be loaded</h2>
+        <p className="o-body o-measure">
+          The record did not answer. This is a connection problem, not a change to what you are
+          allowed to see — nothing has been hidden and nothing has been lost.
+        </p>
+        <p className="o-body o-measure mt-4">
+          ORCA keeps trying every few seconds. What is on screen may be out of date until it
+          succeeds.
+        </p>
+        {onRetry ? (
+          <button type="button" className="o-btn mt-6" onClick={onRetry}>
+            Try now
+          </button>
+        ) : null}
+      </div>
+    </div>
+  )
 }
 
 /** An empty screen that says why it is empty and what would fill it. */

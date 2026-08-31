@@ -16,14 +16,14 @@ import { useLive } from '../lib/live'
 import type { PendingApproval } from '../components/ApprovalPanel'
 import { useAsks } from './asks'
 import { useSubject } from './subject'
-import { Card, Nothing, PageTitle, Prose, SectionHead, longDate } from './parts'
+import { Card, CouldNotLoad, Nothing, PageTitle, Prose, SectionHead, longDate } from './parts'
 import { domainName } from './system'
 
 export default function Decisions() {
   const { option, role } = useSession()
   const { subjectId } = useSubject()
   const { requests, answerRequest } = useAsks()
-  const { data, refresh } = useLive<{ approvals: PendingApproval[] }>('approvals', subjectId)
+  const { data, failed, refresh } = useLive<{ approvals: PendingApproval[] }>('approvals', subjectId)
 
   const waiting = (data?.approvals ?? []).filter((a) => a.status === 'Awaiting approval')
   // Access requests are addressed to the person whose record it is. Everybody
@@ -43,7 +43,9 @@ export default function Decisions() {
             : `${count} things need your decision`}
       </PageTitle>
 
-      {count === 0 && !raised.length ? (
+      {failed ? <CouldNotLoad what="Decisions" onRetry={refresh} /> : null}
+
+      {count === 0 && !raised.length && !failed ? (
         <Nothing>
           When something would be sent to another person, or when someone asks for access to a
           part of the record they cannot currently see, it waits here until you decide. Nothing

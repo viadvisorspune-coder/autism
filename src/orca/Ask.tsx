@@ -15,7 +15,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSession } from '../state/session'
 import { ACCEPTED_FILES, type Attached, attachFile } from '../lib/attach'
-import { useAsks } from './asks'
+import { type Shape, useAsks } from './asks'
 import { useSubject } from './subject'
 import { Card, PageTitle, SectionHead, shortDate } from './parts'
 import { toneClass } from './system'
@@ -192,9 +192,7 @@ export default function Ask() {
                       <p className="o-h3">{a.question}</p>
                       <p className="o-meta mt-6">
                         {shortDate(a.at)}
-                        {a.shape === 'waiting' ? ' · still working' : ''}
-                        {a.shape === 'refusal' ? ' · not available to you' : ''}
-                        {a.shape === 'gate' ? ' · needs permission' : ''}
+                        {outcomeLabel(a.shape)}
                       </p>
                     </div>
                   </Card>
@@ -216,6 +214,33 @@ export default function Ask() {
 
 function showsRecent(role: string | null): boolean {
   return role !== 'employer' && role !== 'university'
+}
+
+/**
+ * How a card says what became of the question.
+ *
+ * In words, on every card, because the colour block above it cannot carry this
+ * on its own — a reader who does not distinguish coral from mint would
+ * otherwise have six identical cards. Colour is the second signal here, never
+ * the only one.
+ */
+function outcomeLabel(shape: Shape): string {
+  switch (shape) {
+    case 'waiting':
+      return ' · still working'
+    case 'refusal':
+      return ' · not available to you'
+    case 'gate':
+      return ' · needs permission'
+    case 'clarify':
+      return ' · needs one more detail'
+    case 'unknown':
+      return ' · the record does not answer this'
+    case 'error':
+      return ' · did not run'
+    default:
+      return ''
+  }
 }
 
 /**

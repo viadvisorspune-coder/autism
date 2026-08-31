@@ -22,7 +22,7 @@ import type { DocumentRecord, Role } from '../data/types'
 import { type Attachment, type ConversationData, useLive } from '../lib/live'
 import { useAsks } from './asks'
 import { useSubject } from './subject'
-import { Card, Nothing, PageTitle, SectionHead, longDate } from './parts'
+import { Card, CouldNotLoad, Nothing, PageTitle, SectionHead, longDate } from './parts'
 import type { Tone } from './system'
 
 type State = 'Draft' | 'Waiting for a decision' | 'Sent' | 'Not sent'
@@ -45,7 +45,7 @@ export default function Documents() {
   const { status } = useRecordStatus()
   const { subjectId, subjectName, choosable } = useSubject()
   const [composing, setComposing] = useState(false)
-  const { data } = useLive<ConversationData>('conversation', subjectId)
+  const { data, failed, refresh } = useLive<ConversationData>('conversation', subjectId)
 
   const mine = role === 'patient'
 
@@ -86,7 +86,13 @@ export default function Documents() {
         </button>
       ) : null}
 
-      {!held.length && !produced.length ? (
+      {failed ? (
+        <div className="mb-10">
+          <CouldNotLoad what="Documents produced by a workflow" onRetry={refresh} />
+        </div>
+      ) : null}
+
+      {!held.length && !produced.length && !failed ? (
         <Nothing>
           {mine
             ? 'Nothing has been written yet. When you ask for something to be written up, the draft appears here and waits for your decision before it goes anywhere.'

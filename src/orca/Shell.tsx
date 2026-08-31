@@ -20,6 +20,7 @@ import { useRecordStatus } from '../data/RecordProvider'
 import { AsksProvider } from './asks'
 import { SubjectProvider, useSubject } from './subject'
 import { homeFor, navFor, paletteFor } from './system'
+import { SkipLink, screenName, useFocusOnNavigate, useOffline, useTitle } from './orientation'
 
 export default function Shell() {
   const { signedIn, role } = useSession()
@@ -61,6 +62,9 @@ function Frame() {
   const { subjectId, subjectName, choosable } = useSubject()
   const items = navFor(role)
   const { pathname } = useLocation()
+  useTitle(screenName(pathname, role))
+  useFocusOnNavigate()
+  const offline = useOffline()
   const [menuOpen, setMenuOpen] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
 
@@ -73,6 +77,26 @@ function Frame() {
 
   return (
     <div className="min-h-screen">
+      <SkipLink />
+      {/*
+        Said once, at the top, before anything the person might act on.
+
+        A record system that has gone quiet is otherwise indistinguishable from
+        one that is broken, and somebody whose medical record appears to have
+        stopped answering is owed the knowledge that it is their connection
+        rather than their record.
+      */}
+      {offline ? (
+        <div className="border-b border-black bg-[var(--paper)]">
+          <div className="o-wrap py-4">
+            <p className="o-body o-measure">
+              <span className="font-semibold">You are offline.</span> What is already on screen is
+              still readable. New questions cannot be sent and nothing you do now will reach
+              anyone until the connection comes back.
+            </p>
+          </div>
+        </div>
+      ) : null}
       <header className="border-b border-black bg-[var(--paper)]">
         {/*
           Wraps rather than clips.
@@ -171,7 +195,7 @@ function Frame() {
         ) : null}
       </header>
 
-      <main className="o-wrap py-16">
+      <main id="orca-main" className="o-wrap py-16">
         <Outlet />
       </main>
 
