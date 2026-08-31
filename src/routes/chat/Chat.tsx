@@ -179,7 +179,7 @@ export function WorkflowChat() {
               {t.state === 'settled' ? (
                 <Answered turn={t} onPick={send} />
               ) : (
-                <Working state={t.state} />
+                <Working state={t.state} since={t.at} />
               )}
             </li>
           ))}
@@ -438,7 +438,46 @@ function Asked({ turn }: { turn: Turn }) {
   )
 }
 
-function Working({ state }: { state: 'sending' | 'running' }) {
+/**
+ * How long a run may sit unanswered before the screen says something.
+ *
+ * Not a timeout — nothing is cancelled, and the run is still going at Yoxa.
+ * It is the point at which continuing to show a spinner stops being honest.
+ * Yoxa has no API for reading a finished run, so if a workflow ends without
+ * passing through an approval gate, its answer has no way back into ORCA and
+ * this screen will never learn it finished. A person watching dots forever
+ * deserves to be told that, and told where the work actually went.
+ */
+const STALL_AFTER_MS = 3 * 60 * 1000
+
+function Working({ state, since }: { state: 'sending' | 'running'; since?: string }) {
+  // The stall notice depends on elapsed time, and nothing else on this screen
+  // re-renders on a schedule, so it needs its own clock.
+  const [, tick] = useState(0)
+  useEffect(() => {
+    if (state !== 'running') return
+    const id = window.setInterval(() => tick((n) => n + 1), 15_000)
+    return () => window.clearInterval(id)
+  }, [state])
+
+  const stalled =
+    state === 'running' && since ? Date.now() - Date.parse(since) > STALL_AFTER_MS : false
+
+  if (stalled) {
+    return (
+      <div className="rounded-xl border border-line bg-paper px-4 py-3">
+        <p className="text-[0.85rem] text-ink">
+          The workflow is still running, but its answer has not reached ORCA.
+        </p>
+        <p className="mt-1.5 text-[0.83rem] text-ink-2">
+          Nothing has failed and nothing has been lost. Results only come back to this screen
+          through an approval step — if this run finishes without one, its answer stays in Yoxa.
+          Anything waiting on you appears at the top of this page.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="flex items-center gap-2 px-1 py-2 text-[0.85rem] text-muted">
       <span className="flex gap-1" aria-hidden>
