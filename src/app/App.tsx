@@ -6,6 +6,17 @@ import { WorkflowChat } from '../routes/chat/Chat'
 import { Login } from '../routes/auth/Auth'
 import Onboarding from '../routes/auth/Onboarding'
 
+import Shell from '../orca/Shell'
+import Ask from '../orca/Ask'
+import Answer from '../orca/Answer'
+import OrcaRecord, { Entry } from '../orca/Record'
+import OrcaDecisions from '../orca/Decisions'
+import OrcaDocuments from '../orca/Documents'
+import OrcaSharing from '../orca/Sharing'
+import OrcaCaseload from '../orca/Caseload'
+import { Access, Health, Runs } from '../orca/Admin'
+import { hasCaseload, homeFor } from '../orca/system'
+
 import PatientHome from '../routes/patient/Home'
 import PatientGuide from '../routes/patient/Guide'
 import { PatientStory, PatientStoryEvent } from '../routes/patient/Story'
@@ -102,6 +113,21 @@ function RequireSession({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
+/**
+ * A destination that only exists for some people.
+ *
+ * Not a refusal — a refusal is a screen somebody reads, and these are not
+ * things anyone should ever be reading. The administrator has no Ask because
+ * there is nothing he may ask; the employer has no Sharing because it is not
+ * his record to share. Reaching one of these by URL sends you to your own home
+ * rather than telling you what you are missing.
+ */
+function Only({ when, children }: { when: boolean; children: ReactNode }) {
+  const { role } = useSession()
+  if (!when) return <Navigate to={homeFor(role)} replace />
+  return <>{children}</>
+}
+
 /** The screens every clinical role shares, mounted under that role's base path. */
 function clinicalRoutes() {
   return (
@@ -132,7 +158,8 @@ function clinicalRoutes() {
 }
 
 export default function App() {
-  const { signedIn, option, setupComplete } = useSession()
+  const { signedIn, option, setupComplete, role } = useSession()
+  const notAdmin = role !== 'admin'
 
   return (
     <Routes>
@@ -164,6 +191,42 @@ export default function App() {
         path="/chat"
         element={signedIn ? <WorkflowChat /> : <Navigate to="/" replace />}
       />
+
+      {/*
+        ORCA proper.
+
+        Ask is the home screen for everyone except the administrator, and every
+        other destination exists to support what happens in the conversation.
+        The older role workspaces are still mounted below and still reachable by
+        URL — nothing was deleted — but nothing links to them any more.
+      */}
+      <Route element={<Shell />}>
+        <Route path="/ask" element={<Only when={notAdmin}><Ask /></Only>} />
+        <Route path="/ask/:askId" element={<Only when={notAdmin}><Answer /></Only>} />
+        <Route path="/record" element={<Only when={notAdmin}><OrcaRecord /></Only>} />
+        <Route path="/record/:entryId" element={<Only when={notAdmin}><Entry /></Only>} />
+        <Route path="/decisions" element={<Only when={notAdmin}><OrcaDecisions /></Only>} />
+        <Route path="/documents" element={<Only when={notAdmin}><OrcaDocuments /></Only>} />
+        <Route
+          path="/sharing"
+          element={
+            <Only when={role === 'patient'}>
+              <OrcaSharing />
+            </Only>
+          }
+        />
+        <Route
+          path="/caseload"
+          element={
+            <Only when={hasCaseload(role)}>
+              <OrcaCaseload />
+            </Only>
+          }
+        />
+        <Route path="/runs" element={<Only when={role === 'admin'}><Runs /></Only>} />
+        <Route path="/access" element={<Only when={role === 'admin'}><Access /></Only>} />
+        <Route path="/health" element={<Only when={role === 'admin'}><Health /></Only>} />
+      </Route>
 
       <Route
         element={

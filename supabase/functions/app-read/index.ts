@@ -30,20 +30,21 @@ type Resource =
   | 'workflow_runs'
   | 'calendar'
   | 'caseload'
+  | 'consent'
 
 /** What each role may ever receive, before per-patient consent narrows it. */
 const ROLE_MAY_READ: Record<string, Resource[]> = {
-  patient: ['bundle', 'run', 'inbox', 'conversation', 'privacy', 'timeline', 'requests', 'profile', 'strategies', 'audit', 'approvals', 'workflow_runs', 'calendar'],
-  psychologist: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'strategies', 'requests', 'approvals'],
-  psychiatrist: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'requests'],
-  therapist: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies'],
-  ot: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies'],
-  gp: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile'],
-  clinic: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'requests', 'workflow_runs'],
-  employer: ['caseload', 'bundle', 'run', 'inbox', 'conversation', 'requests'],
-  university: ['caseload', 'bundle', 'run', 'inbox', 'conversation', 'requests'],
-  trusted: ['bundle', 'run', 'inbox', 'conversation', 'profile'],
-  admin: ['bundle', 'run', 'inbox', 'conversation', 'workflow_runs', 'audit'],
+  patient: ['bundle', 'run', 'inbox', 'conversation', 'privacy', 'timeline', 'requests', 'profile', 'strategies', 'audit', 'approvals', 'workflow_runs', 'calendar', 'consent'],
+  psychologist: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'strategies', 'requests', 'approvals', 'consent'],
+  psychiatrist: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'requests', 'consent'],
+  therapist: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies', 'consent'],
+  ot: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies', 'consent'],
+  gp: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'consent'],
+  clinic: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'requests', 'workflow_runs', 'consent'],
+  employer: ['caseload', 'bundle', 'run', 'inbox', 'conversation', 'requests', 'consent'],
+  university: ['caseload', 'bundle', 'run', 'inbox', 'conversation', 'requests', 'consent'],
+  trusted: ['bundle', 'run', 'inbox', 'conversation', 'profile', 'consent'],
+  admin: ['bundle', 'run', 'inbox', 'conversation', 'workflow_runs', 'audit', 'consent'],
 }
 
 Deno.serve(async (req) => {
@@ -783,6 +784,51 @@ async function read(
         .limit(25)
       const { data } = patientId ? await query.eq('patient_id', patientId) : await query
       return { runs: data ?? [] }
+    }
+
+    /**
+     * Consent as it currently stands: who has asked for what, and who has been
+     * stopped.
+     *
+     * Read by every role, and deliberately so — this is the one resource where
+     * the person on the far side of a boundary needs the same facts as the
+     * person who set it. Sana has to be able to see that her request is still
+     * waiting; Ananya has to be able to see that it is hers to answer.
+     *
+     * It carries no record content. A row here says a decision exists, who it
+     * is about and what part of a life it concerns. Never what that part
+     * contains.
+     */
+    case 'consent': {
+      if (!patientId) return { requests: [], stops: [] }
+
+      const [{ data: requests }, { data: stops }] = await Promise.all([
+        admin
+          .from('consent_gates')
+          .select('id, person_id, person_name, person_role, domain, question, status, created_at, decided_at')
+          .eq('patient_id', patientId)
+          .order('created_at', { ascending: false })
+          .limit(50),
+        admin
+          .from('sharing_stops')
+          .select('id, person_id, stopped_at, resumed_at')
+          .eq('patient_id', patientId)
+          .is('resumed_at', null),
+      ])
+
+      /**
+       * Everybody but the subject sees only their own requests.
+       *
+       * A therapist reading the full queue would learn which other
+       * professionals had been refused what, which is a disclosure about the
+       * subject made entirely out of metadata.
+       */
+      const scoped =
+        role === 'patient' || role === 'admin'
+          ? (requests ?? [])
+          : (requests ?? []).filter((r) => r.person_id === actorId)
+
+      return { requests: scoped, stops: stops ?? [] }
     }
   }
 }

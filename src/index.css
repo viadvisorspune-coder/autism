@@ -2,7 +2,7 @@
 
 @theme {
   --font-sans:
-    'Archivo Narrow', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica,
+    'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica,
     Arial, sans-serif;
 
   /* Neutral ground — a lavender-leaning grey rather than a warm one, so the
@@ -476,12 +476,19 @@ html[data-experience='patient'] .frost-tint {
   line-height: 1.6;
   font-weight: 400;
 }
+/*
+ * A label, in sentence case.
+ *
+ * This set `text-transform: uppercase`, which is the one typographic habit the
+ * guidance rules out outright: caps remove the ascender-and-descender shape a
+ * reader recognises a word by, and cost the most from exactly the people this
+ * product is for. Weight and size separate a label from body text perfectly
+ * well without touching the letterforms.
+ */
 .t-label {
-  font-size: 14px;
-  line-height: 1;
-  letter-spacing: 0.05em;
+  font-size: 15px;
+  line-height: 1.2;
   font-weight: 600;
-  text-transform: uppercase;
 }
 
 /* Display type has to come down on a phone, or one word fills the screen. */
@@ -502,4 +509,344 @@ html[data-experience='patient'] .frost-tint {
 .tone-band {
   height: 32px;
   border-bottom: 1px solid var(--color-ink);
+}
+
+/* --------------------------------------------------------------------------
+ * Everything below sits in @layer components.
+ *
+ * Not cosmetic. Tailwind declares `@layer theme, base, components, utilities`,
+ * and an UNLAYERED rule beats every layered one regardless of specificity — so
+ * while this block sat outside any layer it quietly won every argument with the
+ * utilities used beside it. `class="o-h2 mb-6"` produced no bottom margin,
+ * `class="o-btn md:hidden"` produced a button that never hid, and both failures
+ * were invisible in the source: the class was right there.
+ *
+ * In `components`, utilities win, which is the order everyone writing this
+ * markup already assumes.
+ * -------------------------------------------------------------------------- */
+
+@layer components {
+
+  /* ==========================================================================
+   * ORCA — the information architecture's own design system.
+   *
+   * Scoped to `html[data-ia='orca']` so it governs the seven role interfaces
+   * without touching the older screens, which are still reachable by URL and
+   * still use the sheet above.
+   *
+   * Three rules hold the whole thing together, and everything below is one of
+   * them being applied:
+   *
+   *   COLOUR IS A GOVERNANCE SIGNAL, NOT DECORATION. How much colour is on the
+   *   screen tells you whose information you are looking at and how much of it
+   *   you may see. The further from the person whose record it is, the less
+   *   colour you get — full multicolour for Ananya, one warm accent for her
+   *   sister, one cool accent for her clinicians, ink on paper for her employer
+   *   and university, black and white for the administrator. Within Ananya's
+   *   palette each colour has a fixed meaning and never rotates.
+   *
+   *   ONE COLUMN, ALWAYS. 720px, centred, on every screen and every device. Not
+   *   responsive-two-column: a layout that changes shape between screen sizes is
+   *   the thing the guidance warns against, because the map you learned on the
+   *   laptop is not the map in front of you on the phone.
+   *
+   *   ONE FAMILY, SIX SIZES, NO CAPS. Weight and size do all the work.
+   * ========================================================================== */
+
+  html[data-ia='orca'] {
+    --paper: #faf8f4;
+    --ink: #111111;
+    /* Two steps off ink, for meta lines and secondary text. Both clear 4.5:1 on
+       paper: #444 lands at 9.1:1 and #5b5b5b at 6.6:1. */
+    --ink-2: #444444;
+    --ink-3: #5b5b5b;
+
+    /* The five governance colours. Fixed meanings, never rotated. */
+    --c-current: #f2c230; /* current, active, in place */
+    --c-past: #bddbd2; /* past, resolved, historical */
+    --c-decision: #ee6c4d; /* needs a decision from the person */
+    --c-shared: #d9c3eb; /* shared with someone else */
+    --c-confirmed: #2d6a4f; /* confirmed by a professional */
+
+    /* How tall a colour block is. Overridden to a hairline for the users whose
+       palette is ink on paper, so the structure survives without the colour. */
+    --band: 10px;
+  }
+
+  /* Divya. One warm colour, used the way Ananya's mustard is used; everything
+     else falls back to paper with the card's hairline doing the separating. */
+  html[data-ia='orca'][data-look='warm'] {
+    --c-current: #e0a458;
+    --c-decision: #e0a458;
+    --c-past: #faf8f4;
+    --c-shared: #faf8f4;
+    --c-confirmed: #faf8f4;
+  }
+
+  /* Kavita, Arun, Vikram, Meera, Sana, Priya. One cool colour, same rule. */
+  html[data-ia='orca'][data-look='cool'] {
+    --c-current: #3d6b8c;
+    --c-decision: #3d6b8c;
+    --c-past: #faf8f4;
+    --c-shared: #faf8f4;
+    --c-confirmed: #faf8f4;
+  }
+
+  /* Anil, Ruth, Tejas. No accent at all — the absence is doing work, so it is
+     absolute rather than nearly absolute. The block becomes a 2px ink rule,
+     which keeps the structure and drops the signal. */
+  html[data-ia='orca'][data-look='none'],
+  html[data-ia='orca'][data-look='mono'] {
+    --c-current: #111111;
+    --c-past: #111111;
+    --c-decision: #111111;
+    --c-shared: #111111;
+    --c-confirmed: #111111;
+    --band: 2px;
+  }
+
+  /*
+   * Default margins off, at zero specificity.
+   *
+   * `:where()` is deliberate. The type classes below used to carry `margin: 0`
+   * themselves, and because this sheet loads after Tailwind's, a heading written
+   * as `class="o-h2 mb-6"` got no bottom margin at all — every heading sat
+   * flush against the paragraph under it, on every screen, and the layout read
+   * as one undifferentiated block of text. `:where()` contributes nothing to
+   * specificity, so any utility beside it wins, which is what a reset is for.
+   */
+  html[data-ia='orca'] :where(h1, h2, h3, h4, p, ul, ol, dl, figure, blockquote) {
+    margin: 0;
+    padding: 0;
+  }
+  html[data-ia='orca'] :where(ul, ol) {
+    list-style: none;
+  }
+
+  /* ------------------------------------------------------------------- type
+   *
+   * Six roles and no more. A scale with a step for every occasion is a scale
+   * nobody follows; this one gets its authority from using very few sizes at
+   * very different weights.
+   *
+   * Body sits at 19px, which is larger than convention and deliberate. Answers
+   * get 21px because they are the thing people are actually here to read.
+   */
+  .o-title {
+    font-size: 56px;
+    line-height: 1.05;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  .o-h2 {
+    font-size: 32px;
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .o-h3 {
+    font-size: 24px;
+    line-height: 1.25;
+    font-weight: 600;
+  }
+  .o-answer {
+    font-size: 21px;
+    line-height: 1.65;
+    font-weight: 400;
+  }
+  .o-body {
+    font-size: 19px;
+    line-height: 1.6;
+    font-weight: 400;
+  }
+  .o-meta {
+    font-size: 15px;
+    line-height: 1.4;
+    font-weight: 400;
+    color: var(--ink-2);
+  }
+
+  /* Display type has to come down on a phone or one word fills the screen. The
+     column does not change shape — only the type inside it does. */
+  @media (max-width: 640px) {
+    .o-title {
+      font-size: 34px;
+    }
+    .o-h2 {
+      font-size: 25px;
+    }
+    .o-h3 {
+      font-size: 20px;
+    }
+    .o-answer {
+      font-size: 19px;
+    }
+    .o-body {
+      font-size: 17px;
+    }
+  }
+
+  /* ----------------------------------------------------------------- layout */
+
+  /* 720px, centred, everywhere. 68ch caps the measure inside it for running
+     prose, which is the readable line length rather than the available one. */
+  .o-wrap {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .o-measure {
+    max-width: 68ch;
+  }
+
+  /* Vertical rhythm on an 8px base. 64px between sections, 32px inside a card. */
+  .o-section + .o-section {
+    margin-top: 64px;
+  }
+  .o-card {
+    border: 1px solid var(--ink);
+    background: var(--paper);
+  }
+  .o-card-body {
+    padding: 32px;
+  }
+  @media (max-width: 640px) {
+    .o-card-body {
+      padding: 20px;
+    }
+  }
+
+  /* The colour block. Where all the colour in this interface lives, which is
+     what lets everything else stay ink on paper and still feel like a place. */
+  .o-band {
+    height: var(--band);
+    background: var(--tone, var(--c-current));
+    border-bottom: 1px solid var(--ink);
+  }
+  /* Taller on the editorial cards, where the block is the card's whole face. */
+  .o-band-tall {
+    height: max(var(--band), 32px);
+  }
+  html[data-ia='orca'][data-look='none'] .o-band-tall,
+  html[data-ia='orca'][data-look='mono'] .o-band-tall {
+    height: 2px;
+  }
+
+  .tone-current {
+    --tone: var(--c-current);
+  }
+  .tone-past {
+    --tone: var(--c-past);
+  }
+  .tone-decision {
+    --tone: var(--c-decision);
+  }
+  .tone-shared {
+    --tone: var(--c-shared);
+  }
+  .tone-confirmed {
+    --tone: var(--c-confirmed);
+  }
+
+  /* ---------------------------------------------------------------- controls
+   *
+   * One filled control per screen; everything else outlined. Both are square,
+   * both are ink on paper or paper on ink, and both are large enough to hit
+   * with a thumb on a bad day.
+   */
+  .o-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 56px;
+    padding: 14px 28px;
+    border: 1px solid var(--ink);
+    background: var(--paper);
+    color: var(--ink);
+    font: inherit;
+    font-size: 19px;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    text-align: center;
+  }
+  .o-btn:hover:not(:disabled) {
+    background: #efece5;
+  }
+  .o-btn-primary {
+    background: var(--ink);
+    color: var(--paper);
+  }
+  .o-btn-primary:hover:not(:disabled) {
+    background: #000000;
+  }
+  .o-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .o-btn-small {
+    min-height: 44px;
+    padding: 10px 18px;
+    font-size: 17px;
+  }
+
+  html[data-ia='orca'] textarea.o-input,
+  html[data-ia='orca'] input.o-input {
+    width: 100%;
+    border: 1px solid var(--ink) !important;
+    border-radius: 0;
+    background: #ffffff !important;
+    color: var(--ink);
+    font: inherit;
+    font-size: 19px;
+    line-height: 1.6;
+    padding: 16px;
+    resize: vertical;
+  }
+
+  /* A hairline, at 1px, in ink, where separation is needed. Nowhere else. */
+  .o-rule {
+    border: 0;
+    border-top: 1px solid var(--ink);
+    margin: 0;
+  }
+
+  /* Nothing rounds, nothing floats, nothing has a shadow. */
+  html[data-ia='orca'] [class*='rounded'] {
+    border-radius: 0 !important;
+  }
+
+
+}
+
+/* --------------------------------------------------------------------------
+ * The three rules that have to stay unlayered.
+ *
+ * These do not fight a Tailwind utility — they fight the older ORCA sheet at
+ * the top of this file, which is itself unlayered. `body { background:
+ * var(--color-canvas) }` up there is a lavender-grey, and inside @layer
+ * components it beat everything I wrote: the whole interface rendered warm
+ * cards on a cold ground with navy text instead of ink. Layers are about
+ * utilities; this is about the sheet's own history, so it lives out here.
+ * -------------------------------------------------------------------------- */
+
+html[data-ia='orca'] body {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+html[data-ia='orca'] *:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 0;
+}
+
+/* The link colour is ink; the underline carries the affordance instead. */
+html[data-ia='orca'] a {
+  color: inherit;
 }

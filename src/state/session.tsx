@@ -36,7 +36,7 @@ export const roleOptions: RoleOption[] = [
     label: 'Patient',
     description: 'Understand myself, get support, decide, share, track.',
     experience: 'patient',
-    home: '/patient',
+    home: '/ask',
     personId: 'u-ananya',
     email: 'ananya.rao@example.in',
     name: 'Ananya Rao',
@@ -47,7 +47,7 @@ export const roleOptions: RoleOption[] = [
     label: 'Psychologist',
     description: 'Understand the patient, review change, work, document, coordinate.',
     experience: 'clinical',
-    home: '/psychologist',
+    home: '/caseload',
     personId: 'u-kavita',
     email: 'k.nair@sahyadri.example',
     name: 'Dr Kavita Nair',
@@ -58,7 +58,7 @@ export const roleOptions: RoleOption[] = [
     label: 'Psychiatrist',
     description: 'Clinical context, change, appointment, clinical decision.',
     experience: 'clinical',
-    home: '/psychiatrist',
+    home: '/caseload',
     personId: 'u-arun',
     email: 'a.deshpande@sahyadri.example',
     name: 'Dr Arun Deshpande',
@@ -69,7 +69,7 @@ export const roleOptions: RoleOption[] = [
     label: 'Therapist',
     description: 'Goal, intervention, outcome, adapt.',
     experience: 'clinical',
-    home: '/therapist',
+    home: '/caseload',
     personId: 'u-meera',
     email: 'm.joshi@sahyadri.example',
     name: 'Meera Joshi',
@@ -80,7 +80,7 @@ export const roleOptions: RoleOption[] = [
     label: 'Occupational therapist',
     description: 'Function, environment, adaptation, outcome.',
     experience: 'clinical',
-    home: '/ot',
+    home: '/caseload',
     personId: 'u-sana',
     email: 's.kulkarni@sahyadri.example',
     name: 'Sana Kulkarni',
@@ -91,7 +91,7 @@ export const roleOptions: RoleOption[] = [
     label: 'GP',
     description: 'Relevant context, current issue, care coordination.',
     experience: 'clinical',
-    home: '/gp',
+    home: '/caseload',
     personId: 'u-vikram',
     email: 'v.rao@kothrudfamily.example',
     name: 'Dr Vikram Rao',
@@ -102,7 +102,7 @@ export const roleOptions: RoleOption[] = [
     label: 'Hospital / clinic',
     description: 'Coordinate, document, track, hand off.',
     experience: 'organisation',
-    home: '/clinic',
+    home: '/caseload',
     personId: 'u-priya',
     email: 'p.salvi@sahyadri.example',
     name: 'Priya Salvi',
@@ -113,7 +113,7 @@ export const roleOptions: RoleOption[] = [
     label: 'Employer / HR',
     description: 'Request, review, implement, track. No clinical information.',
     experience: 'organisation',
-    home: '/employer',
+    home: '/ask',
     personId: 'u-anil',
     email: 'a.fernandes@northline.example',
     name: 'Anil Fernandes',
@@ -124,7 +124,7 @@ export const roleOptions: RoleOption[] = [
     label: 'University accessibility',
     description: 'Request, review, implement, track.',
     experience: 'organisation',
-    home: '/university',
+    home: '/ask',
     personId: 'u-ruth',
     email: 'r.menon@pid.example',
     name: 'Ruth Menon',
@@ -135,7 +135,7 @@ export const roleOptions: RoleOption[] = [
     label: 'Trusted person',
     description: 'See what has been shared, support, report.',
     experience: 'trusted',
-    home: '/trusted',
+    home: '/ask',
     personId: 'u-divya',
     email: 'divya.rao@example.in',
     name: 'Divya Rao',
@@ -146,7 +146,7 @@ export const roleOptions: RoleOption[] = [
     label: 'Administrator',
     description: 'Monitor, govern, audit.',
     experience: 'admin',
-    home: '/admin',
+    home: '/runs',
     personId: 'u-tejas',
     email: 't.bhatt@orca.example',
     name: 'Tejas Bhatt',
@@ -336,17 +336,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
  * interface rather than of the person.
  */
 const ROLE_SHAPE: Record<Role, { home: string; experience: Experience }> = {
-  patient: { home: '/patient', experience: 'patient' },
-  psychologist: { home: '/psychologist', experience: 'clinical' },
-  psychiatrist: { home: '/psychiatrist', experience: 'clinical' },
-  therapist: { home: '/therapist', experience: 'clinical' },
-  ot: { home: '/ot', experience: 'clinical' },
-  gp: { home: '/gp', experience: 'clinical' },
-  clinic: { home: '/clinic', experience: 'organisation' },
-  employer: { home: '/employer', experience: 'organisation' },
-  university: { home: '/university', experience: 'organisation' },
-  trusted: { home: '/trusted', experience: 'trusted' },
-  admin: { home: '/admin', experience: 'admin' },
+  // Ask is the home screen for everyone. The people who look after more than
+  // one record land on their caseload instead, because a question asked
+  // against no particular record is not a question that should reach one.
+  patient: { home: '/ask', experience: 'patient' },
+  psychologist: { home: '/caseload', experience: 'clinical' },
+  psychiatrist: { home: '/caseload', experience: 'clinical' },
+  therapist: { home: '/caseload', experience: 'clinical' },
+  ot: { home: '/caseload', experience: 'clinical' },
+  gp: { home: '/caseload', experience: 'clinical' },
+  clinic: { home: '/caseload', experience: 'organisation' },
+  employer: { home: '/ask', experience: 'organisation' },
+  university: { home: '/ask', experience: 'organisation' },
+  trusted: { home: '/ask', experience: 'trusted' },
+  // The administrator has no Ask, because there is nothing he may ask.
+  admin: { home: '/runs', experience: 'admin' },
 }
 
 /**
@@ -365,7 +369,7 @@ export function accounts(): RoleOption[] {
   if (!live.length) return roleOptions
 
   return live.map((p) => {
-    const shape = ROLE_SHAPE[p.role] ?? { home: '/patient', experience: 'patient' as Experience }
+    const shape = ROLE_SHAPE[p.role] ?? { home: '/ask', experience: 'patient' as Experience }
     return {
       role: p.role,
       label: p.title ?? p.role,

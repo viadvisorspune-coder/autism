@@ -1,0 +1,261 @@
+/**
+ * The answer, and the three other things an answer can turn out to be.
+ *
+ * Four shapes, one treatment each, the same for every user so the shape is
+ * learnable once: answered, waiting on someone, not available, or needs a
+ * permission that only Ananya can give. Which one you get is decided by who is
+ * asking and what they asked about — never by whether the record happens to
+ * hold it, because a difference between "there is nothing" and "you may not see
+ * it" is itself a disclosure.
+ */
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useSession } from '../state/session'
+import { useAsks } from './asks'
+import { useSubject } from './subject'
+import {
+  Back,
+  Card,
+  Gate,
+  NotShown,
+  Nothing,
+  Prose,
+  Refusal,
+  SectionHead,
+  longDate,
+} from './parts'
+import { boundaryFor } from './system'
+
+export default function Answer() {
+  const { askId = '' } = useParams()
+  const { role } = useSession()
+  const { subjectName } = useSubject()
+  const { find, ask, requestAccess } = useAsks()
+  const navigate = useNavigate()
+  const item = find(askId)
+
+  if (!item) {
+    return (
+      <>
+        <Back to="/ask">Back to Ask</Back>
+        <Nothing>
+          That question is not in this session. Questions are kept for as long as you are signed
+          in on this device.
+        </Nothing>
+      </>
+    )
+  }
+
+  const boundary = boundaryFor(role)
+
+  return (
+    <>
+      <Back to="/ask">Back to Ask</Back>
+      <h1 className="o-h2 o-measure mb-8">{item.question}</h1>
+
+      {item.attached ? (
+        <p className="o-meta mb-6">
+          Sent with {item.attached.fileType} · {item.attached.title}
+        </p>
+      ) : null}
+
+      {item.rehearsed ? (
+        <p className="o-body o-measure mb-6 border border-black p-4 font-semibold">
+          Rehearsal. This was routed and composed exactly as a real question would be, and then
+          not sent. Nothing was read from the record.
+        </p>
+      ) : null}
+
+      {item.shape === 'refusal' ? (
+        <Refusal
+          domain={item.domain}
+          instead={
+            role === 'trusted' ? (
+              <>
+                Ananya can tell you herself if she wants to. ORCA will not share her health
+                information without her deciding to.
+              </>
+            ) : undefined
+          }
+        />
+      ) : null}
+
+      {item.shape === 'gate' ? (
+        <Gate
+          domain={item.domain}
+          kind={item.gateKind ?? 'domain'}
+          requested={item.requested}
+          onRequest={() => requestAccess(item.id)}
+        />
+      ) : null}
+
+      {item.shape === 'waiting' ? <Waiting at={item.at} status={item.status} /> : null}
+
+      {item.shape === 'answer' && item.answer ? (
+        <Card tone={item.tone}>
+          <div className="o-card-body">
+            <Prose html={item.answer} />
+          </div>
+        </Card>
+      ) : null}
+
+      {item.shape === 'answer' && !item.answer ? (
+        <Nothing>
+          {item.detail ??
+            'The run finished without producing an answer. Nothing was retried and nothing else was run in its place.'}
+        </Nothing>
+      ) : null}
+
+      {/*
+        Where this comes from, as a list rather than as footnotes.
+
+        Each line is a record id, who wrote it, and when. That is the difference
+        between an answer and an assertion, and it is the part a clinician reads
+        first.
+      */}
+      {item.sources?.length ? (
+        <section className="o-section">
+          <SectionHead>Where this comes from</SectionHead>
+          <ul className="space-y-3">
+            {item.sources.map((s, i) => (
+              <li key={i} className="o-meta">
+                {[s.label ?? s.id, s.reporter, longDate(s.date) || s.date].filter(Boolean).join(' · ')}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {item.files?.length ? (
+        <section className="o-section">
+          <SectionHead>What this produced</SectionHead>
+          <ul className="space-y-5">
+            {item.files.map((f) => (
+              <li key={f.id} className="border border-black p-6">
+                <p className="o-h3">{f.title}</p>
+                <p className="o-meta mt-1">
+                  {f.file_type} · prepared {f.recorded_on}
+                </p>
+                {f.url ? (
+                  <a
+                    href={f.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="o-btn o-btn-small mt-4 no-underline"
+                  >
+                    Open it
+                  </a>
+                ) : (
+                  <p className="o-meta mt-3">Still being prepared.</p>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="o-meta o-measure mt-5">
+            These links last about half an hour. Reload this page for a fresh one.
+          </p>
+        </section>
+      ) : null}
+
+      {/*
+        The boundary, on every answer rather than only on the refusals.
+
+        Making it exceptional would mean most people never discover it exists;
+        standing, it stops reading as a rebuke on the occasions when it matters.
+      */}
+      {item.shape === 'answer' ? (
+        <section className="o-section">
+          <hr className="o-rule mb-8" />
+          <NotShown boundary={boundary} />
+          {!boundary ? (
+            <>
+              <h3 className="o-h3 mb-2">Not shown</h3>
+              <p className="o-body o-measure">
+                Nothing was held back from this answer. You can see everything in{' '}
+                {role === 'patient' ? 'your own record' : `${subjectName || 'this'} record`} that
+                bears on the question you asked.
+              </p>
+            </>
+          ) : null}
+        </section>
+      ) : null}
+
+      {item.shape === 'answer' && item.answer ? (
+        <section className="o-section">
+          <SectionHead>What you can do next</SectionHead>
+          <div className="flex flex-col gap-4 sm:flex-row">
+            <Link to="/ask" className="o-btn flex-1 no-underline">
+              Ask something else
+            </Link>
+            <button
+              type="button"
+              className="o-btn o-btn-primary flex-1"
+              onClick={async () => {
+                const id = await ask(
+                  `Make this into a document I can share: ${item.question}`,
+                )
+                navigate(`/ask/${id}`)
+              }}
+            >
+              Make this into a document
+            </button>
+          </div>
+          <p className="o-meta o-measure mt-5">
+            A document is written first and shown to {role === 'patient' ? 'you' : 'Ananya'}{' '}
+            before it goes anywhere. It appears in Decisions.
+          </p>
+        </section>
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * How long a run may sit unanswered before the screen says something.
+ *
+ * Not a timeout — nothing is cancelled, and the run is still going. It is the
+ * point at which continuing to show a spinner stops being honest.
+ */
+const STALL_AFTER_MS = 3 * 60 * 1000
+
+function Waiting({ at, status }: { at: string; status?: string }) {
+  // Nothing else on this screen re-renders on a schedule, so the notice needs
+  // its own clock.
+  const [, tick] = useState(0)
+  useEffect(() => {
+    const id = window.setInterval(() => tick((n) => n + 1), 15_000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  if (status === 'needs_approval') {
+    return (
+      <Card tone="decision">
+        <div className="o-card-body">
+          <h2 className="o-h2 mb-6">Waiting on a decision</h2>
+          <p className="o-body o-measure">
+            This has stopped for a person to decide. Nothing has been sent and nothing will be
+            until they do. It is waiting in Decisions.
+          </p>
+          <Link to="/decisions" className="o-btn o-btn-primary mt-6 no-underline">
+            Go to Decisions
+          </Link>
+        </div>
+      </Card>
+    )
+  }
+
+  const stalled = Date.now() - Date.parse(at) > STALL_AFTER_MS
+
+  return (
+    <Card tone="current">
+      <div className="o-card-body">
+        <h2 className="o-h2 mb-6">{stalled ? 'Still working on this' : 'Working on this'}</h2>
+        <p className="o-body o-measure">
+          {stalled
+            ? 'This is taking longer than usual. Nothing has failed and nothing has been lost. You can leave this page and come back — the answer will be here.'
+            : 'The record is being read. This usually takes under a minute, and you can leave this page and come back.'}
+        </p>
+      </div>
+    </Card>
+  )
+}

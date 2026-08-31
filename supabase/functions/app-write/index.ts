@@ -30,6 +30,9 @@ type Action =
   | 'set_user_active'
   | 'add_entry'
   | 'share_document'
+  | 'request_access'
+  | 'decide_access'
+  | 'set_sharing'
 
 /** Only these roles may be asked to decide something clinical. */
 const DECIDING_ROLES = new Set([
@@ -296,7 +299,7 @@ Deno.serve(async (req) => {
       }
 
       const { data: request } = await admin
-        .from('access_requests')
+        .from('consent_gates')
         .select('*')
         .eq('id', requestId)
         .eq('patient_id', patientId)
@@ -309,7 +312,7 @@ Deno.serve(async (req) => {
       const grantedScope = list(body.granted_scope)
 
       const { data, error } = await admin
-        .from('access_requests')
+        .from('consent_gates')
         .update({
           status: approve ? 'Approved' : 'Declined',
           decided_by: actor.id,
@@ -838,6 +841,197 @@ Deno.serve(async (req) => {
         )
       if (error) return json({ error: error.message }, 400)
       return json({ seen: true })
+    }
+
+    /* --------------------------------------------------------- consent
+     *
+     * Three actions, and between them they are the whole consent model as
+     * something that happens rather than something that is described.
+     *
+     * None of them moves any information. `request_access` records that
+     * somebody wants to be able to ask; `decide_access` records the subject's
+     * answer; `set_sharing` records the subject withdrawing or restoring
+     * access wholesale. What each one changes is what the NEXT question is
+     * allowed to do — and that check happens where questions are asked, not
+     * here.
+     */
+
+    /**
+     * Somebody asking the subject for a part of the record they cannot see.
+     *
+     * Raised at the gate, by the person who was stopped. Their own words are
+     * kept because the subject is being asked to weigh a purpose, and "Sana
+     * wants clinical access" is not a purpose — "what medication is she on"
+     * is.
+     */
+    case 'request_access': {
+      const domain = str(body.domain)
+      if (!domain) return json({ error: 'domain is required' }, 400)
+
+      // One open request per person per domain. Asking twice is not two
+      // decisions, and a queue of identical cards is a way of wearing
+      // somebody down into saying yes.
+      const { data: already } = await admin
+        .from('consent_gates')
+        .select('id')
+        .eq('patient_id', patientId)
+        .eq('person_id', actor.id)
+        .eq('domain', domain)
+        .eq('status', 'pending')
+        .maybeSingle()
+      if (already) {
+        return json({ request_id: already.id, note: 'You have already asked for this. It is waiting.' })
+      }
+
+      const { data: created, error } = await admin
+        .from('consent_gates')
+        .insert({
+          patient_id: patientId,
+          person_id: actor.id,
+          person_name: actor.name,
+          person_role: actor.role,
+          domain,
+          question: str(body.question),
+        })
+        .select('id')
+        .single()
+      if (error) return json({ error: error.message }, 400)
+
+      await recordAudit({
+        actorId: actor.id,
+        actorLabel: actor.name,
+        actorRole: actor.role,
+        patientId,
+        action: 'Asked for access to a part of the record',
+        record: `Consent gate ${created.id}`,
+        accessType: 'Read',
+        why: `${domain}: ${str(body.question) ?? 'no reason given'}`,
+        result: 'Allowed',
+      })
+
+      await notifyRoles({
+        patientId,
+        kind: 'asking' as NotificationKind,
+        what: `${actor.name} has asked to see part of your record`,
+        why: str(body.question) ?? `They want access to ${domain} information.`,
+        roles: ['patient'],
+      })
+
+      return json({
+        request_id: created.id,
+        note: 'Asked. Nothing was read, and nothing will be unless they agree.',
+      })
+    }
+
+    /**
+     * The subject answering. Only the subject.
+     *
+     * A clinician cannot approve their own colleague's request, and an
+     * administrator cannot approve any of them — the entire value of the gate
+     * is that the person it protects is the one who opens it.
+     */
+    case 'decide_access': {
+      if (actor.role !== 'patient') {
+        return forbidden('Only the person whose record it is can answer this.')
+      }
+      const requestId = str(body.request_id)
+      const decision = str(body.decision)
+      if (!requestId) return json({ error: 'request_id is required' }, 400)
+      if (decision !== 'granted' && decision !== 'declined') {
+        return json({ error: 'decision must be granted or declined' }, 400)
+      }
+
+      const { data: updated, error } = await admin
+        .from('consent_gates')
+        .update({ status: decision, decided_at: new Date().toISOString(), decided_by: actor.id })
+        .eq('id', requestId)
+        .eq('patient_id', patientId)
+        .eq('status', 'pending')
+        .select('id, person_id, domain')
+        .maybeSingle()
+      if (error) return json({ error: error.message }, 400)
+      if (!updated) {
+        return json({ error: 'not_pending', fix: 'That request has already been answered.' }, 409)
+      }
+
+      await recordAudit({
+        actorId: actor.id,
+        actorLabel: actor.name,
+        actorRole: actor.role,
+        patientId,
+        action: decision === 'granted' ? 'Granted access' : 'Declined access',
+        record: `Consent gate ${updated.id}`,
+        accessType: decision === 'granted' ? 'Share' : 'Revoke',
+        why: `${updated.domain} for ${updated.person_id}`,
+        result: 'Allowed',
+      })
+
+      return json({
+        decision,
+        note:
+          decision === 'granted'
+            ? 'They can ask about this now. You can stop it at any time in Sharing.'
+            : 'Declined. Nothing was read, and they are told only that you declined.',
+      })
+    }
+
+    /**
+     * The subject withdrawing or restoring access wholesale.
+     *
+     * Recorded as an event with a time rather than as a flag, because
+     * withdrawing consent and later restoring it is a history somebody may
+     * need to account for — and a boolean flipped back and forth keeps none.
+     */
+    case 'set_sharing': {
+      if (actor.role !== 'patient') {
+        return forbidden('Only the person whose record it is can change who can see it.')
+      }
+      const personId = str(body.person_id)
+      const sharing = body.sharing === true
+      if (!personId) return json({ error: 'person_id is required' }, 400)
+
+      if (sharing) {
+        const { error } = await admin
+          .from('sharing_stops')
+          .update({ resumed_at: new Date().toISOString() })
+          .eq('patient_id', patientId)
+          .eq('person_id', personId)
+          .is('resumed_at', null)
+        if (error) return json({ error: error.message }, 400)
+      } else {
+        const { data: open } = await admin
+          .from('sharing_stops')
+          .select('id')
+          .eq('patient_id', patientId)
+          .eq('person_id', personId)
+          .is('resumed_at', null)
+          .maybeSingle()
+        if (!open) {
+          const { error } = await admin
+            .from('sharing_stops')
+            .insert({ patient_id: patientId, person_id: personId, decided_by: actor.id })
+          if (error) return json({ error: error.message }, 400)
+        }
+      }
+
+      await recordAudit({
+        actorId: actor.id,
+        actorLabel: actor.name,
+        actorRole: actor.role,
+        patientId,
+        action: sharing ? 'Started sharing again' : 'Stopped sharing',
+        record: `Person ${personId}`,
+        accessType: sharing ? 'Share' : 'Revoke',
+        why: 'Decided by the person whose record it is.',
+        result: 'Allowed',
+      })
+
+      return json({
+        sharing,
+        note: sharing
+          ? 'They can see their part of your record again.'
+          : 'They can see nothing. Anything already shared stays in their own notes.',
+      })
     }
 
     default:
