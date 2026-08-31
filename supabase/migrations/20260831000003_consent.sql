@@ -83,3 +83,22 @@ comment on table consent_gates is
 comment on table sharing_stops is
   'Sharing the subject has withdrawn. Kept as history: resuming sets '
   'resumed_at rather than deleting the row.';
+
+-- ------------------------------------------------------------------- locking
+--
+-- Row-level security on, with no policies at all.
+--
+-- Not an oversight — the absence of policies IS the policy. Supabase grants the
+-- `anon` and `authenticated` roles table privileges on everything new in
+-- `public`, so a table created without this is readable by anybody holding the
+-- publishable key, which is compiled into the bundle every visitor downloads.
+-- These two tables would then answer "who has been refused what" to the whole
+-- internet — a disclosure about the subject made entirely out of metadata,
+-- which is exactly the shape of leak the consent gate exists to prevent.
+--
+-- The service role bypasses RLS, and the service role is what the Edge
+-- Functions use. So `app-read` and `app-write` are unaffected, and they are the
+-- only two things that should ever be reading these rows: both decide scope
+-- themselves before returning anything. Everything else gets nothing.
+alter table consent_gates enable row level security;
+alter table sharing_stops enable row level security;
