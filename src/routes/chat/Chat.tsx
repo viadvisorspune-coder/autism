@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useSession } from '../../state/session'
 import { type Block, htmlToBlocks, htmlToText } from '../../lib/prose'
 import { type Identity, identityFrom, needsDocument, understandTrigger } from '../../lib/trigger'
-import { type ConversationData, persistMessage, useLive } from '../../lib/live'
+import { type Attachment, type ConversationData, persistMessage, useLive } from '../../lib/live'
 import { respondToApproval } from '../../lib/approvals'
 import { type RunStatus, parseEnvelope } from '../../lib/envelope'
 import type { PendingApproval } from '../../components/ApprovalPanel'
@@ -66,6 +66,8 @@ interface Turn {
    */
   path?: string
   reason?: string
+  /** Documents this run produced, matched to it by run id. */
+  files?: Attachment[]
   status?: Status
   answer?: string
   sources?: { id?: string; reporter?: string; date?: string; label?: string }[]
@@ -184,10 +186,27 @@ export function WorkflowChat() {
          * how a workflow was configured in Yoxa rather than on anything this
          * screen can see.
          */
+        /**
+         * A run's documents, wherever it ends up settling.
+         *
+         * The fifteen-step path produces a PDF and nothing else about a turn
+         * says so — the answer text describes a document that, until now, the
+         * person had no way to open. It was stored, signed and served the
+         * whole time; the conversation simply never looked.
+         */
+        const files = (convoData?.attachments ?? []).filter((f) => f.workflow_run_id === t.runId)
+        const withFiles = files.length ? { files } : {}
+
         const spoken = said.find((m) => m.author === 'orca' && m.workflow_run_id === t.runId)
         if (spoken) {
           changed = true
-          return { ...t, state: 'settled' as const, status: 'done' as const, answer: spoken.text }
+          return {
+            ...t,
+            ...withFiles,
+            state: 'settled' as const,
+            status: 'done' as const,
+            answer: spoken.text,
+          }
         }
 
         const row = rows.find((r) => r.id === t.runId)
@@ -195,7 +214,7 @@ export function WorkflowChat() {
         const settled = settleFrom(row)
         if (!settled) return t
         changed = true
-        return { ...t, ...settled }
+        return { ...t, ...withFiles, ...settled }
       })
       return changed ? next : current
     })
@@ -788,6 +807,52 @@ function nextActions(turn: Turn): string[] {
   ]
 }
 
+/**
+ * A document the run produced, offered rather than described.
+ *
+ * The fifteen-step path ends in a PDF. The answer text would say a document
+ * had been prepared and the person had no way to open it — the file was
+ * stored, signed and served the whole time, and the conversation was the only
+ * place that never looked.
+ *
+ * The URL is signed and expires in half an hour, which is why this says so.
+ * A dead link with no explanation reads as the document having been withdrawn.
+ */
+function Documents({ files }: { files: Attachment[] }) {
+  return (
+    <div className="space-y-2">
+      {files.map((f) => (
+        <div
+          key={f.id}
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line-strong bg-paper px-4 py-3"
+        >
+          <div className="min-w-0">
+            <p className="text-[0.88rem] font-medium text-ink">{f.title}</p>
+            <p className="mt-0.5 text-[0.8rem] text-muted">
+              {f.file_type} · prepared {f.recorded_on}
+            </p>
+          </div>
+          {f.url ? (
+            <a
+              href={f.url}
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 rounded-lg border border-line-strong px-3.5 py-2 text-[0.83rem] font-medium text-ink-2 hover:border-brand hover:text-brand"
+            >
+              Open
+            </a>
+          ) : (
+            <span className="shrink-0 text-[0.8rem] text-muted">Still being prepared</span>
+          )}
+        </div>
+      ))}
+      <p className="text-[0.78rem] text-muted">
+        These links last about half an hour. Reload this page to get a fresh one.
+      </p>
+    </div>
+  )
+}
+
 function Answered({ turn, onPick }: { turn: Turn; onPick: (s: string) => void }) {
   if (turn.status === 'blocked' || turn.status === 'error') {
     return (
@@ -816,6 +881,8 @@ function Answered({ turn, onPick }: { turn: Turn; onPick: (s: string) => void })
           <Prose html={turn.answer} />
         </div>
       ) : null}
+
+      {turn.files?.length ? <Documents files={turn.files} /> : null}
 
       {turn.sources?.length ? (
         <details className="rounded-lg border border-line bg-canvas px-3.5 py-2.5">

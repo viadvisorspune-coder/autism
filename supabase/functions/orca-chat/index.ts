@@ -44,10 +44,20 @@ async function routingFacts(
   patientId: string | null,
   message: string,
 ): Promise<{ recentEvidenceRunId: string | null; alreadyAnsweredRunId: string | null }> {
+  /**
+   * Rehearsals are invisible to routing.
+   *
+   * Without this, a few practice runs start steering real requests: their
+   * stand-in answers would count as "already answered" and replay to somebody
+   * asking about their own record, or as "recent evidence" and become the
+   * material a real document is drafted from. A rehearsal that can change what
+   * a real person is told is worse than having no rehearsal at all.
+   */
   const query = admin
     .from('workflow_runs')
     .select('id, workflow_name, trigger_text, answer_html, started_at')
     .eq('actor_id', actorId)
+    .eq('dry_run', false)
     .not('answer_html', 'is', null)
     .order('started_at', { ascending: false })
     .limit(25)
@@ -192,6 +202,7 @@ Deno.serve(async (req) => {
     reason: plan.reason,
     then: (plan.then as WorkflowName | null) ?? null,
     idempotencyKey: str(body.idempotency_key),
+    dryRun: body.dry_run === true,
   })
 
   if (!started.ok) return launchError(started)
@@ -201,7 +212,8 @@ Deno.serve(async (req) => {
     workflow: plan.lane,
     path: plan.path,
     reason: plan.reason,
-    status: 'queued',
+    dry_run: body.dry_run === true,
+    status: body.dry_run === true ? 'rehearsed' : 'queued',
     yoxa_run_id: started.yoxaRunId,
     /**
      * The exact text that was sent.

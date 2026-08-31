@@ -39,6 +39,16 @@ export interface LaunchRequest {
   /** What to run when this finishes, for the second half of a chain. */
   then?: WorkflowName | null
   idempotencyKey?: string | null
+  /**
+   * Rehearse instead of running.
+   *
+   * Everything up to the outbound call happens for real — routing, the
+   * composed trigger, the run row — and then a stand-in answer is recorded
+   * rather than Yoxa being called. It is the only way to exercise a path while
+   * a deployment is unconfigured, and the only way to test routing without
+   * spending a minute per attempt.
+   */
+  dryRun?: boolean
 }
 
 export type LaunchResult =
@@ -72,11 +82,19 @@ export async function launch(req: LaunchRequest): Promise<LaunchResult> {
     }
   }
 
+  /**
+   * A rehearsal does not need a configured deployment.
+   *
+   * Requiring one defeated the main use: the reason to rehearse is usually
+   * that a lane is mid-configuration or its workflow is still being changed.
+   * Refusing to exercise routing until the thing routing points at exists is
+   * backwards.
+   */
   const lookup = deploymentFor(req.lane)
-  if (!lookup.ok) {
+  if (!lookup.ok && !req.dryRun) {
     return { ok: false, status: 503, error: 'workflow_not_configured', detail: lookup.reason }
   }
-  const deployment = lookup.deployment
+  const deployment = lookup.ok ? lookup.deployment : null
 
   /**
    * The previous step, read from the database rather than passed in.
@@ -116,7 +134,7 @@ export async function launch(req: LaunchRequest): Promise<LaunchResult> {
       current_step: 'Trigger composed',
       status: 'In progress',
       idempotency_key: idempotencyKey,
-      deployment_id: deployment.id || null,
+      deployment_id: deployment?.id || null,
       chained_from: req.chainedFrom ?? null,
       path: req.path ?? null,
       route_reason: req.reason ?? null,
@@ -124,6 +142,7 @@ export async function launch(req: LaunchRequest): Promise<LaunchResult> {
       next_message: req.then ? req.message : null,
       next_recipient: req.then ? (req.recipient ?? null) : null,
       next_artifact_type: req.then ? (req.artifactType ?? null) : null,
+      dry_run: req.dryRun ?? false,
     })
     .select('id')
     .single()
@@ -141,6 +160,39 @@ export async function launch(req: LaunchRequest): Promise<LaunchResult> {
     runId: run.id,
   })
   await admin.from('workflow_runs').update({ trigger_text: triggerText }).eq('id', run.id)
+
+  /**
+   * A rehearsal stops here, having done everything except the one thing.
+   *
+   * The point is to prove the parts this side owns — did routing pick the
+   * right path, is the composed trigger right, does a chain record its second
+   * half — without waiting on a workflow or a deployment. The stand-in answer
+   * says what it is in its own text, because a screen full of realistic
+   * placeholder about somebody's medical record is exactly the thing that must
+   * never be mistaken for the real answer.
+   */
+  if (req.dryRun) {
+    const answer =
+      `<h3>Rehearsal, not a real answer</h3>` +
+      `<p>This run was routed and composed but never sent to Yoxa. ` +
+      `Path: <strong>${req.path ?? 'unknown'}</strong>. ` +
+      `Lane: <strong>${req.lane}</strong>` +
+      `${req.then ? `, followed by <strong>${req.then}</strong>` : ''}.</p>` +
+      `<p>Nothing was read from the record and nothing was produced.</p>`
+    await admin
+      .from('workflow_runs')
+      .update({
+        answer_html: answer,
+        status: 'Completed',
+        current_step: 'Rehearsed',
+        finished_at: new Date().toISOString(),
+      })
+      .eq('id', run.id)
+    return { ok: true, runId: run.id, yoxaRunId: null, triggerText }
+  }
+
+  // Unreachable when dryRun is set, which returned above; this narrows the type.
+  if (!deployment) return { ok: false, status: 503, error: 'workflow_not_configured' }
 
   let upstream: Response
   try {
