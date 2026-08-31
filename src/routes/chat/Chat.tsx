@@ -9,7 +9,7 @@ import {
   understandPreamble,
   understandTrigger,
 } from '../../lib/trigger'
-import { useLive } from '../../lib/live'
+import { type ConversationData, persistMessage, useLive } from '../../lib/live'
 import { respondToApproval } from '../../lib/approvals'
 import { type RunStatus, parseEnvelope } from '../../lib/envelope'
 import type { PendingApproval } from '../../components/ApprovalPanel'
@@ -118,6 +118,19 @@ export function WorkflowChat() {
       patientId: patientId ?? null,
     })
     setTurns((t) => t.map((x) => (x.id === turn.id ? { ...x, ...started } : x)))
+
+    /**
+     * The question, written into the record as well as the screen.
+     *
+     * Without this a reload loses the person's half of the conversation while
+     * keeping ORCA's, which reads as though the answers arrived unprompted.
+     * Fire-and-forget on purpose: a question that failed to save should not
+     * stop the conversation being had.
+     */
+    if (option?.personId && patientId) {
+      persistMessage(patientId, option.personId, body, 'person', started.runId ?? null)
+    }
+
     // Only the handshake blocks the composer. Once a run is queued the person
     // is free to ask something else — the answer finds its own turn by run id.
     setBusy(false)
@@ -137,13 +150,33 @@ export function WorkflowChat() {
    * background all behave correctly without any of them being special cases.
    */
   const { data: runData } = useLive<{ runs: RunRow[] }>('workflow_runs')
+  const { data: convoData } = useLive<ConversationData>('conversation')
+
   useEffect(() => {
     const rows = runData?.runs ?? []
-    if (!rows.length) return
+    const said = convoData?.messages ?? []
+    if (!rows.length && !said.length) return
     setTurns((current) => {
       let changed = false
       const next = current.map((t) => {
         if (t.state !== 'running' || !t.runId) return t
+
+        /**
+         * Two roads in, one turn.
+         *
+         * A workflow with API connectors answers by writing into the
+         * conversation — that is the chat lane, and its reply arrives as a
+         * message carrying this run's id. A workflow without them answers onto
+         * its run row. Both are checked, because which one applies depends on
+         * how a workflow was configured in Yoxa rather than on anything this
+         * screen can see.
+         */
+        const spoken = said.find((m) => m.author === 'orca' && m.workflow_run_id === t.runId)
+        if (spoken) {
+          changed = true
+          return { ...t, state: 'settled' as const, status: 'done' as const, answer: spoken.text }
+        }
+
         const row = rows.find((r) => r.id === t.runId)
         if (!row) return t
         const settled = settleFrom(row)
@@ -153,7 +186,60 @@ export function WorkflowChat() {
       })
       return changed ? next : current
     })
-  }, [runData])
+  }, [runData, convoData])
+
+  /**
+   * The conversation as it was left.
+   *
+   * Turns live in component state, so without this a reload shows an empty
+   * screen while the record holds every question and answer. Somebody who
+   * refreshed after asking about their own medical record would reasonably
+   * conclude the question had been lost.
+   *
+   * Seeded once, and only into an empty screen: after that the live effect
+   * above owns the turns, and re-seeding would duplicate everything on screen
+   * each time the poll returned.
+   */
+  const seeded = useRef(false)
+  useEffect(() => {
+    const said = convoData?.messages ?? []
+    if (seeded.current || !said.length || turns.length) return
+    seeded.current = true
+
+    const restored: Turn[] = []
+    for (const m of said) {
+      if (m.author === 'person') {
+        restored.push({
+          id: m.id,
+          at: m.created_at,
+          message: m.text,
+          trigger: '',
+          workflow: needsDocument(m.text) ? 'ORCA_PRODUCE' : 'ORCA_UNDERSTAND',
+          state: 'settled',
+          runId: m.workflow_run_id ?? undefined,
+        })
+        continue
+      }
+      // An answer attaches to the question above it. One that matches nothing
+      // is still shown rather than dropped — an answer with no visible
+      // question is confusing, but a silently discarded one is worse.
+      const target = [...restored].reverse().find((t) => !t.answer)
+      if (target) target.answer = m.text
+      else
+        restored.push({
+          id: m.id,
+          at: m.created_at,
+          message: '',
+          trigger: '',
+          workflow: 'ORCA_UNDERSTAND',
+          state: 'settled',
+          status: 'done',
+          answer: m.text,
+        })
+    }
+    for (const t of restored) if (t.answer && !t.status) t.status = 'done'
+    setTurns(restored)
+  }, [convoData, turns.length])
 
   return (
     <div className="min-h-screen bg-canvas text-ink">
