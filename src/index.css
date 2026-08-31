@@ -11,6 +11,15 @@
   --color-canvas: #f4f3f8;
   --color-surface: #ffffff;
   --color-surface-2: #f6f4fb;
+  /* The same white as `surface`, under the name the markup actually uses.
+     Twelve places ask for `bg-paper` or `text-paper` and no such token
+     existed, so those classes generated no CSS whatsoever: cards asking for a
+     white fill got none, and — the part that mattered — the label on the
+     primary approval button fell back to inheriting `ink`, putting dark navy
+     on the brand purple at 2.92:1 against a 4.5 requirement. Aliasing rather
+     than renaming: `surface` is the token the palette is written around, and
+     a rename would touch every file for no benefit. */
+  --color-paper: #ffffff;
   /* Kept as tokens because the markup still asks for them, but they are now
      nearly invisible: separation comes from fill and shadow, not from lines. */
   --color-line: #ebe8f4;
