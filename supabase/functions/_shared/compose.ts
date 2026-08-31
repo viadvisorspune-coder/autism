@@ -216,29 +216,64 @@ const idFromUrl = (url: string): string | null =>
  * questions, and the failure would read as a bad answer rather than a bad
  * setting.
  */
-export function deploymentFor(workflow: WorkflowName): Deployment | null {
+export type DeploymentLookup =
+  | { ok: true; deployment: Deployment }
+  | { ok: false; reason: string }
+
+/** Whether a string is actually a URL we could POST to. */
+function usableUrl(raw: string): string | null {
+  // Quotes and stray whitespace survive a copy-paste into a secrets field and
+  // are invisible there. `new URL` rejects them, so trim before judging.
+  const cleaned = raw.trim().replace(/^['"]|['"]$/g, '').replace(/\/+$/, '')
+  if (!/^https?:\/\//i.test(cleaned)) return null
+  try {
+    new URL(cleaned)
+  } catch {
+    return null
+  }
+  // A pasted URL may or may not already end in /trigger. Both are meant the
+  // same way, and guessing wrong produces a 404 that reads as a dead deployment.
+  return cleaned.endsWith('/trigger') ? cleaned : `${cleaned}/trigger`
+}
+
+export function deploymentFor(workflow: WorkflowName): DeploymentLookup {
   const prefix = workflow === 'understand' ? 'YOXA_UNDERSTAND' : 'YOXA_PRODUCE'
   const secret = Deno.env.get(`${prefix}_DEPLOYMENT_SECRET`)
-  if (!secret) return null
+  if (!secret) return { ok: false, reason: `${prefix}_DEPLOYMENT_SECRET is not set.` }
 
-  const explicitUrl = Deno.env.get(`${prefix}_TRIGGER_URL`)
-  if (explicitUrl) {
-    // A pasted URL may or may not already end in /trigger. Both are meant the
-    // same way, and guessing wrong here produces a 404 that looks like a dead
-    // deployment.
-    const url = explicitUrl.replace(/\/+$/, '')
+  const rawUrl = Deno.env.get(`${prefix}_TRIGGER_URL`)
+  const url = rawUrl ? usableUrl(rawUrl) : null
+  if (url) return { ok: true, deployment: { id: idFromUrl(url) ?? '', secret, url } }
+
+  const id = Deno.env.get(`${prefix}_DEPLOYMENT_ID`)?.trim()
+  if (id) {
     return {
-      id: idFromUrl(url) ?? '',
-      secret,
-      url: url.endsWith('/trigger') ? url : `${url}/trigger`,
+      ok: true,
+      deployment: {
+        id,
+        secret,
+        url: `${TRIGGER_ORIGIN}/api/v1/public/workflow-deployments/${id}/trigger`,
+      },
     }
   }
 
-  const id = Deno.env.get(`${prefix}_DEPLOYMENT_ID`)
-  if (!id) return null
+  /**
+   * Naming which variable is wrong, not just that something is.
+   *
+   * A value set to the wrong thing is far more likely than a value left
+   * unset — a secret pasted into the URL field, or the other way round, is a
+   * two-second mistake that previously surfaced as `yoxa_unreachable` from a
+   * fetch three layers down. That message sent people to check their network
+   * and their deployment, which were both fine.
+   */
   return {
-    id,
-    secret,
-    url: `${TRIGGER_ORIGIN}/api/v1/public/workflow-deployments/${id}/trigger`,
+    ok: false,
+    reason: rawUrl
+      ? `${prefix}_TRIGGER_URL is set but is not a URL — it should start with ` +
+        `https:// and look like ` +
+        `https://yoxa.ai/api/v1/public/workflow-deployments/<id>/trigger. ` +
+        `Check the secret and the URL have not been pasted into each other's field.`
+      : `Set ${prefix}_TRIGGER_URL (the whole URL from Yoxa's Integrate tab) ` +
+        `or ${prefix}_DEPLOYMENT_ID.`,
   }
 }

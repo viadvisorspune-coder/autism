@@ -68,20 +68,11 @@ Deno.serve(async (req) => {
   const workflow: WorkflowName =
     asked === 'understand' || asked === 'produce' ? asked : routeFor(message)
 
-  const deployment = deploymentFor(workflow)
-  if (!deployment) {
-    return json(
-      {
-        error: 'workflow_not_configured',
-        detail:
-          `No deployment is configured for the ${workflow} workflow. Set ` +
-          `YOXA_${workflow.toUpperCase()}_DEPLOYMENT_SECRET, plus either ` +
-          `YOXA_${workflow.toUpperCase()}_TRIGGER_URL (the whole URL from Yoxa's ` +
-          `Integrate tab) or YOXA_${workflow.toUpperCase()}_DEPLOYMENT_ID.`,
-      },
-      503,
-    )
+  const lookup = deploymentFor(workflow)
+  if (!lookup.ok) {
+    return json({ error: 'workflow_not_configured', detail: lookup.reason }, 503)
   }
+  const deployment = lookup.deployment
 
   /**
    * The previous step, when this turn continues one.
@@ -163,13 +154,26 @@ Deno.serve(async (req) => {
       body: JSON.stringify({ trigger_text: triggerText }),
     })
   } catch (error) {
-    // Never log the secret, only that the call failed.
+    /**
+     * Why it could not be reached, and where it was trying to go.
+     *
+     * The URL is not a secret — it is a deployment id on a public host — and
+     * withholding it made this the least diagnosable failure in the system:
+     * a malformed value in the URL variable surfaced as a bare
+     * `yoxa_unreachable`, which reads as a network problem and sends people
+     * to check things that were never wrong. The secret is still never
+     * logged or returned.
+     */
     console.error('trigger failed', String(error))
+    const why = error instanceof Error ? error.message : String(error)
     await admin
       .from('workflow_runs')
-      .update({ status: 'Blocked', current_step: 'Could not reach Yoxa' })
+      .update({ status: 'Blocked', current_step: `Could not reach Yoxa: ${why}` })
       .eq('id', run.id)
-    return json({ error: 'yoxa_unreachable', run_id: run.id }, 502)
+    return json(
+      { error: 'yoxa_unreachable', detail: why, url: deployment.url, run_id: run.id },
+      502,
+    )
   }
 
   if (!upstream.ok) {
