@@ -14,6 +14,7 @@
  * demonstration of the permission model, not a defence of it.
  */
 import { admin, cors, json, str } from '../_shared/yoxa.ts'
+import { sweepStaleRuns } from '../_shared/sweep.ts'
 
 type Resource =
   | 'bundle'
@@ -46,6 +47,21 @@ const ROLE_MAY_READ: Record<string, Resource[]> = {
   trusted: ['bundle', 'run', 'inbox', 'conversation', 'profile', 'consent'],
   admin: ['bundle', 'run', 'inbox', 'conversation', 'workflow_runs', 'audit', 'consent'],
 }
+
+/**
+ * The reads that show run state, and so are the ones worth sweeping before.
+ *
+ * `caseload` is in the list because a clinician's screen counts active runs
+ * per person, and a caseload claiming four people have work in progress is a
+ * worse lie than one stale row in one conversation.
+ */
+const SWEEPS_RUNS: Set<Resource> = new Set([
+  'workflow_runs',
+  'conversation',
+  'run',
+  'inbox',
+  'caseload',
+])
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
@@ -112,6 +128,17 @@ Deno.serve(async (req) => {
       )
     }
   }
+
+  /**
+   * Housekeeping, on the reads that would otherwise show the mess.
+   *
+   * Runs that were started and never answered are settled here rather than by
+   * a scheduler, because there is no scheduler. Only on the resources that
+   * display run state, so the other twelve reads are not paying for it — and
+   * awaited, so the read that follows sees the settled rows rather than
+   * showing the stale ones one last time.
+   */
+  if (SWEEPS_RUNS.has(resource)) await sweepStaleRuns(patientId)
 
   try {
     const data = await read(resource, patientId, runId, conversationActor, role)

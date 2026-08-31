@@ -435,13 +435,26 @@ const SLOW_AFTER_MS = 3 * 60 * 1000
 const SILENT_AFTER_MS = 10 * 60 * 1000
 
 function Waiting({ at, status }: { at: string; status?: string }) {
-  // Nothing else on this screen re-renders on a schedule, so the notice needs
-  // its own clock.
+  /**
+   * Nothing else on this screen re-renders on a schedule, so the notice needs
+   * its own clock — but only for as long as the words can still change.
+   *
+   * There are two moments this clock exists to catch, at three minutes and at
+   * ten. Past the second one the copy is final: a run that has been silent for
+   * ten minutes has no further state to reach by waiting, and the answer, if
+   * one ever arrives, arrives through the record and re-renders this component
+   * anyway. So the timer stands down instead of ticking every fifteen seconds
+   * for as long as the tab is open, which on the answer screen somebody leaves
+   * open all afternoon is a wake-up every fifteen seconds to redraw text that
+   * cannot change.
+   */
   const [, tick] = useState(0)
+  const settled = Date.now() - Date.parse(at) > SILENT_AFTER_MS
   useEffect(() => {
+    if (settled) return
     const id = window.setInterval(() => tick((n) => n + 1), 15_000)
     return () => window.clearInterval(id)
-  }, [])
+  }, [settled])
 
   if (status === 'needs_approval') {
     return (

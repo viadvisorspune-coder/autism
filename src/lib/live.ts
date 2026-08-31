@@ -93,6 +93,19 @@ export function useLive<T>(
   }, [resource, role, option?.personId, forRecord])
 
   useEffect(() => {
+    /**
+     * A build with no backend has nothing to poll.
+     *
+     * `read` returns immediately in that case, but the loop kept rescheduling
+     * itself anyway — a timer firing every four seconds, for the life of the
+     * tab, to call a function whose first line is a return. Harmless and
+     * pointless, which is the combination that survives review forever.
+     */
+    if (!isSupabaseConfigured) {
+      setLoading(false)
+      return
+    }
+
     alive.current = true
 
     const schedule = () => {
