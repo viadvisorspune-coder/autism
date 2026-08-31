@@ -14,6 +14,7 @@
  */
 import { admin, cors, json } from '../_shared/yoxa.ts'
 import { notifyRoles } from '../_shared/notify.ts'
+import { deliver, findRun } from '../_shared/deliver.ts'
 import { inferFromRecentRun } from '../_shared/whoami.ts'
 
 const TOLERANCE_SECONDS = 300
@@ -157,6 +158,35 @@ Deno.serve(async (req) => {
   // A second delivery that got past the event dedup still must not duplicate
   // the task.
   if (taskError && taskError.code !== '23505') return json({ error: taskError.message }, 500)
+
+  /**
+   * The approval's content is the run's output.
+   *
+   * For a gate that asks "here is the draft — send it?", the description IS
+   * the draft, and for two of the five paths it is the only road that output
+   * has home: UNDERSTAND and PRODUCE are locked with no API connectors, and
+   * Yoxa exposes no way to read a finished run.
+   *
+   * This function used to store the approval and touch nothing else, so a run
+   * whose only output came this way sat at "Queued at Yoxa" for ever. The
+   * content was in the database the whole time, one table across: the chat
+   * could not settle the turn, a chained path never started its second half,
+   * and the replay lane could never find it.
+   *
+   * The run is left Awaiting approval, which is what it is. Recording the
+   * answer is not deciding the approval — nothing is sent, and the person
+   * still chooses.
+   */
+  if (workflowRunId && description) {
+    const run = await findRun({ runId: workflowRunId, yoxaRunId: workflowRunId })
+    if (run) {
+      await deliver(run, {
+        answerHtml: description,
+        status: 'Awaiting approval',
+        step: 'Waiting for a person to decide',
+      })
+    }
+  }
 
   if (patientId) {
     // The patient, deliberately and not by omission. Yoxa's event names a

@@ -1092,9 +1092,27 @@ function settleFrom(row: RunRow): Partial<Turn> | null {
   if (!row.answer_html && !finished) return null
 
   const envelope = parseEnvelope(row.result ?? row.answer_html ?? null)
+
+  /**
+   * The row's own state outranks the envelope's when the two disagree.
+   *
+   * Content that arrives attached to an approval gate has no envelope — it is
+   * a description, so the parser reads a bare string and reasonably calls it
+   * done. The run is not done: it is holding, waiting for a person, and
+   * nothing has been sent. Showing "done" there would be the interface
+   * asserting a consent decision that nobody has made yet, which is the one
+   * thing this screen must never do.
+   */
+  const status: Status =
+    row.status === 'Awaiting approval'
+      ? 'needs_approval'
+      : row.status === 'Awaiting information'
+        ? 'needs_clarification'
+        : envelope.status
+
   return {
     state: 'settled',
-    status: envelope.status,
+    status,
     answer: envelope.answerHtml ?? row.answer_html ?? undefined,
     sources: envelope.sources,
     withheld: envelope.withheld,
