@@ -846,7 +846,19 @@ html[data-ia='orca'] *:focus-visible {
   border-radius: 0;
 }
 
-/* The link colour is ink; the underline carries the affordance instead. */
-html[data-ia='orca'] a {
+/*
+ * The link colour is ink; the underline carries the affordance instead.
+ *
+ * Excludes anything wearing a button. This rule lives outside the layer so it
+ * can beat the older sheet, which also means it beat `.o-btn-primary` — and a
+ * link styled as the filled primary control inherited ink instead of paper,
+ * putting black text on a black rectangle. "Ask it again" rendered as a solid
+ * black box with nothing in it, on the one screen whose whole job is to tell
+ * somebody what to do next.
+ *
+ * The same shape of mistake as the layering fix that introduced it: a rule
+ * strong enough to win an argument it should be in, winning one it should not.
+ */
+html[data-ia='orca'] a:not(.o-btn) {
   color: inherit;
 }

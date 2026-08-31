@@ -381,6 +381,22 @@ function Routing({ item }: { item: Ask }) {
     )
   }
 
+  /**
+   * A request that never reached the router chose nothing.
+   *
+   * This said "Choosing which workflow to run" for anything without a path,
+   * which included every failed send — so a question that could not leave the
+   * browser sat under a line claiming a decision was still being made about
+   * it. Nothing was being decided; nothing had arrived.
+   */
+  if (item.shape === 'error') {
+    return (
+      <p className="o-meta o-measure mb-8">
+        No workflow ran. The request did not reach the point where one is chosen.
+      </p>
+    )
+  }
+
   // Between pressing Ask and the server answering the handshake, the route is
   // genuinely not known yet. Naming a workflow here would be a guess.
   if (!item.path) {

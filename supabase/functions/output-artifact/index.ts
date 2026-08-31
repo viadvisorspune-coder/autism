@@ -14,7 +14,26 @@ import { admin, guard, json, list, recordAudit, str } from '../_shared/yoxa.ts'
 const MAX_FILES = 10
 const MAX_BYTES_PER_FILE = 50 * 1024 * 1024
 const MAX_BYTES_TOTAL = 100 * 1024 * 1024
-const ALLOWED = ['application/pdf', 'image/png', 'image/jpeg', 'text/plain']
+/**
+ * What a run may hand back.
+ *
+ * `text/html` is here because ORCA Produce's generated-output tool, Return
+ * Draft, declares its output type as html — a governed HTML return, not a
+ * file. Without it that connector answers 415 on every successful run and the
+ * draft is refused at the door, which reads from Yoxa as the workflow failing
+ * when in fact it worked and the receiver would not take it.
+ *
+ * The list stays a list rather than becoming "anything". An artefact route
+ * that accepts arbitrary content types is a file-upload endpoint with a nicer
+ * name, and this one writes into a patient's record.
+ */
+const ALLOWED = [
+  'application/pdf',
+  'text/html',
+  'text/plain',
+  'image/png',
+  'image/jpeg',
+]
 
 const safeName = (name: string) =>
   name.replace(/[^a-zA-Z0-9._-]/g, '-').replace(/-+/g, '-').slice(0, 120) || 'artifact'
@@ -103,7 +122,17 @@ Deno.serve(
       // A later, more specific title wins over the placeholder the first call
       // used; a placeholder never overwrites a real one.
       title: isAddition && title === 'Generated artefact' ? existing!.title : title,
-      file_type: files[0]?.contentType === 'application/pdf' ? 'PDF' : 'Structured',
+      // Named for what a person would call it, not for its MIME type. An HTML
+      // return is a document to read, so it files as a Document rather than as
+      // "Structured", which is the shelf for extracted data.
+      file_type:
+        files[0]?.contentType === 'application/pdf'
+          ? 'PDF'
+          : files[0]?.contentType?.startsWith('image/')
+            ? 'Image'
+            : files[0]?.contentType === 'text/html' || files[0]?.contentType === 'text/plain'
+              ? 'Document'
+              : 'Structured',
       category,
       source_label: 'ORCA workflow',
       status: files.length || priorSections.length ? 'Awaiting review' : 'Draft',

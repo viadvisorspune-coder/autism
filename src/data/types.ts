@@ -164,7 +164,14 @@ export interface DocumentRecord {
   id: string
   patientId: string
   title: string
-  fileType: 'PDF' | 'DOCX' | 'Image' | 'Structured'
+  /**
+   * What a person would call it, not its MIME type.
+   *
+   * `Document` covers an HTML or plain-text return — the shape ORCA Produce's
+   * Return Draft hands back. It is a thing to read, which is a different kind
+   * of object from `Structured`, the shelf for extracted data.
+   */
+  fileType: 'PDF' | 'DOCX' | 'Image' | 'Document' | 'Structured'
   category: 'Clinical' | 'Therapy' | 'OT' | 'Employment' | 'University' | 'Statutory' | 'Personal'
   sourceId: string
   date: string
