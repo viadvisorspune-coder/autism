@@ -770,10 +770,14 @@ async function read(
         // answer from here. Yoxa is asynchronous, so the reply to a question
         // never arrives in the response to the request that asked it — the run
         // row is the only place the answer exists.
+        // path and route_reason join this list because the routing decision is
+        // meant to be shown, not just made. A person about to have their record
+        // read is owed the sentence explaining which route was chosen and why,
+        // and it was being written to the row and then never read back.
         .select(
           'id, patient_id, type, stakeholder, current_step, status, waiting_for, steps, ' +
             'started_at, updated_at, workflow_name, answer_html, result, trigger_text, ' +
-            'chained_from, yoxa_run_id, finished_at',
+            'chained_from, yoxa_run_id, finished_at, path, route_reason, next_workflow',
         )
         .order('started_at', { ascending: false })
         .limit(25)
