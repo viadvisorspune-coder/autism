@@ -31,6 +31,9 @@ export type WorkflowName = 'understand' | 'produce' | 'chat'
 export interface Identity {
   name: string
   role: string
+  /** Who is asking — the id the connectors expect as `actor_id`. */
+  actorId: string
+  /** Whose record — the id the connectors expect as `patient_id`. */
   subjectId: string
   purpose: string
   today: string
@@ -80,26 +83,52 @@ export function identityFor(
   return {
     name: actor.name,
     role: actor.role,
+    actorId: actor.id,
     subjectId,
     purpose: purposeFor(actor.role),
     today: longDate(),
   }
 }
 
-export const understandPreamble = (id: Identity): string =>
+/**
+ * The identifiers a workflow has to hand back, stated as labelled fields.
+ *
+ * A workflow whose connectors need `patient_id`, `actor_id` and
+ * `workflow_run_id` can only get them from the trigger text — nothing else
+ * reaches it. They were being described in prose ("subject pt-ananya") which a
+ * model has to infer a field name from, so give it the field names directly.
+ *
+ * These are ORCA's own opaque identifiers, not personal data, and the workflow
+ * only ever hands them back to ORCA. Naming them in the trigger does not widen
+ * what the reader may see: `orca_can_access` still decides that, server-side,
+ * from the actor the session resolved.
+ */
+const identifierBlock = (id: Identity, runId?: string | null): string =>
+  [
+    `patient_id: ${id.subjectId}`,
+    `actor_id: ${id.actorId}`,
+    runId ? `workflow_run_id: ${runId}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+export const understandPreamble = (id: Identity, runId?: string | null): string =>
   `${id.name} (${id.role}, subject ${id.subjectId})\n` +
-  `asks via ORCA chat on ${id.today}, for the purpose of ${id.purpose}:`
+  `asks via ORCA chat on ${id.today}, for the purpose of ${id.purpose}.\n\n` +
+  `${identifierBlock(id, runId)}`
 
 export const producePreamble = (
   id: Identity,
   recipient: Recipient,
   artifactType: string,
+  runId?: string | null,
 ): string =>
   `${id.name} (${id.role}, subject ${id.subjectId})\n` +
   `asks via ORCA chat on ${id.today}.\n` +
   `Recipient: ${recipient.name}, ${recipient.role}, ${recipient.org}\n` +
   `Artifact type: ${artifactType}\n` +
-  `Purpose: ${id.purpose}`
+  `Purpose: ${id.purpose}\n\n` +
+  `${identifierBlock(id, runId)}`
 
 /* ------------------------------------------------------------- routing */
 
@@ -195,16 +224,19 @@ export function composeTrigger(args: {
   recipient?: Recipient | null
   artifactType?: string | null
   previous?: { answerText?: string | null; sources?: unknown; withheld?: unknown } | null
+  /** ORCA's run id, so a workflow with connectors can write back against it. */
+  runId?: string | null
 }): string {
-  const { workflow, identity, message, previous } = args
+  const { workflow, identity, message, previous, runId } = args
   const head =
-    workflow === 'understand'
-      ? understandPreamble(identity)
-      : producePreamble(
+    workflow === 'produce'
+      ? producePreamble(
           identity,
           args.recipient ?? { name: identity.name, role: identity.role, org: 'ORCA' },
           args.artifactType ?? 'summary',
+          runId,
         )
+      : understandPreamble(identity, runId)
 
   const parts = [head, '', `"${message.trim()}"`]
   const handoff = previous ? handoffBlock(previous) : null

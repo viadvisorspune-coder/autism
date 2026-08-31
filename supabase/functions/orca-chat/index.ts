@@ -109,17 +109,15 @@ Deno.serve(async (req) => {
 
   const identity = identityFor(actor, patientId ?? 'ANANYA-001')
   const recipient = asRecipient(body.recipient)
-  const triggerText = composeTrigger({
-    workflow,
-    identity,
-    message,
-    recipient,
-    artifactType: str(body.artifact_type),
-    previous,
-  })
-
-  // The run exists before it is started, so a trigger that fails still leaves
-  // a record that it was attempted.
+  /**
+   * The run row is created before the trigger is composed, not after.
+   *
+   * A workflow with API connectors writes its answer back against ORCA's run
+   * id, and the only way it learns that id is from the trigger text. So the
+   * row has to exist first — the id cannot be in a message that was already
+   * sent. It also means a trigger that fails still leaves a record that it was
+   * attempted.
+   */
   const idempotencyKey = str(body.idempotency_key) ?? crypto.randomUUID()
   const { data: run, error: runError } = await admin
     .from('workflow_runs')
@@ -131,7 +129,6 @@ Deno.serve(async (req) => {
       stakeholder: actor.name,
       current_step: 'Trigger composed',
       status: 'In progress',
-      trigger_text: triggerText,
       idempotency_key: idempotencyKey,
       // Empty when configured by a URL that carries no recognisable id. Null
       // says "we do not know it"; an empty string would read as a real value
@@ -143,6 +140,18 @@ Deno.serve(async (req) => {
     .single()
 
   if (runError || !run) return json({ error: 'could_not_record_run' }, 500)
+
+  const triggerText = composeTrigger({
+    workflow,
+    identity,
+    message,
+    recipient,
+    artifactType: str(body.artifact_type),
+    previous,
+    runId: run.id,
+  })
+
+  await admin.from('workflow_runs').update({ trigger_text: triggerText }).eq('id', run.id)
 
   let upstream: Response
   try {

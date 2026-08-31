@@ -81,7 +81,13 @@ export function WorkflowChat() {
 
   const subjectId = patientId ?? 'ANANYA-001'
   const identity: Identity = useMemo(
-    () => identityFrom(personName || option?.name || 'Unknown', role, subjectId),
+    () =>
+      identityFrom(
+        personName || option?.name || 'Unknown',
+        role,
+        subjectId,
+        option?.personId ?? '',
+      ),
     [personName, option?.name, role, subjectId],
   )
   const preamble = understandPreamble(identity)

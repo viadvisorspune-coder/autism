@@ -47,6 +47,8 @@ export const purposeFor = (role: string | null): string =>
 export interface Identity {
   name: string
   role: Role | string
+  /** Who is asking, as the connectors expect it. Blank in a preview. */
+  actorId: string
   subjectId: string
   purpose: string
   today: string
@@ -66,10 +68,12 @@ export function identityFrom(
   name: string,
   role: Role | string | null,
   subjectId: string,
+  actorId = '',
 ): Identity {
   return {
     name,
     role: role ?? 'patient',
+    actorId,
     subjectId,
     purpose: purposeFor(role),
     today: longDate(),
@@ -86,7 +90,13 @@ export function identityFrom(
 export function understandPreamble(id: Identity): string {
   return (
     `${id.name} (${id.role}, subject ${id.subjectId})\n` +
-    `asks via ORCA chat on ${id.today}, for the purpose of ${id.purpose}:`
+    `asks via ORCA chat on ${id.today}, for the purpose of ${id.purpose}.\n\n` +
+    `patient_id: ${id.subjectId}\n` +
+    `actor_id: ${id.actorId}\n` +
+    // The run does not exist until the server creates it, so the preview can
+    // only say that a value goes here. The server returns the real composed
+    // text once sent, and the screen shows that instead.
+    `workflow_run_id: (assigned when sent)`
   )
 }
 
