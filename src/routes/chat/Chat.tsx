@@ -2,13 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useSession } from '../../state/session'
 import { type Block, htmlToBlocks, htmlToText } from '../../lib/prose'
-import {
-  type Identity,
-  identityFrom,
-  needsDocument,
-  understandPreamble,
-  understandTrigger,
-} from '../../lib/trigger'
+import { type Identity, identityFrom, needsDocument, understandTrigger } from '../../lib/trigger'
 import { type ConversationData, persistMessage, useLive } from '../../lib/live'
 import { respondToApproval } from '../../lib/approvals'
 import { type RunStatus, parseEnvelope } from '../../lib/envelope'
@@ -23,6 +17,8 @@ interface RunRow {
   answer_html: string | null
   result: unknown
   trigger_text: string | null
+  path: string | null
+  route_reason: string | null
 }
 
 /**
@@ -62,6 +58,14 @@ interface Turn {
   state: 'sending' | 'running' | 'settled'
   /** ORCA's own run id, which is how a result finds its way back to this turn. */
   runId?: string
+  /**
+   * Which of the five paths this took, and the sentence explaining it.
+   *
+   * Carried on the turn rather than looked up, because it is shown beside the
+   * answer and has to survive the run row scrolling out of the poll window.
+   */
+  path?: string
+  reason?: string
   status?: Status
   answer?: string
   sources?: { id?: string; reporter?: string; date?: string; label?: string }[]
@@ -100,7 +104,6 @@ export function WorkflowChat() {
       ),
     [personName, option?.name, role, subjectId],
   )
-  const preamble = understandPreamble(identity)
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
@@ -314,7 +317,6 @@ export function WorkflowChat() {
       </main>
 
       <Composer
-        preamble={preamble}
         value={message}
         onChange={setMessage}
         onSend={() => send(message)}
@@ -535,16 +537,24 @@ function LiveApprovalCard({
 /* ------------------------------------------------------------- composer */
 
 /**
- * One bordered surface: the credentials, then the box, then the button.
+ * One bordered surface: a label, the box, and the button.
  *
- * The preamble is a real part of the composer rather than a note beside it,
- * because it is a real part of what gets sent. Rendering it as help text would
- * suggest it were optional.
+ * THE CREDENTIALS ARE NOT SHOWN HERE ANY MORE. They used to sit above the box,
+ * on the reasoning that somebody asking about their own medical record is owed
+ * sight of what is sent on their behalf. That reasoning was right about the
+ * principle and wrong about the placement: name, role, subject, purpose, date
+ * and three opaque identifiers are a form somebody has to read past to reach
+ * the one field that is theirs, every single time. The brief asks for one goal
+ * per screen and the smallest thing that works.
+ *
+ * The transparency stays, after the fact rather than in the way: every turn
+ * carries "See exactly what was sent", showing the real composed trigger the
+ * server returned. That is stronger than a preview, because it is what
+ * actually left rather than what the page predicted would leave.
  */
 function Composer({
-  preamble, value, onChange, onSend, busy, willProduce,
+  value, onChange, onSend, busy, willProduce,
 }: {
-  preamble: string
   value: string
   onChange: (v: string) => void
   onSend: () => void
@@ -555,32 +565,6 @@ function Composer({
     <div className="fixed inset-x-0 bottom-0 border-t border-line bg-paper/95 backdrop-blur">
       <div className="mx-auto max-w-3xl px-5 py-4">
         <div className="overflow-hidden rounded-xl border border-line-strong bg-paper">
-          {/*
-            The credentials, behind a disclosure.
-
-            They are always sent and the person is entitled to see them, but
-            they are not what anybody came here to read. Open by choice is the
-            brief's progressive disclosure; open by default was a block of
-            machine-shaped text sitting above the box on every visit.
-
-            The sentence label was uppercase, which the brief reserves for
-            short labels — it is a sentence, so it is sentence case now.
-          */}
-          <details className="border-b border-line bg-canvas">
-            <summary className="cursor-pointer px-3.5 py-2.5 text-[0.82rem] text-ink-2 marker:text-muted">
-              What is sent with your question
-            </summary>
-            <div className="px-3.5 pb-3">
-              <p className="mb-1.5 text-[0.8rem] leading-relaxed text-muted">
-                This comes from your sign-in. You cannot change it, and it is sent every time so
-                the record knows who is asking and why.
-              </p>
-              <pre className="whitespace-pre-wrap font-mono text-[0.75rem] leading-relaxed text-ink-2">
-                {preamble}
-              </pre>
-            </div>
-          </details>
-
           {/*
             A visible label, not a placeholder.
 
@@ -756,6 +740,54 @@ function Working({ state, since }: { state: 'sending' | 'running'; since?: strin
  * than quietly rendered as an answer. A status nobody planned for is the case
  * most likely to be wrong, so it is the case shown most loudly.
  */
+/**
+ * What ORCA decided to do, in one sentence, before it did it.
+ *
+ * The routing choice was being made, recorded and then never shown. That is a
+ * loss on both sides of this product: a person handing over a question about
+ * their medical record is owed the knowledge of what will happen to it, and a
+ * reader watching over their shoulder cannot otherwise tell a system that
+ * decides from one that guesses.
+ *
+ * The sentence comes from the server, which is the same place the decision was
+ * made — so it cannot drift from the thing it describes.
+ */
+function Decision({ reason }: { reason: string }) {
+  return (
+    <p className="mb-2 border-l-2 border-line-strong pl-3 text-[0.83rem] leading-relaxed text-muted">
+      {reason}
+    </p>
+  )
+}
+
+/**
+ * What a person can reasonably do next, from where this turn ended.
+ *
+ * Offered rather than described. A finished answer usually raises the next
+ * question, and the useful ones are predictable enough to put on a button —
+ * which matters most for somebody who finds composing a follow-up from a blank
+ * box the expensive part.
+ *
+ * Deliberately few, and never a bare verb. Each says what will happen, because
+ * a button labelled "Share" on a page about somebody's medical record has to
+ * be clearer than a button labelled "Share" anywhere else.
+ */
+function nextActions(turn: Turn): string[] {
+  if (turn.status === 'error') return ['Try that again']
+  if (turn.status === 'blocked') return ['What am I allowed to see?']
+  if (turn.status !== 'done' || !turn.answer) return []
+
+  // A draft that already exists needs deciding on, not extending.
+  if (turn.workflow === 'ORCA_PRODUCE') {
+    return ['Who would this go to?', 'What was left out of this?']
+  }
+  return [
+    'Write this up for someone',
+    'What has changed since then?',
+    'Who can see this part of my record?',
+  ]
+}
+
 function Answered({ turn, onPick }: { turn: Turn; onPick: (s: string) => void }) {
   if (turn.status === 'blocked' || turn.status === 'error') {
     return (
@@ -773,8 +805,12 @@ function Answered({ turn, onPick }: { turn: Turn; onPick: (s: string) => void })
     )
   }
 
+  const actions = nextActions(turn)
+
   return (
     <div className="space-y-3">
+      {turn.reason ? <Decision reason={turn.reason} /> : null}
+
       {turn.answer ? (
         <div className="rounded-xl rounded-bl-sm border border-line bg-paper px-4 py-3">
           <Prose html={turn.answer} />
@@ -809,6 +845,29 @@ function Answered({ turn, onPick }: { turn: Turn; onPick: (s: string) => void })
 
       {turn.status === 'needs_approval' && turn.approval ? (
         <ApprovalCard approval={turn.approval} />
+      ) : null}
+
+      {/*
+        Suggestions, and visibly so.
+
+        Bordered and quiet rather than filled, because the primary action on
+        this screen is the person's own next sentence. A row of solid buttons
+        under an answer reads as instruction — pick one of these — and the
+        point is the opposite: here are some things you might want, and you
+        can ignore all of them.
+      */}
+      {actions.length ? (
+        <div className="flex flex-wrap gap-2 pt-0.5">
+          {actions.map((a) => (
+            <button
+              key={a}
+              onClick={() => onPick(a)}
+              className="rounded-lg border border-line-strong px-3.5 py-2 text-left text-[0.83rem] text-ink-2 hover:border-brand hover:text-brand"
+            >
+              {a}
+            </button>
+          ))}
+        </div>
       ) : null}
     </div>
   )
@@ -1065,6 +1124,8 @@ async function startRun(args: {
     return {
       state: 'running',
       runId: String(data.run_id),
+      path: typeof data.path === 'string' ? data.path : undefined,
+      reason: typeof data.reason === 'string' ? data.reason : undefined,
       workflow: data.workflow === 'produce' ? 'ORCA_PRODUCE' : 'ORCA_UNDERSTAND',
       // The authoritative text, replacing the preview composed in the browser.
       trigger: typeof data.trigger_text === 'string' ? data.trigger_text : undefined,
@@ -1113,6 +1174,8 @@ function settleFrom(row: RunRow): Partial<Turn> | null {
   return {
     state: 'settled',
     status,
+    path: row.path ?? undefined,
+    reason: row.route_reason ?? undefined,
     answer: envelope.answerHtml ?? row.answer_html ?? undefined,
     sources: envelope.sources,
     withheld: envelope.withheld,
