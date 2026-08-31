@@ -26,6 +26,7 @@ import { actorFromRequest, mayActOnPatient, forbidden, unauthorised } from '../_
 import { type WorkflowName, isConfigured } from '../_shared/compose.ts'
 import { type Lane, type Plan, SAME_QUESTION, planFor, similarity } from '../_shared/route.ts'
 import { launch, launchError } from '../_shared/start.ts'
+import { resolveRecipient } from '../_shared/recipient.ts'
 
 /** How long a retrieval stays fresh enough to draft from without looking again. */
 const EVIDENCE_FRESH_MS = 60 * 60 * 1000
@@ -109,7 +110,18 @@ Deno.serve(async (req) => {
     return forbidden('You do not have access to this record.')
   }
 
-  const recipientIn = asRecipient(body.recipient)
+  /**
+   * Who the document is for.
+   *
+   * Taken from the request when the caller states it, and otherwise looked up
+   * among the people actually connected to this record by whatever the message
+   * names. Routing depends on this — a letter to an employer takes the full
+   * governance path and a handover to an OT does not — and nothing was
+   * supplying it, so that distinction could never be drawn.
+   */
+  const recipientIn =
+    asRecipient(body.recipient) ??
+    (patientId ? await resolveRecipient(patientId, message) : null)
 
   /**
    * The two facts routing needs that the sentence cannot tell us.
