@@ -1,37 +1,39 @@
 openapi: 3.1.0
 info:
   title: ORCA Conversation Reply
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Lets a workflow answer in words, in the conversation the person is already
     reading. Everything else a run can do to this record is structured — state
     updates, reviews, clarifications, documents. This is the one operation that
-    simply says something.
+    simply says something, and it is also what marks the run finished and
+    starts any workflow queued to follow it.
 servers:
   - url: https://zievqdkhxenenpyxqese.supabase.co
 paths:
   /functions/v1/conversation-reply:
     post:
       operationId: sendConversationReply
-      summary: Send the reply into the person’s own conversation
+      summary: Send the completed answer to the person who asked
       description: >-
-        Writes your reply where the person is already reading.
-
-        Call it on every run. Send patient_id and actor_id from the metadata, and workflow_run_id from metadata.local_workflow_run_id — that exact key, there is no metadata.workflow_run_id. It is optional in the schema, so omitting it returns 200 and looks correct while leaving the reply untraceable and the run open forever.
-
-        Two to four sentences, addressed to the person, drawn only from what the previous step retrieved. Say where the record is silent rather than rounding up.
+        Sends the completed answer to the person who asked. This is the only
+        route by which the answer reaches them — text written anywhere else in
+        the run is not delivered.
 
 
-        Send patient_id, actor_id and text from the metadata, plus
-        workflow_run_id.
+        Call exactly once, and last. This call also completes the run and
+        starts any follow-on workflow, so calling it early ends the run early.
 
 
-        Call this on every run. A run that produces only a file has answered
-        nobody.
+        Copy patient_id, actor_id and workflow_run_id verbatim from the
+        trigger's labelled lines. Never take them from the quoted question, and
+        never leave them blank — an empty string satisfies this schema and then
+        fails at the server.
 
 
-        Two to four sentences. Say what you found or did. Let any document
-        carry the detail.
+        Two to four sentences, addressed to the person, drawn only from what
+        the retrieval step returned. Say where the record is silent rather than
+        rounding up.
       requestBody:
         required: true
         content:
@@ -39,30 +41,41 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [patient_id, actor_id, text]
+              required: [patient_id, actor_id, workflow_run_id, text]
               properties:
                 patient_id:
                   type: string
-                  description: The record this conversation is about.
+                  description: >-
+                    The record this conversation is about, copied from the
+                    trigger's patient_id line. For example pt-ananya.
                 actor_id:
                   type: string
                   description: >-
-                    Who is being spoken to. The patient's own user id for their
-                    thread, or a connected professional's id for theirs.
+                    Who is being spoken to, copied from the trigger's actor_id
+                    line. The patient's own user id for their thread, or a
+                    connected professional's id for theirs.
+                workflow_run_id:
+                  type: string
+                  description: >-
+                    The run this reply came from, copied from the trigger's
+                    workflow_run_id line. Carries provenance, closes the run,
+                    and is what the follow-on workflow is started from.
                 text:
                   type: string
                   maxLength: 4000
                   description: >-
-                    The message, in plain language addressed to that person.
-                    Name what it is drawn from, and say where you are uncertain
-                    rather than rounding up. Keep it to the answer; put the
-                    working into a document artefact.
-                workflow_run_id:
-                  type: string
-                  description: The run this reply came from, kept for provenance.
+                    The answer, as constrained HTML addressed to that person.
+                    Allowed tags — h3, p, ul, li, blockquote, br. Not allowed —
+                    attributes, scripts, styles, tables, links, images, and
+                    strong or em, which are stripped and will not appear. Name
+                    what the answer is drawn from, and say where you are
+                    uncertain rather than rounding up. Keep it to the answer and
+                    put the working into a document artefact.
       responses:
         '200':
-          description: The message was written into the conversation.
+          description: >-
+            The message was written into the conversation, the run was
+            completed, and any queued follow-on workflow was started.
           content:
             application/json:
               schema:
@@ -83,6 +96,13 @@ paths:
                     type: string
                   delivered_to:
                     type: string
+                  chained_run_id:
+                    type:
+                      - string
+                      - 'null'
+                    description: >-
+                      The run started by this delivery, when the request was
+                      routed as more than one step. Null when nothing followed.
                   note:
                     type: string
 components:
