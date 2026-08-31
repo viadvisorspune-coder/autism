@@ -89,7 +89,7 @@ export function Login() {
                   }}
                   placeholder="name@example.in"
                   autoComplete="username"
-                  className="w-full rounded-2xl  border-line-strong px-3 py-2.5 text-[0.9rem] outline-none placeholder:text-muted"
+                  className="w-full rounded-2xl border border-line-strong px-3 py-2.5 text-[0.9rem] outline-none placeholder:text-muted"
                 />
               </label>
               <label className="block">
@@ -99,7 +99,7 @@ export function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
-                  className="w-full rounded-2xl  border-line-strong px-3 py-2.5 text-[0.9rem] outline-none"
+                  className="w-full rounded-2xl border border-line-strong px-3 py-2.5 text-[0.9rem] outline-none"
                 />
               </label>
 
@@ -133,11 +133,22 @@ export function Login() {
                 Sign in to the workflow chat
               </button>
             </form>
-            <div className="mt-4 flex flex-wrap gap-4 text-[0.82rem] text-muted">
-              <button className="hover:text-ink hover:underline">Forgot password</button>
-              <button className="hover:text-ink hover:underline">Privacy</button>
-              <button className="hover:text-ink hover:underline">Help</button>
-            </div>
+            {/*
+              What used to be here: Forgot password, Privacy, Help — three
+              buttons with no handler between them. A control that does nothing
+              is worse on a sign-in screen than anywhere else, because the one
+              person most likely to press "Forgot password" is the one who
+              cannot get in, and nothing happening is indistinguishable from
+              the page being broken.
+
+              Replaced by the fact somebody actually needs at this point: the
+              password is not checked, so a wrong one is not why sign-in
+              failed.
+            */}
+            <p className="mt-4 text-[0.82rem] leading-relaxed text-muted">
+              The password is not checked — any text will do. Only the email decides who you
+              sign in as.
+            </p>
           </CardBody>
         </Card>
 
@@ -159,10 +170,10 @@ export function Login() {
                   type="button"
                   onClick={() => fill(option)}
                   aria-pressed={email === option.email}
-                  className={`h-full w-full rounded-[20px]  px-4 py-3 text-left transition-colors ${
+                  className={`h-full w-full rounded-[20px] border px-4 py-3 text-left transition-colors ${
                     email === option.email
                       ? 'border-brand bg-brand-tint'
-                      : 'bg-surface-2 hover:bg-surface-2'
+                      : 'border-line bg-surface-2 hover:border-line-strong'
                   }`}
                 >
                   <span className="block text-[0.89rem] font-medium text-ink">{option.name}</span>
@@ -181,113 +192,6 @@ export function Login() {
         real record is stored. Open two browsers side by side to watch a decision move between two of
         them.
       </p>
-    </AuthFrame>
-  )
-}
-
-/* ------------------------------------------------------ 1.3 — First-time setup */
-
-const patientSetup = [
-  {
-    title: 'Communication preferences',
-    options: ['Written messages', 'Plain language', 'One thing at a time', 'No unscheduled calls'],
-  },
-  {
-    title: 'Privacy defaults',
-    options: [
-      'Ask me every time before anything is shared',
-      'Never include clinical documents by default',
-      'Never include journal entries',
-    ],
-  },
-  { title: 'Trusted person', options: ['Add later', 'Divya Rao (sister)'] },
-  {
-    title: 'Consent preferences',
-    options: ['Time-limited access only', 'Review all access every six months'],
-  },
-]
-
-const professionalSetup = [
-  { title: 'Organisation', options: ['Sahyadri Neurodevelopmental Clinic', 'Add another'] },
-  { title: 'Professional role', options: ['Clinical psychologist', 'Supervisor'] },
-  {
-    title: 'Access permissions',
-    options: ['Patients who have connected to me', 'Clinic-wide (requires approval)'],
-  },
-  { title: 'Patient list configuration', options: ['By next appointment', 'By recent change'] },
-]
-
-const institutionSetup = [
-  { title: 'Organisation', options: ['Northline Technologies', 'Pune Institute of Design'] },
-  { title: 'Team', options: ['People & Culture', 'Accessibility office'] },
-  {
-    title: 'Permission level',
-    options: ['Requests only — no clinical information', 'Requests and implementation tracking'],
-  },
-]
-
-export function FirstRun() {
-  const { role, option, completeSetup } = useSession()
-  const navigate = useNavigate()
-  const [choices, setChoices] = useState<Record<string, string>>({})
-
-  const groups =
-    role === 'patient'
-      ? patientSetup
-      : ['employer', 'university', 'clinic', 'admin'].includes(role ?? '')
-        ? institutionSetup
-        : professionalSetup
-
-  return (
-    <AuthFrame
-      title="Set up your account"
-      intro="These choices can be changed at any time. They control what ORCA does by default, not what it is allowed to do — that always needs your approval."
-      wide
-    >
-      <div className="space-y-4">
-        {groups.map((group) => (
-          <Card key={group.title}>
-            <CardBody>
-              <h2 className="text-[0.92rem] font-semibold text-ink">{group.title}</h2>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {group.options.map((opt) => (
-                  <button
-                    key={opt}
-                    onClick={() => setChoices((c) => ({ ...c, [group.title]: opt }))}
-                    aria-pressed={choices[group.title] === opt}
-                    className={`rounded-full  px-3 py-1.5 text-[0.82rem] ${
-                      choices[group.title] === opt
-                        ? 'border-brand bg-brand-tint text-brand-ink'
-                        : 'border-line text-ink-2 hover:border-line-strong'
-                    }`}
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
-            </CardBody>
-          </Card>
-        ))}
-      </div>
-      <div className="mt-6 flex gap-3">
-        <Button
-          variant="primary"
-          onClick={() => {
-            completeSetup()
-            navigate(option?.home ?? '/patient')
-          }}
-        >
-          Continue
-        </Button>
-        <Button
-          onClick={() => {
-            completeSetup()
-            navigate(option?.home ?? '/patient')
-          }}
-        >
-          Skip for now
-        </Button>
-      </div>
     </AuthFrame>
   )
 }

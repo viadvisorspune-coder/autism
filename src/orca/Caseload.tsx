@@ -65,9 +65,19 @@ export default function Caseload() {
                   <p className="o-meta mt-2">
                     {r.seen ? `Last seen ${longDate(r.seen)}` : 'You have not recorded a session yet'}
                   </p>
+                  {/*
+                    "since then" — the sentence used to stop at "since" and
+                    name nothing, so a clinician read "3 new entries since" and
+                    had to supply the object themselves. It points at the line
+                    directly above, which is the date and is always present:
+                    `since` is only counted when `seen` exists, so this can
+                    never be anaphoric to nothing.
+                  */}
                   {r.since ? (
                     <p className="o-body mt-3">
-                      {r.since === 1 ? 'One new entry since' : `${r.since} new entries since`}
+                      {r.since === 1
+                        ? 'One new entry since then'
+                        : `${r.since} new entries since then`}
                     </p>
                   ) : null}
                 </div>

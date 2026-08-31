@@ -18,7 +18,7 @@ import { ACCEPTED_FILES, type Attached, attachFile } from '../lib/attach'
 import { type Ask, useAsks } from './asks'
 import { useSubject } from './subject'
 import { Card, PageTitle, SectionHead, shortDate } from './parts'
-import { toneClass } from './system'
+import { boundaryFor, toneClass } from './system'
 
 export default function Ask() {
   const { role, option } = useSession()
@@ -173,6 +173,8 @@ export default function Ask() {
         </p>
       </div>
 
+      <Boundary />
+
       {/*
         History, not suggestions.
 
@@ -209,6 +211,45 @@ export default function Ask() {
       {/* A legend, once, on the one screen where all five colours can appear. */}
       {role === 'patient' && recent.length ? <Legend /> : null}
     </>
+  )
+}
+
+/**
+ * What this person cannot ask about, said before they ask it.
+ *
+ * The boundary was only ever stated on the way out — on the answer screen, and
+ * in the "Not shown" section of the record. Both are after the fact. Anil's
+ * first act in this product was therefore to spend a question finding out that
+ * a whole category of question is not his to ask, and Sana's was to discover
+ * mid-task that the clinical half of what she wanted runs through Ananya.
+ *
+ * Learning a rule by breaking it is a reasonable way to learn a game and a poor
+ * way to learn what you are allowed to know about a colleague's medical record.
+ * The refusals stay exactly as they are — this does not replace them, and it is
+ * deliberately not a list of permitted phrasings, which would turn an open box
+ * into a guessing game about wording.
+ *
+ * Renders nothing for the people who have no boundary: Ananya, and the three
+ * clinicians who hold the whole clinical record. A standing notice telling them
+ * about a limit they do not have would invent one.
+ */
+function Boundary() {
+  const { role } = useSession()
+  const boundary = boundaryFor(role)
+  if (!boundary) return null
+
+  return (
+    <section className="o-section">
+      <SectionHead>What is not part of your access</SectionHead>
+      <p className="o-body o-measure">{boundary.what}</p>
+      <p className="o-body o-measure mt-4">
+        It is held by {boundary.who}.
+      </p>
+      <p className="o-meta o-measure mt-5">
+        Asking about it is not a mistake and costs nothing. You will be told plainly, and nothing
+        is read from the record to tell you.
+      </p>
+    </section>
   )
 }
 
