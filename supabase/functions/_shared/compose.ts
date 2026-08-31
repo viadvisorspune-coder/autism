@@ -26,6 +26,8 @@
  * its answers can only return through an approval gate. Same question, same
  * preamble; the difference is whether the answer can get home.
  */
+import { artifactFrom, categoriesFrom, sinceFrom } from './hints.ts'
+
 export type WorkflowName = 'understand' | 'produce' | 'chat' | 'fifteen'
 
 export interface Identity {
@@ -103,32 +105,55 @@ export function identityFor(
  * what the reader may see: `orca_can_access` still decides that, server-side,
  * from the actor the session resolved.
  */
-const identifierBlock = (id: Identity, runId?: string | null): string =>
+const identifierBlock = (
+  id: Identity,
+  runId?: string | null,
+  hints?: { since?: string | null; categories?: string[] },
+): string =>
   [
     `patient_id: ${id.subjectId}`,
     `actor_id: ${id.actorId}`,
     runId ? `workflow_run_id: ${runId}` : null,
+    `purpose: ${id.purpose}`,
+    /**
+     * Derived filters, stated rather than left to be inferred.
+     *
+     * "Since May" has one correct ISO date given the trigger's own date, and
+     * "about work" maps to one category in a fixed list. A model asked to work
+     * those out will usually be right and occasionally silently wrong — and a
+     * wrong `since` narrows a medical record without telling anybody, so the
+     * answer then reports what it found as though that were everything.
+     *
+     * Absent when the phrase was ambiguous, which leaves the agent reading the
+     * question as it otherwise would.
+     */
+    hints?.since ? `since: ${hints.since}` : null,
+    hints?.categories?.length ? `categories: ${hints.categories.join(', ')}` : null,
   ]
     .filter(Boolean)
     .join('\n')
 
-export const understandPreamble = (id: Identity, runId?: string | null): string =>
+export const understandPreamble = (
+  id: Identity,
+  runId?: string | null,
+  hints?: { since?: string | null; categories?: string[] },
+): string =>
   `${id.name} (${id.role}, subject ${id.subjectId})\n` +
   `asks via ORCA chat on ${id.today}, for the purpose of ${id.purpose}.\n\n` +
-  `${identifierBlock(id, runId)}`
+  `${identifierBlock(id, runId, hints)}`
 
 export const producePreamble = (
   id: Identity,
   recipient: Recipient,
   artifactType: string,
   runId?: string | null,
+  hints?: { since?: string | null; categories?: string[] },
 ): string =>
   `${id.name} (${id.role}, subject ${id.subjectId})\n` +
   `asks via ORCA chat on ${id.today}.\n` +
   `Recipient: ${recipient.name}, ${recipient.role}, ${recipient.org}\n` +
-  `Artifact type: ${artifactType}\n` +
-  `Purpose: ${id.purpose}\n\n` +
-  `${identifierBlock(id, runId)}`
+  `Artifact type: ${artifactType}\n\n` +
+  `${identifierBlock(id, runId, hints)}`
 
 /* ------------------------------------------------------------- routing */
 
@@ -244,14 +269,29 @@ export function composeTrigger(args: {
    * writing to.
    */
   const makesDocument = workflow === 'produce' || workflow === 'fifteen'
+
+  /**
+   * Filters worked out from the question rather than left to be inferred.
+   *
+   * Anchored to the trigger's own date, so a run re-read later resolves to the
+   * same window it did when it ran. A relative period that drifts is a filter
+   * that silently changes what an answer was based on.
+   */
+  const hints = {
+    since: sinceFrom(message, new Date()),
+    categories: categoriesFrom(message),
+  }
+
   const head = makesDocument
     ? producePreamble(
         identity,
         args.recipient ?? { name: identity.name, role: identity.role, org: 'ORCA' },
-        args.artifactType ?? 'summary',
+        // The person's own word for what they want, where they used one.
+        args.artifactType ?? artifactFrom(message) ?? 'summary',
         runId,
+        hints,
       )
-    : understandPreamble(identity, runId)
+    : understandPreamble(identity, runId, hints)
 
   const parts = [head, '', `"${message.trim()}"`]
   const handoff = previous ? handoffBlock(previous) : null
