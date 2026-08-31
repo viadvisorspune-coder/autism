@@ -50,11 +50,11 @@ export default function Ask() {
     else setFileProblem(result.error)
   }
 
-  async function send() {
+  async function send(rehearse = false) {
     const body = question.trim()
     if (!body || sending) return
     setSending(true)
-    const id = await ask(body, { file })
+    const id = await ask(body, { file, rehearse })
     setQuestion('')
     setFile(null)
     setSending(false)
@@ -120,7 +120,7 @@ export default function Ask() {
           <button
             type="button"
             className="o-btn o-btn-primary"
-            onClick={send}
+            onClick={() => void send()}
             disabled={sending || !question.trim()}
           >
             {sending ? 'Sending' : 'Ask'}
@@ -138,6 +138,32 @@ export default function Ask() {
               }}
             />
           </label>
+          {/*
+            Rehearse: decide the route and compose the trigger, send nothing.
+
+            A visible control rather than a hidden query parameter, and it earns
+            its place on this screen rather than in a developer menu. Two of the
+            five routes exist only as a consequence of history — a draft from a
+            recent retrieval, a replay of an answer already given — so they
+            cannot be reached at all until a real run has come back with an
+            answer. Rehearsal is the only way to exercise the routing when the
+            workflows are mid-configuration, which is exactly when somebody
+            needs to see whether what is on screen came from a real run.
+
+            The answer screen labels it loudly, above everything else, because
+            a rehearsal looks identical to a real answer by design: same
+            routing, same composition, same rendering. That fidelity is the
+            point and also the hazard.
+          */}
+          <button
+            type="button"
+            className="o-btn"
+            onClick={() => void send(true)}
+            disabled={sending || !question.trim()}
+            title="Decide the route and compose the request, without running anything"
+          >
+            Rehearse
+          </button>
         </div>
 
         <p className="o-meta o-measure mt-5">
