@@ -113,7 +113,7 @@ export function WorkflowChat() {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [turns.length, busy])
 
-  async function send(text: string, dryRun = false) {
+  async function send(text: string, dryRun = false, workflow?: string) {
     const body = text.trim()
     if (!body || busy) return
     const trigger = understandTrigger(identity, body)
@@ -134,6 +134,7 @@ export function WorkflowChat() {
       actorId: option?.personId ?? null,
       patientId: patientId ?? null,
       dryRun,
+      workflow,
     })
     setTurns((t) => t.map((x) => (x.id === turn.id ? { ...x, ...started } : x)))
 
@@ -330,7 +331,11 @@ export function WorkflowChat() {
             <li key={t.id}>
               <Asked turn={t} />
               {t.state === 'settled' ? (
-                <Answered turn={t} onPick={send} />
+                <Answered
+                  turn={t}
+                  onPick={send}
+                  onRedo={(m, w) => send(m, false, w)}
+                />
               ) : (
                 <Working state={t.state} since={t.at} />
               )}
@@ -797,11 +802,68 @@ function Working({ state, since }: { state: 'sending' | 'running'; since?: strin
  * The sentence comes from the server, which is the same place the decision was
  * made — so it cannot drift from the thing it describes.
  */
-function Decision({ reason }: { reason: string }) {
+function Decision({
+  reason,
+  message,
+  onRedo,
+}: {
+  reason: string
+  message: string
+  onRedo?: (workflow: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  /**
+   * The four lanes, named for what a person gets rather than what we call them.
+   *
+   * Showing a decision without a way to change it is worse than not showing
+   * it: the person now knows something was chosen for them and still cannot
+   * do anything about it. Routing is a set of rules and will sometimes be
+   * wrong — "can you write down what changed" reads as a document request and
+   * is not one — so being correctable is what makes the transparency worth
+   * having.
+   */
+  const lanes: [string, string][] = [
+    ['understand', 'Just answer the question'],
+    ['produce', 'Write a document'],
+    ['fifteen', 'Formal document, full checks'],
+    ['chat', 'Bring back what I was told before'],
+  ]
+
   return (
-    <p className="mb-2 border-l-2 border-line-strong pl-3 text-[0.83rem] leading-relaxed text-muted">
-      {reason}
-    </p>
+    <div className="mb-2 border-l-2 border-line-strong pl-3">
+      <p className="text-[0.83rem] leading-relaxed text-muted">{reason}</p>
+      {onRedo ? (
+        <>
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            className="mt-1 py-1 text-[0.8rem] font-medium text-brand hover:underline"
+          >
+            {open ? 'Never mind' : 'That is not what I meant'}
+          </button>
+          {open ? (
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              {lanes.map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    setOpen(false)
+                    onRedo(id)
+                  }}
+                  className="rounded-lg border border-line-strong px-3 py-2 text-[0.82rem] text-ink-2 hover:border-brand hover:text-brand"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </>
+      ) : null}
+      {/* The message is re-sent verbatim, so nothing is retyped to correct a route. */}
+      <span className="sr-only">{message}</span>
+    </div>
   )
 }
 
@@ -879,7 +941,15 @@ function Documents({ files }: { files: Attachment[] }) {
   )
 }
 
-function Answered({ turn, onPick }: { turn: Turn; onPick: (s: string) => void }) {
+function Answered({
+  turn,
+  onPick,
+  onRedo,
+}: {
+  turn: Turn
+  onPick: (s: string) => void
+  onRedo: (message: string, workflow: string) => void
+}) {
   if (turn.status === 'blocked' || turn.status === 'error') {
     return (
       <div className="rounded-xl border border-line-strong bg-paper p-4">
@@ -914,7 +984,13 @@ function Answered({ turn, onPick }: { turn: Turn; onPick: (s: string) => void })
         </p>
       ) : null}
 
-      {turn.reason ? <Decision reason={turn.reason} /> : null}
+      {turn.reason ? (
+        <Decision
+          reason={turn.reason}
+          message={turn.message}
+          onRedo={(w) => onRedo(turn.message, w)}
+        />
+      ) : null}
 
       {turn.answer ? (
         <div className="rounded-xl rounded-bl-sm border border-line bg-paper px-4 py-3">
@@ -1205,6 +1281,8 @@ async function startRun(args: {
   actorId: string | null
   patientId: string | null
   dryRun?: boolean
+  /** Overrides the router's choice when a person says it picked wrong. */
+  workflow?: string
 }): Promise<Partial<Turn>> {
   try {
     const { isSupabaseConfigured, supabase } = await import('../../lib/supabase')
@@ -1218,6 +1296,7 @@ async function startRun(args: {
         actor_id: args.actorId,
         patient_id: args.patientId,
         dry_run: args.dryRun ?? false,
+        workflow: args.workflow,
       },
     })
 
