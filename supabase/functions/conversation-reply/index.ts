@@ -32,6 +32,7 @@
  * action past an approval.
  */
 import { inferFromRecentRun } from '../_shared/whoami.ts'
+import { deliver, findRun } from '../_shared/deliver.ts'
 import { admin, guard, json, recordAudit, str } from '../_shared/yoxa.ts'
 
 /** Long enough for a real answer, short enough not to be a document. */
@@ -173,30 +174,42 @@ Deno.serve(
       .eq('id', conversation.id)
 
     /**
-     * A run whose only job was to answer is finished once it has answered.
+     * Speaking is delivering.
      *
-     * Otherwise it sits at "In progress · Processing" forever: the person has
-     * their reply on screen while the interface beside it still shows work
-     * happening, which reads as though something else is coming. Closing it
-     * here rather than in a further workflow step means the answer and the
-     * closure cannot come apart — there is no third call left to fail after
-     * the person has already been served.
+     * This used to close the run and nothing more: status to Completed, step
+     * to Replied, and no answer written to the row. That was enough when a
+     * reply was the whole of what a workflow did, and wrong the moment one of
+     * them was the first half of something.
      *
-     * Only ever closes a run that is still open, and only a run whose type is
-     * a question. A document-producing run has more to do after it speaks.
+     * Three things were lost by treating a reply as smaller than a result.
+     * The answer never reached `answer_html`, so the replay lane could not
+     * find it and a second identical question re-ran the whole workflow. The
+     * chain never fired, so a request routed as "look first, then draft" got
+     * its answer and silently stopped — no error anywhere, the second half
+     * simply never happened. And a rehearsal could reach a state a real run
+     * could not.
+     *
+     * `deliver` is where every other transport lands, so a reply now lands
+     * there too. It does not overwrite an answer that already arrived by
+     * another road, and it fires the chain on real content only.
+     *
+     * The old `type = 'Question'` guard is gone with it. That was protecting
+     * against closing a document run too early; `deliver` handles the same
+     * concern properly, by refusing to chain when there is no content and by
+     * leaving an existing answer alone.
      */
+    let chainedRunId: string | null = null
     if (resolvedRun) {
-      await admin
-        .from('workflow_runs')
-        .update({
+      const run = await findRun({ runId: resolvedRun })
+      if (run) {
+        const outcome = await deliver(run, {
+          answerHtml: text,
+          envelope: { answer: text, via: 'conversation_reply' },
           status: 'Completed',
-          current_step: 'Replied',
-          waiting_for: null,
-          updated_at: new Date().toISOString(),
+          step: 'Replied',
         })
-        .eq('id', resolvedRun)
-        .eq('type', 'Question')
-        .eq('status', 'In progress')
+        chainedRunId = outcome.chainedRunId
+      }
     }
 
     await recordAudit({
@@ -217,6 +230,9 @@ Deno.serve(
       conversation_id: conversation.id,
       created_at: message.created_at,
       delivered_to: resolvedActor,
+      // Reported so a workflow author can see the second half started, rather
+      // than having to infer it from a run appearing later.
+      chained_run_id: chainedRunId,
       note: 'Written into the conversation. Nothing was decided, shared or changed by saying it.',
     })
   }),
