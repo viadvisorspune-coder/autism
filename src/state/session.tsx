@@ -283,6 +283,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (current) rememberOnboarded(current.personId)
   }, [role])
 
+  /**
+   * Which look this person gets, on the root element.
+   *
+   * The palette is decided by who is signed in rather than by which screen
+   * they are on, because it is a statement about whose record this is. A
+   * person reading their own history gets the warm, coloured view; anybody
+   * reading somebody else's gets a single accent on white, which is a working
+   * tool rather than a diminished version of the same thing.
+   *
+   * On the root so it reaches every screen at once, and so nothing can render
+   * briefly in the wrong palette on the way in.
+   */
+  useEffect(() => {
+    const option =
+      accounts().find((o) => o.personId === personId) ??
+      roleOptions.find((r) => r.role === role) ??
+      null
+    document.documentElement.dataset.experience = option?.experience ?? 'patient'
+  }, [personId, role])
+
   const value = useMemo<SessionValue>(() => {
     // The person first, the role only as a fallback for a session stored
     // before this existed.

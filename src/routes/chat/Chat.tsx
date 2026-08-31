@@ -355,7 +355,7 @@ export function WorkflowChat() {
       <header className="border-b border-line bg-paper">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-5 py-3">
           <div className="min-w-0">
-            <h1 className="text-[1rem] font-semibold leading-snug">Ask about your record</h1>
+            <h1 className="display text-[1.35rem]">Ask about your record</h1>
             <p className="truncate text-[0.82rem] leading-relaxed text-muted">
               Signed in as {identity.name} · {String(identity.role)}
               {organisation ? ` · ${organisation}` : ''}
@@ -1180,6 +1180,26 @@ function Documents({ files }: { files: Attachment[] }) {
   )
 }
 
+/**
+ * The colour an answer sits on.
+ *
+ * Rotated across a small set rather than assigned by meaning, so a
+ * conversation reads as a run of distinct moments instead of a colour-coded
+ * status system. Status is carried by words on this screen; colour is carried
+ * by rhythm. Derived from the turn's own id so it is stable across polls and
+ * reloads — an answer that changed colour every four seconds would be worse
+ * than one with no colour at all.
+ *
+ * Only for the person whose record it is. Anybody reading somebody else's gets
+ * white, because a warm palette on another person's medical history is the
+ * interface being cheerful about something that is not its to be cheerful
+ * about.
+ */
+function answerTone(turn: Turn): string {
+  const sum = [...turn.id].reduce((n, c) => n + c.charCodeAt(0), 0)
+  return `answer-tone play-${(sum % 6) + 1}`
+}
+
 function Answered({
   turn,
   onPick,
@@ -1232,33 +1252,59 @@ function Answered({
       ) : null}
 
       {turn.answer ? (
-        <div className="rounded-xl rounded-bl-sm border border-line bg-paper px-4 py-3">
+        /*
+          The answer is the one thing on this screen that matters.
+          
+          It was a bordered card the same weight as everything around it, which
+          is how a page ends up feeling like a form. Bigger radius, more room,
+          and — for the person whose record it is — a block of their own colour,
+          so the conversation reads as a sequence of distinct moments rather
+          than a list of identical panels.
+        */
+        <div className={`rounded-[22px] px-5 py-4 ${answerTone(turn)}`}>
           <Prose html={turn.answer} />
         </div>
       ) : null}
 
       {turn.files?.length ? <Documents files={turn.files} /> : null}
 
-      {turn.sources?.length ? (
-        <details className="rounded-lg border border-line bg-canvas px-3.5 py-2.5">
-          <summary className="cursor-pointer text-[0.78rem] font-medium text-ink-2">
-            {turn.sources.length} source{turn.sources.length === 1 ? '' : 's'}
+      {/*
+        Where it came from, behind one control instead of two blocks.
+        
+        Sources and withheld were separate always-visible elements, which meant
+        a finished turn could stack seven things down the page. They answer the
+        same question — what this rests on, and what it does not — so they are
+        one disclosure now, with the counts in the summary so collapsing is not
+        concealment.
+      */}
+      {turn.sources?.length || turn.withheld?.length ? (
+        <details className="rounded-xl border border-line-strong bg-paper px-4 py-2.5">
+          <summary className="cursor-pointer text-[0.83rem] font-medium text-ink-2">
+            {[
+              turn.sources?.length
+                ? `${turn.sources.length} source${turn.sources.length === 1 ? '' : 's'}`
+                : null,
+              turn.withheld?.length ? `${turn.withheld.length} held back` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </summary>
-          <ul className="mt-2 space-y-1">
-            {turn.sources.map((s, i) => (
-              <li key={i} className="text-[0.78rem] text-muted">
-                {s.label ?? s.id} · {s.reporter} · {s.date}
-              </li>
-            ))}
-          </ul>
+          {turn.sources?.length ? (
+            <ul className="mt-2.5 space-y-1">
+              {turn.sources.map((sc, i) => (
+                <li key={i} className="text-[0.82rem] leading-relaxed text-ink-2">
+                  {sc.label ?? sc.id} · {sc.reporter} · {sc.date}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {turn.withheld?.length ? (
+            <p className="mt-2.5 text-[0.82rem] leading-relaxed text-muted">
+              Not shown to your role: {turn.withheld.map((w) => w.domain).join(', ')}. What it
+              contained is not stated.
+            </p>
+          ) : null}
         </details>
-      ) : null}
-
-      {turn.withheld?.length ? (
-        <p className="rounded-lg border border-line bg-canvas px-3.5 py-2 text-[0.78rem] text-ink-2">
-          Withheld: {turn.withheld.map((w) => w.domain).join(', ')} — not shown to your role.
-          What it contained is not stated.
-        </p>
       ) : null}
 
       {turn.status === 'needs_clarification' ? (

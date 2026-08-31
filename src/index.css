@@ -2,7 +2,7 @@
 
 @theme {
   --font-sans:
-    'Manrope', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 
   /* Neutral ground — a lavender-leaning grey rather than a warm one, so the
      purple accent sits in the same family as the surfaces around it instead
@@ -297,4 +297,112 @@ html[data-palette='low'] {
   --color-state-good-tint: #eaf0ec;
   --color-state-alert: #74474a;
   --color-state-alert-tint: #f3eaea;
+}
+
+/* ------------------------------------------------------- the person's own view
+ *
+ * One palette for the person whose record it is, and a restrained one for
+ * everybody else. That is not decoration: a person opening their own history
+ * is doing something quite different from a clinician reading somebody else's,
+ * and the interface should not pretend those are the same act. Warmth for the
+ * first, a working tool for the second.
+ *
+ * Drawn from the references: near-black display type on a warm off-white, with
+ * large flat blocks of saturated colour. Black on every one of these clears AA
+ * comfortably, which is what makes the approach work — the colour carries
+ * personality and the type carries the reading, and neither is asked to do the
+ * other's job.
+ *
+ * Applied by experience rather than by screen, so it cannot drift: one look
+ * per person, not one per page.
+ */
+html[data-experience='patient'] {
+  --color-canvas: #f6f2ea;
+  --color-surface: #ffffff;
+  --color-surface-2: #fbf8f2;
+  --color-paper: #ffffff;
+  --color-ink: #141414;
+  --color-ink-2: #3d3a36;
+  --color-muted: #6b665e;
+  --color-line: #e8e1d4;
+  --color-line-strong: #ddd4c3;
+
+  /* The brand accent becomes ink, so a primary control is a black pill on
+     cream — the references' own move, and the highest contrast available. */
+  --color-brand: #141414;
+  --color-brand-ink: #141414;
+  --color-brand-tint: #efe9dc;
+}
+
+/*
+ * The block colours.
+ *
+ * Assigned per turn rather than per meaning, so a conversation reads as a
+ * sequence of distinct moments instead of a colour-coded status system. Status
+ * is carried by words here; colour is carried by rhythm.
+ */
+html[data-experience='patient'] {
+  --play-1: #c9cbf7;
+  --play-2: #f5e45c;
+  --play-3: #f79a8e;
+  --play-4: #9ed9c5;
+  --play-5: #c89be0;
+  --play-6: #f4a259;
+}
+
+.play-1 { background-color: var(--play-1); }
+.play-2 { background-color: var(--play-2); }
+.play-3 { background-color: var(--play-3); }
+.play-4 { background-color: var(--play-4); }
+.play-5 { background-color: var(--play-5); }
+.play-6 { background-color: var(--play-6); }
+
+/*
+ * Display type.
+ *
+ * Tight and heavy, the way the references set a headline. Only ever used on a
+ * screen's one real heading — a page of display type is a poster, not an
+ * interface.
+ */
+.display {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+  text-wrap: balance;
+}
+
+/*
+ * Everyone else: one accent and black and white.
+ *
+ * The accent already exists per experience — clinical blue, organisation
+ * brown, admin grey — and is applied through accentByExperience. Nothing here
+ * overrides it; this only removes the warm ground, so a professional's view
+ * stays a working surface rather than borrowing the person's palette.
+ */
+html:not([data-experience='patient']) .display {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/*
+ * An answer's colour block, for the person's own view only.
+ *
+ * Everybody else reading this record gets white. A warm palette laid over
+ * somebody else's medical history is the interface being cheerful about
+ * something that is not its to be cheerful about — and for a clinician it
+ * would also make twelve answers look like twelve categories.
+ */
+.answer-tone {
+  background-color: var(--color-paper);
+}
+html[data-experience='patient'] .answer-tone {
+  color: #141414;
+}
+html:not([data-experience='patient']) .answer-tone.play-1,
+html:not([data-experience='patient']) .answer-tone.play-2,
+html:not([data-experience='patient']) .answer-tone.play-3,
+html:not([data-experience='patient']) .answer-tone.play-4,
+html:not([data-experience='patient']) .answer-tone.play-5,
+html:not([data-experience='patient']) .answer-tone.play-6 {
+  background-color: var(--color-paper);
 }
