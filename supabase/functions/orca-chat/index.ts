@@ -166,32 +166,20 @@ Deno.serve(async (req) => {
       })
 
   /**
-   * A replay never starts a run.
+   * The replay path fires the workflow; it does not answer on its own.
    *
-   * The CHATBOT path serves output that already exists. Firing a workflow to
-   * fetch something ORCA is already holding would cost a run, a minute of the
-   * person's time, and — because the record moves — could come back different
-   * from the answer being replayed.
+   * This used to short-circuit — find the prior answer, hand it straight back,
+   * start nothing — on the reasoning that firing a run to fetch something ORCA
+   * already holds is waste. The workflow's own contract says otherwise: it is
+   * fired once the backend has confirmed stored output exists, and it retrieves
+   * and renders that output. Short-circuiting skipped the rendering step and
+   * returned raw stored HTML, which is not the same artefact.
+   *
+   * The check still matters, and still happens above: this path is only chosen
+   * when a prior answer exists for this actor and purpose. What changed is that
+   * confirming it is the precondition for firing the workflow rather than a
+   * substitute for it.
    */
-  if (plan.path === 'chatbot_replay' && facts.alreadyAnsweredRunId) {
-    const { data: prior } = await admin
-      .from('workflow_runs')
-      .select('id, answer_html, result')
-      .eq('id', facts.alreadyAnsweredRunId)
-      .maybeSingle()
-    if (prior?.answer_html) {
-      return json({
-        run_id: prior.id,
-        path: plan.path,
-        workflow: 'chat',
-        status: 'replayed',
-        reason: plan.reason,
-        answer_html: prior.answer_html,
-        result: prior.result ?? null,
-      })
-    }
-  }
-
   const started = await launch({
     actor,
     patientId,
