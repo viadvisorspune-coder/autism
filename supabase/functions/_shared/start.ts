@@ -49,6 +49,8 @@ export interface LaunchRequest {
    * spending a minute per attempt.
    */
   dryRun?: boolean
+  /** One sentence saying a file came with the question. */
+  attached?: string | null
 }
 
 export type LaunchResult =
@@ -158,6 +160,7 @@ export async function launch(req: LaunchRequest): Promise<LaunchResult> {
     artifactType: req.artifactType ?? null,
     previous,
     runId: run.id,
+    attached: req.attached ?? null,
   })
   await admin.from('workflow_runs').update({ trigger_text: triggerText }).eq('id', run.id)
 

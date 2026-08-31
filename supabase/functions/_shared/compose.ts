@@ -294,6 +294,18 @@ export function composeTrigger(args: {
     : understandPreamble(identity, runId, hints)
 
   const parts = [head, '', `"${message.trim()}"`]
+
+  /**
+   * A file that came with the question, stated after it.
+   *
+   * The workflow cannot open it — it reads text — but being told one exists,
+   * what kind, and what it is called lets it say so, rather than answering as
+   * though nothing had been provided. Somebody who attaches a letter and gets
+   * an answer that ignores it will reasonably conclude the attachment did not
+   * work.
+   */
+  if (args.attached) parts.push('', args.attached)
+
   const handoff = previous ? handoffBlock(previous) : null
   if (handoff) parts.push('', handoff)
   return parts.join('\n')

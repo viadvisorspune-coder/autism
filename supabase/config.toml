@@ -68,3 +68,9 @@ verify_jwt = false
 # and the function authenticates with YOXA_CONNECTOR_TOKEN instead.
 [functions.orca-result]
 verify_jwt = false
+
+# A file a person adds from the chat. Called by ORCA's own frontend, so the
+# same reasoning as the other app-facing functions: no sign-in yet, the
+# function resolves the actor itself and checks scope before storing anything.
+[functions.orca-attach]
+verify_jwt = false

@@ -214,6 +214,7 @@ Deno.serve(async (req) => {
     then: (plan.then as WorkflowName | null) ?? null,
     idempotencyKey: str(body.idempotency_key),
     dryRun: body.dry_run === true,
+    attached: str(body.attached),
   })
 
   if (!started.ok) return launchError(started)

@@ -6,6 +6,7 @@ import { type Block, htmlToBlocks, htmlToText } from '../../lib/prose'
 import { type Identity, identityFrom, needsDocument, understandTrigger } from '../../lib/trigger'
 import { type Attachment, type ConversationData, persistMessage, useLive } from '../../lib/live'
 import { respondToApproval } from '../../lib/approvals'
+import { ACCEPTED_FILES, type Attached, attachFile } from '../../lib/attach'
 import { type RunStatus, parseEnvelope } from '../../lib/envelope'
 import type { PendingApproval } from '../../components/ApprovalPanel'
 
@@ -71,6 +72,8 @@ interface Turn {
   files?: Attachment[]
   /** True when this was rehearsed rather than run. */
   rehearsed?: boolean
+  /** Files the person attached to this question. */
+  sent?: Attached[]
   status?: Status
   answer?: string
   sources?: { id?: string; reporter?: string; date?: string; label?: string }[]
@@ -87,6 +90,9 @@ export function WorkflowChat() {
   const [turns, setTurns] = useState<Turn[]>([])
   const [busy, setBusy] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  /** A file waiting to go with the next question, once it has been stored. */
+  const [pending, setPending] = useState<Attached | null>(null)
+  const [attachError, setAttachError] = useState<string | null>(null)
   /** When the restored conversation was last touched, if it was a while ago. */
   const [resumedFrom, setResumedFrom] = useState<string | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
@@ -116,9 +122,28 @@ export function WorkflowChat() {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [turns.length, busy])
 
+  /**
+   * Store the file now, ask the question later.
+   *
+   * Uploading on selection rather than on send means a slow upload happens
+   * while the person is still typing, and a refusal — wrong type, too large —
+   * arrives while there is still something to do about it, rather than at the
+   * moment they expected an answer.
+   */
+  async function take(file: File | null | undefined) {
+    if (!file || !patientId || !option?.personId) return
+    setAttachError(null)
+    const result = await attachFile(file, patientId, option.personId)
+    if (result.ok) setPending(result.file)
+    else setAttachError(result.error)
+  }
+
   async function send(text: string, dryRun = false, workflow?: string) {
     const body = text.trim()
     if (!body || busy) return
+    // The file goes with this question and no other.
+    const carried = pending
+    setPending(null)
     const trigger = understandTrigger(identity, body)
     const turn: Turn = {
       id: crypto.randomUUID(),
@@ -127,6 +152,7 @@ export function WorkflowChat() {
       trigger,
       workflow: needsDocument(body) ? 'ORCA_PRODUCE' : 'ORCA_UNDERSTAND',
       state: 'sending',
+      sent: carried ? [carried] : undefined,
     }
     setTurns((t) => [...t, turn])
     setMessage('')
@@ -138,6 +164,7 @@ export function WorkflowChat() {
       patientId: patientId ?? null,
       dryRun,
       workflow,
+      attached: carried?.describe,
     })
     setTurns((t) => t.map((x) => (x.id === turn.id ? { ...x, ...started } : x)))
 
@@ -372,6 +399,10 @@ export function WorkflowChat() {
         onChange={setMessage}
         onSend={() => send(message)}
         onRehearse={() => send(message, true)}
+        attached={pending}
+        attachError={attachError}
+        onAttach={take}
+        onRemoveAttachment={() => setPending(null)}
         busy={busy}
         willProduce={needsDocument(message)}
       />
@@ -718,7 +749,12 @@ function LiveApprovalCard({
  */
 function Composer({
   value, onChange, onSend, onRehearse, busy, willProduce,
+  attached, attachError, onAttach, onRemoveAttachment,
 }: {
+  attached: Attached | null
+  attachError: string | null
+  onAttach: (f: File | null | undefined) => void
+  onRemoveAttachment: () => void
   value: string
   onChange: (v: string) => void
   onSend: () => void
@@ -738,6 +774,35 @@ function Composer({
     <div className="fixed inset-x-0 bottom-0 border-t border-line bg-paper/95 backdrop-blur">
       <div className="mx-auto max-w-3xl px-5 py-4">
         <div className="overflow-hidden rounded-xl border border-line-strong bg-paper">
+          {/*
+            The file, if one is waiting.
+
+            Shown as a removable card rather than a filename beside the button,
+            because it will be sent with the next question and a person needs to
+            see that before they press send, not discover it afterwards.
+          */}
+          {attached ? (
+            <div className="mx-3.5 mt-3 flex items-center justify-between gap-3 rounded-lg border border-line-strong bg-canvas px-3 py-2">
+              <p className="min-w-0 truncate text-[0.83rem] text-ink">
+                <span className="text-muted">{attached.fileType} · </span>
+                {attached.title}
+              </p>
+              <button
+                type="button"
+                onClick={onRemoveAttachment}
+                className="shrink-0 py-1 text-[0.8rem] font-medium text-brand hover:underline"
+              >
+                Remove
+              </button>
+            </div>
+          ) : null}
+
+          {attachError ? (
+            <p className="mx-3.5 mt-3 rounded-lg border border-line-strong bg-canvas px-3 py-2 text-[0.83rem] leading-relaxed text-ink">
+              {attachError}
+            </p>
+          ) : null}
+
           {/*
             A visible label, not a placeholder.
 
@@ -785,6 +850,26 @@ function Composer({
                 : 'Press Enter to send. Shift and Enter starts a new line.'}
             </p>
             <div className="flex shrink-0 items-center gap-2">
+              {/*
+                A real label, not an icon alone.
+
+                A paperclip is only obvious to people who already know what a
+                paperclip means here, and the brief asks for controls that are
+                labelled or self-evident rather than either.
+              */}
+              <label className="cursor-pointer rounded-lg border border-line-strong px-3.5 py-2 text-[0.85rem] font-medium text-ink-2 hover:border-brand hover:text-brand">
+                Add a file
+                <input
+                  type="file"
+                  className="sr-only"
+                  accept={ACCEPTED_FILES}
+                  onChange={(e) => {
+                    onAttach(e.target.files?.[0])
+                    // Clearing lets the same file be chosen again after removing it.
+                    e.target.value = ''
+                  }}
+                />
+              </label>
               <button
                 type="button"
                 onClick={onRehearse}
@@ -818,6 +903,11 @@ function Asked({ turn }: { turn: Turn }) {
       <div className="ml-auto max-w-[85%] rounded-xl rounded-br-sm bg-brand-tint px-4 py-2.5">
         <p className="whitespace-pre-wrap text-[0.92rem] text-ink">{turn.message}</p>
       </div>
+      {turn.sent?.length ? (
+        <p className="mt-1.5 text-right text-[0.8rem] text-muted">
+          Sent with {turn.sent.map((f) => f.title).join(', ')}
+        </p>
+      ) : null}
       <div className="mt-1.5 flex items-center justify-end gap-3">
         <button
           onClick={() => setOpen((o) => !o)}
@@ -1417,6 +1507,8 @@ async function startRun(args: {
   dryRun?: boolean
   /** Overrides the router's choice when a person says it picked wrong. */
   workflow?: string
+  /** One sentence saying a file came with this question. */
+  attached?: string
 }): Promise<Partial<Turn>> {
   try {
     const { isSupabaseConfigured, supabase } = await import('../../lib/supabase')
@@ -1431,6 +1523,7 @@ async function startRun(args: {
         patient_id: args.patientId,
         dry_run: args.dryRun ?? false,
         workflow: args.workflow,
+        attached: args.attached,
       },
     })
 
