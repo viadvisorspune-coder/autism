@@ -68,6 +68,8 @@ interface Turn {
   reason?: string
   /** Documents this run produced, matched to it by run id. */
   files?: Attachment[]
+  /** True when this was rehearsed rather than run. */
+  rehearsed?: boolean
   status?: Status
   answer?: string
   sources?: { id?: string; reporter?: string; date?: string; label?: string }[]
@@ -111,7 +113,7 @@ export function WorkflowChat() {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [turns.length, busy])
 
-  async function send(text: string) {
+  async function send(text: string, dryRun = false) {
     const body = text.trim()
     if (!body || busy) return
     const trigger = understandTrigger(identity, body)
@@ -131,6 +133,7 @@ export function WorkflowChat() {
       message: body,
       actorId: option?.personId ?? null,
       patientId: patientId ?? null,
+      dryRun,
     })
     setTurns((t) => t.map((x) => (x.id === turn.id ? { ...x, ...started } : x)))
 
@@ -142,7 +145,9 @@ export function WorkflowChat() {
      * Fire-and-forget on purpose: a question that failed to save should not
      * stop the conversation being had.
      */
-    if (option?.personId && patientId) {
+    // A rehearsal is not something the person asked, so it does not join the
+    // conversation they will read back later.
+    if (!dryRun && option?.personId && patientId) {
       persistMessage(patientId, option.personId, body, 'person', started.runId ?? null)
     }
 
@@ -339,6 +344,7 @@ export function WorkflowChat() {
         value={message}
         onChange={setMessage}
         onSend={() => send(message)}
+        onRehearse={() => send(message, true)}
         busy={busy}
         willProduce={needsDocument(message)}
       />
@@ -572,11 +578,20 @@ function LiveApprovalCard({
  * actually left rather than what the page predicted would leave.
  */
 function Composer({
-  value, onChange, onSend, busy, willProduce,
+  value, onChange, onSend, onRehearse, busy, willProduce,
 }: {
   value: string
   onChange: (v: string) => void
   onSend: () => void
+  /**
+   * Run the routing and composition without calling Yoxa.
+   *
+   * Deliberately a visible control rather than a hidden query parameter. It is
+   * used most when a deployment is half-configured or a workflow is being
+   * changed, which is exactly when somebody needs to see at a glance whether
+   * what is on screen came from a real run.
+   */
+  onRehearse: () => void
   busy: boolean
   willProduce: boolean
 }) {
@@ -630,13 +645,24 @@ function Composer({
                   : 'Next: your record is read and the answer appears here. Nothing is sent.'
                 : 'Press Enter to send. Shift and Enter starts a new line.'}
             </p>
-            <button
-              onClick={onSend}
-              disabled={busy || !value.trim()}
-              className="shrink-0 rounded-lg bg-brand px-4 py-1.5 text-[0.85rem] font-medium text-paper disabled:opacity-40"
-            >
-              {busy ? 'Running…' : 'Send'}
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={onRehearse}
+                disabled={busy || !value.trim()}
+                title="Decide the route and compose the trigger, without running anything"
+                className="rounded-lg border border-line-strong px-3.5 py-2 text-[0.85rem] font-medium text-ink-2 hover:border-brand hover:text-brand disabled:opacity-40"
+              >
+                Rehearse
+              </button>
+              <button
+                onClick={onSend}
+                disabled={busy || !value.trim()}
+                className="rounded-lg bg-brand px-4 py-2 text-[0.85rem] font-medium text-paper disabled:opacity-40"
+              >
+                {busy ? 'Running…' : 'Send'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -874,6 +900,20 @@ function Answered({ turn, onPick }: { turn: Turn; onPick: (s: string) => void })
 
   return (
     <div className="space-y-3">
+      {/*
+        A rehearsal says so before anything else on the turn.
+        
+        Everything below it looks exactly like a real answer, because it came
+        down the same road — same routing, same composition, same rendering.
+        That fidelity is the point and also the hazard, so the label goes first,
+        in the accent colour, above the reasoning rather than beside it.
+      */}
+      {turn.rehearsed ? (
+        <p className="text-[0.8rem] font-semibold text-brand">
+          Rehearsal — routed and composed, never sent. Nothing was read from the record.
+        </p>
+      ) : null}
+
       {turn.reason ? <Decision reason={turn.reason} /> : null}
 
       {turn.answer ? (
@@ -1164,6 +1204,7 @@ async function startRun(args: {
   message: string
   actorId: string | null
   patientId: string | null
+  dryRun?: boolean
 }): Promise<Partial<Turn>> {
   try {
     const { isSupabaseConfigured, supabase } = await import('../../lib/supabase')
@@ -1176,6 +1217,7 @@ async function startRun(args: {
         message: args.message,
         actor_id: args.actorId,
         patient_id: args.patientId,
+        dry_run: args.dryRun ?? false,
       },
     })
 
@@ -1193,6 +1235,7 @@ async function startRun(args: {
       runId: String(data.run_id),
       path: typeof data.path === 'string' ? data.path : undefined,
       reason: typeof data.reason === 'string' ? data.reason : undefined,
+      rehearsed: data.dry_run === true,
       workflow: data.workflow === 'produce' ? 'ORCA_PRODUCE' : 'ORCA_UNDERSTAND',
       // The authoritative text, replacing the preview composed in the browser.
       trigger: typeof data.trigger_text === 'string' ? data.trigger_text : undefined,
