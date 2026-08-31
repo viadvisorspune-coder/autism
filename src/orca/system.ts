@@ -61,6 +61,37 @@ export const toneClass: Record<Tone, string> = {
   confirmed: 'tone-confirmed',
 }
 
+/* -------------------------------------------------------------- workflows
+ *
+ * Which combination of workflows a question was routed to, named twice.
+ *
+ * The first name is ours — the five paths the router actually chooses between,
+ * useful to anybody looking at this as a system. The second is what it means
+ * for the person who asked, which is the only part they should have to read.
+ *
+ * Shown rather than kept internal because a request does not map one-to-one
+ * onto a workflow: "write a handover for Dr Nair" with no recent retrieval is
+ * two runs — look first, then draft — and a person handing over a question
+ * about their own medical record is owed the knowledge of what will happen to
+ * it. It is also the difference, to anyone watching, between a system that
+ * decides and one that guesses.
+ */
+export const pathName: Record<string, string> = {
+  understand_only: 'Understand',
+  produce_only: 'Produce',
+  understand_then_produce: 'Understand, then Produce',
+  fifteen_step: 'Fifteen-step governed pipeline',
+  chatbot_replay: 'Record-grounded reply',
+}
+
+export const pathMeaning: Record<string, string> = {
+  understand_only: 'the record is read and the answer comes back here',
+  produce_only: 'a document is drafted from what has already been retrieved',
+  understand_then_produce: 'the record is read first, then a document is drafted from it',
+  fifteen_step: 'full checks before anything leaves, because this one goes outside',
+  chatbot_replay: 'an answer you were already given is brought back, unchanged',
+}
+
 /* ------------------------------------------------------------ navigation */
 
 export interface Destination {

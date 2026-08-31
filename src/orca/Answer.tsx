@@ -11,7 +11,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useSession } from '../state/session'
-import { useAsks } from './asks'
+import { type Ask, useAsks } from './asks'
 import { useSubject } from './subject'
 import {
   Back,
@@ -24,7 +24,7 @@ import {
   SectionHead,
   longDate,
 } from './parts'
-import { boundaryFor } from './system'
+import { boundaryFor, pathMeaning, pathName } from './system'
 
 export default function Answer() {
   const { askId = '' } = useParams()
@@ -51,7 +51,8 @@ export default function Answer() {
   return (
     <>
       <Back to="/ask">Back to Ask</Back>
-      <h1 className="o-h2 o-measure mb-8">{item.question}</h1>
+      <h1 className="o-h2 o-measure mb-3">{item.question}</h1>
+      <Routing item={item} />
 
       {item.attached ? (
         <p className="o-meta mb-6">
@@ -207,6 +208,48 @@ export default function Answer() {
         </section>
       ) : null}
     </>
+  )
+}
+
+/**
+ * Which combination of workflows this question was routed to.
+ *
+ * Sits under the question rather than beside the answer, because it describes
+ * what is about to happen and is therefore worth reading before the answer
+ * arrives — a person handing over a question about their own medical record is
+ * owed the knowledge of what will be done with it.
+ *
+ * The reason sentence comes from the server, which is where the decision was
+ * made, so the two cannot drift apart. The path name is added in front of it
+ * for anyone reading this as a system rather than as a record.
+ *
+ * A REFUSAL AND A GATE SAY SO PLAINLY. Nothing ran, nothing was read, and that
+ * is the most important thing on the screen after the boundary itself.
+ */
+function Routing({ item }: { item: Ask }) {
+  if (item.shape === 'refusal' || item.shape === 'gate') {
+    return (
+      <p className="o-meta o-measure mb-8">
+        No workflow ran. Nothing was read from the record to produce this.
+      </p>
+    )
+  }
+
+  // Between pressing Ask and the server answering the handshake, the route is
+  // genuinely not known yet. Naming a workflow here would be a guess.
+  if (!item.path) {
+    return <p className="o-meta o-measure mb-8">Choosing which workflow to run.</p>
+  }
+
+  const name = pathName[item.path]
+  const meaning = pathMeaning[item.path]
+
+  return (
+    <p className="o-meta o-measure mb-8">
+      <span className="font-semibold">{name ?? item.path}</span>
+      {meaning ? ` — ${meaning}` : ''}
+      {item.reason ? <> {item.reason}</> : null}
+    </p>
   )
 }
 
