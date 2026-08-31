@@ -87,6 +87,8 @@ export function WorkflowChat() {
   const [turns, setTurns] = useState<Turn[]>([])
   const [busy, setBusy] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  /** When the restored conversation was last touched, if it was a while ago. */
+  const [resumedFrom, setResumedFrom] = useState<string | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
   /**
@@ -277,6 +279,24 @@ export function WorkflowChat() {
         })
     }
     for (const t of restored) if (t.answer && !t.status) t.status = 'done'
+
+    /**
+     * Where the person left off, marked.
+     *
+     * Rule 9.4: somebody returning to a sensitive flow gets a gentle re-entry
+     * rather than being dropped back into the middle of it. The conversation
+     * already restored; it arrived with no seam, so an exchange from last week
+     * and one from five minutes ago read as the same continuous thread.
+     *
+     * Only shown when the gap is long enough to have been a real absence. A
+     * marker after every short pause is furniture.
+     */
+    const last = restored[restored.length - 1]
+    if (last) {
+      const away = Date.now() - Date.parse(last.at)
+      if (Number.isFinite(away) && away > RETURNING_AFTER_MS) setResumedFrom(last.at)
+    }
+
     setTurns(restored)
   }, [convoData, turns.length])
 
@@ -327,6 +347,7 @@ export function WorkflowChat() {
       <main className="mx-auto max-w-3xl px-5 pb-56 pt-6">
         <LiveApprovals actorId={option?.personId ?? null} />
         {turns.length === 0 ? <Opening onPick={send} role={String(identity.role)} /> : null}
+        {resumedFrom ? <Returning at={resumedFrom} /> : null}
         <ol className="space-y-6">
           {turns.map((t) => (
             <li key={t.id}>
@@ -354,6 +375,47 @@ export function WorkflowChat() {
         busy={busy}
         willProduce={needsDocument(message)}
       />
+    </div>
+  )
+}
+
+/**
+ * Long enough away that coming back is a return rather than a continuation.
+ *
+ * Six hours, so a lunch break is not an absence and the next morning is. The
+ * boundary is deliberately generous: a marker after every short pause becomes
+ * furniture, and furniture is what this screen is trying not to have.
+ */
+const RETURNING_AFTER_MS = 6 * 60 * 60 * 1000
+
+/**
+ * A seam between what was read before and what is new.
+ *
+ * The conversation restores from the record, which is right — losing it on a
+ * reload would suggest the questions had been lost too. But it restored with
+ * no join, so an exchange from last week and one from five minutes ago read as
+ * one continuous thread, and somebody returning to a conversation about their
+ * own medical record had to reconstruct where they had stopped.
+ *
+ * It says when, and nothing else. Summarising what was discussed would mean
+ * re-stating clinical content nobody asked to see again, on a screen they have
+ * only just opened.
+ */
+function Returning({ at }: { at: string }) {
+  const when = new Date(at)
+  const shown = when.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  return (
+    <div className="my-5 flex items-center gap-3" role="separator">
+      <span className="h-px flex-1 bg-line-strong" aria-hidden />
+      <p className="text-[0.8rem] text-muted">
+        You were last here on {shown}. Everything above is from then.
+      </p>
+      <span className="h-px flex-1 bg-line-strong" aria-hidden />
     </div>
   )
 }
