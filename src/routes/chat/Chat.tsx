@@ -77,6 +77,7 @@ export function WorkflowChat() {
   const [message, setMessage] = useState('')
   const [turns, setTurns] = useState<Turn[]>([])
   const [busy, setBusy] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
 
   const subjectId = patientId ?? 'ANANYA-001'
@@ -243,22 +244,46 @@ export function WorkflowChat() {
 
   return (
     <div className="min-h-screen bg-canvas text-ink">
+      {/*
+        The heading says what the screen is for, not what it is called.
+
+        It read "Workflow chat", which names ORCA's plumbing rather than the
+        person's goal. A heading is a signpost: someone arriving here wants to
+        know what they can do, and "workflow" is a word from our side of the
+        screen.
+      */}
       <header className="border-b border-line bg-paper">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-5 py-3">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-5 py-3">
           <div className="min-w-0">
-            <h1 className="text-[0.95rem] font-semibold">Workflow chat</h1>
-            <p className="truncate text-[0.8rem] text-muted">
+            <h1 className="text-[1rem] font-semibold leading-snug">Ask about your record</h1>
+            <p className="truncate text-[0.82rem] leading-relaxed text-muted">
               Signed in as {identity.name} · {String(identity.role)}
               {organisation ? ` · ${organisation}` : ''}
             </p>
           </div>
-          <Link
-            to="/"
-            className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-[0.82rem] font-medium text-ink-2 hover:bg-canvas"
-          >
-            Sign out
-          </Link>
+          <div className="flex shrink-0 items-center gap-2">
+            {/*
+              Help sits in the same place on every screen, per the brief. It is
+              a disclosure rather than a link away: leaving the page to find out
+              how the page works is its own small cost.
+            */}
+            <button
+              type="button"
+              onClick={() => setHelpOpen((o) => !o)}
+              aria-expanded={helpOpen}
+              className="rounded-lg border border-line px-3 py-2 text-[0.85rem] font-medium text-ink-2 hover:bg-canvas"
+            >
+              Help
+            </button>
+            <Link
+              to="/"
+              className="rounded-lg border border-line px-3 py-2 text-[0.85rem] font-medium text-ink-2 hover:bg-canvas"
+            >
+              Sign out
+            </Link>
+          </div>
         </div>
+        {helpOpen ? <Help /> : null}
       </header>
 
       <main className="mx-auto max-w-3xl px-5 pb-56 pt-6">
@@ -287,6 +312,51 @@ export function WorkflowChat() {
         busy={busy}
         willProduce={needsDocument(message)}
       />
+    </div>
+  )
+}
+
+/**
+ * Help, in the same place on every visit.
+ *
+ * Short, practical and about this screen only. It answers the four things
+ * somebody actually wonders here — what this is, what happens to what they
+ * type, how long it takes, and who to reach if it matters — rather than
+ * documenting the product.
+ */
+function Help() {
+  const items: [string, string][] = [
+    ['What this screen does', 'You ask a question about your record. ORCA reads the record and answers here.'],
+    [
+      'What happens to your question',
+      'It is sent with your name and role so the record knows who is asking. It is not shared with anyone else.',
+    ],
+    [
+      'How long it takes',
+      'Usually under a minute. You can leave this page and come back — the answer will be here.',
+    ],
+    [
+      'If something needs your permission',
+      'It appears at the top of this page with what would be shared and who would see it. Nothing goes anywhere until you choose.',
+    ],
+    [
+      'If you want to speak to a person',
+      'Your coordinator can be reached through the main ORCA screens. This page will not contact anyone for you.',
+    ],
+  ]
+  return (
+    <div className="border-t border-line bg-canvas">
+      <div className="mx-auto max-w-3xl px-5 py-4">
+        <h2 className="text-[0.9rem] font-semibold text-ink">Help with this screen</h2>
+        <dl className="mt-2 space-y-3">
+          {items.map(([term, detail]) => (
+            <div key={term}>
+              <dt className="text-[0.85rem] font-medium text-ink">{term}</dt>
+              <dd className="mt-0.5 text-[0.85rem] leading-relaxed text-ink-2">{detail}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
     </div>
   )
 }
@@ -370,10 +440,16 @@ function LiveApprovalCard({
 
   return (
     <div className="rounded-xl border border-line-strong bg-paper p-4">
-      <p className="text-[0.72rem] font-semibold uppercase tracking-wide text-muted">
-        A workflow is waiting on you
-      </p>
-      <p className="mt-1.5 text-[0.9rem] font-medium text-ink">{approval.title}</p>
+      {/*
+        A heading that says what is being asked, not what our system is doing.
+
+        "A workflow is waiting on you" describes ORCA's state; the person needs
+        to know a decision is theirs to make. This is also the screen's one
+        important action while it is present, so it is a heading rather than a
+        label.
+      */}
+      <h2 className="text-[0.9rem] font-semibold text-ink">Your permission is needed</h2>
+      <p className="mt-1 text-[0.88rem] leading-relaxed text-ink-2">{approval.title}</p>
       {/*
         The description, rendered rather than printed.
 
@@ -412,7 +488,14 @@ function LiveApprovalCard({
         </p>
       ) : null}
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      {/*
+        Targets sized for a real finger and a tired one.
+
+        These were 28px tall. The brief asks for at least 24×24 CSS pixels with
+        spacing between them, and this is the highest-consequence control on
+        the screen — a mis-tap here shares somebody's medical information.
+      */}
+      <div className="mt-4 flex flex-wrap gap-2.5">
         {choices.map((c, i) => (
           <button
             key={`${c.id ?? c.label}-${i}`}
@@ -420,8 +503,8 @@ function LiveApprovalCard({
             onClick={() => decide(c.id, c.message)}
             className={
               i === 0
-                ? 'rounded-lg bg-brand px-3.5 py-1.5 text-[0.82rem] font-medium text-paper disabled:opacity-50'
-                : 'rounded-lg border border-line-strong px-3.5 py-1.5 text-[0.82rem] font-medium text-ink-2 hover:bg-canvas disabled:opacity-50'
+                ? 'rounded-lg bg-brand px-4 py-2.5 text-[0.88rem] font-medium text-paper disabled:opacity-50'
+                : 'rounded-lg border border-line-strong px-4 py-2.5 text-[0.88rem] font-medium text-ink-2 hover:bg-canvas disabled:opacity-50'
             }
           >
             {c.label}
@@ -429,8 +512,13 @@ function LiveApprovalCard({
         ))}
       </div>
 
-      {sending ? <p className="mt-2 text-[0.82rem] text-muted">Sending your decision…</p> : null}
-      {failed ? <p className="mt-2 text-[0.82rem] text-ink">{failed}</p> : null}
+      <p className="mt-2.5 text-[0.82rem] leading-relaxed text-muted" aria-live="polite">
+        {sending
+          ? 'Sending your decision…'
+          : failed
+            ? failed
+            : 'Nothing has been sent yet. This waits as long as you need.'}
+      </p>
     </div>
   )
 }
@@ -458,16 +546,51 @@ function Composer({
     <div className="fixed inset-x-0 bottom-0 border-t border-line bg-paper/95 backdrop-blur">
       <div className="mx-auto max-w-3xl px-5 py-4">
         <div className="overflow-hidden rounded-xl border border-line-strong bg-paper">
-          <div className="border-b border-line bg-canvas px-3.5 py-2.5">
-            <p className="mb-1 text-[0.68rem] font-semibold uppercase tracking-wide text-muted">
-              Sent with every message · from your sign-in, not editable
+          {/*
+            The credentials, behind a disclosure.
+
+            They are always sent and the person is entitled to see them, but
+            they are not what anybody came here to read. Open by choice is the
+            brief's progressive disclosure; open by default was a block of
+            machine-shaped text sitting above the box on every visit.
+
+            The sentence label was uppercase, which the brief reserves for
+            short labels — it is a sentence, so it is sentence case now.
+          */}
+          <details className="border-b border-line bg-canvas">
+            <summary className="cursor-pointer px-3.5 py-2.5 text-[0.82rem] text-ink-2 marker:text-muted">
+              What is sent with your question
+            </summary>
+            <div className="px-3.5 pb-3">
+              <p className="mb-1.5 text-[0.8rem] leading-relaxed text-muted">
+                This comes from your sign-in. You cannot change it, and it is sent every time so
+                the record knows who is asking and why.
+              </p>
+              <pre className="whitespace-pre-wrap font-mono text-[0.75rem] leading-relaxed text-ink-2">
+                {preamble}
+              </pre>
+            </div>
+          </details>
+
+          {/*
+            A visible label, not a placeholder.
+
+            Placeholder text disappears the moment somebody types, taking the
+            only description of the field with it — and it is the first thing
+            lost by anyone who looks away mid-sentence.
+          */}
+          <div className="px-3.5 pt-3">
+            <label htmlFor="orca-question" className="block text-[0.85rem] font-medium text-ink">
+              Your question
+            </label>
+            <p className="mt-0.5 text-[0.8rem] leading-relaxed text-muted">
+              Ask about what is in your record, or ask for a document to be written. Nothing is
+              sent to anyone else until you approve it.
             </p>
-            <pre className="whitespace-pre-wrap font-mono text-[0.74rem] leading-relaxed text-ink-2">
-              {preamble}
-            </pre>
           </div>
 
           <textarea
+            id="orca-question"
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={(e) => {
@@ -477,17 +600,23 @@ function Composer({
               }
             }}
             rows={2}
-            placeholder="Ask about the record, or ask for a document to be drafted…"
-            className="w-full resize-none bg-transparent px-3.5 py-3 text-[0.92rem] text-ink outline-none placeholder:text-muted"
+            className="w-full resize-none bg-transparent px-3.5 py-2.5 text-[0.95rem] leading-relaxed text-ink outline-none"
           />
 
           <div className="flex items-center justify-between gap-3 border-t border-line px-3.5 py-2.5">
-            <p className="text-[0.75rem] text-muted">
+            {/*
+              What will happen, in the person's words rather than ours.
+
+              This named the deployments — "Will run ORCA_PRODUCE" — which is an
+              internal identifier and tells somebody nothing about what they are
+              about to get.
+            */}
+            <p className="text-[0.8rem] leading-relaxed text-muted">
               {value.trim()
                 ? willProduce
-                  ? 'Will run ORCA_PRODUCE — a draft, seen by you before anything else'
-                  : 'Will run ORCA_UNDERSTAND — answers only, nothing is sent'
-                : 'Enter to send · Shift + Enter for a new line'}
+                  ? 'Next: a draft is written. You see it first and decide whether it goes anywhere.'
+                  : 'Next: your record is read and the answer appears here. Nothing is sent.'
+                : 'Press Enter to send. Shift and Enter starts a new line.'}
             </p>
             <button
               onClick={onSend}
@@ -512,14 +641,24 @@ function Asked({ turn }: { turn: Turn }) {
       <div className="ml-auto max-w-[85%] rounded-xl rounded-br-sm bg-brand-tint px-4 py-2.5">
         <p className="whitespace-pre-wrap text-[0.92rem] text-ink">{turn.message}</p>
       </div>
-      <div className="mt-1 flex items-center justify-end gap-2">
+      <div className="mt-1.5 flex items-center justify-end gap-3">
         <button
           onClick={() => setOpen((o) => !o)}
-          className="text-[0.72rem] font-medium text-brand hover:underline"
+          className="py-1 text-[0.8rem] font-medium text-brand hover:underline"
         >
           {open ? 'Hide what was sent' : 'See exactly what was sent'}
         </button>
-        <span className="text-[0.72rem] text-muted">{turn.workflow}</span>
+        {/*
+          What kind of request this was, in words.
+
+          This printed the deployment name — ORCA_UNDERSTAND — which is an
+          identifier from our configuration and means nothing to the person who
+          asked. What they might want to know is whether this was a question or
+          a document.
+        */}
+        <span className="text-[0.8rem] text-muted">
+          {turn.workflow === 'ORCA_PRODUCE' ? 'Document' : 'Question'}
+        </span>
       </div>
       {open ? (
         <pre className="mt-2 overflow-x-auto rounded-lg border border-line bg-canvas p-3 font-mono text-[0.72rem] leading-relaxed text-ink-2">
@@ -559,12 +698,19 @@ function Working({ state, since }: { state: 'sending' | 'running'; since?: strin
     return (
       <div className="rounded-xl border border-line bg-paper px-4 py-3">
         <p className="text-[0.85rem] text-ink">
-          The workflow is still running, but its answer has not reached ORCA.
+          This is taking longer than usual.
         </p>
-        <p className="mt-1.5 text-[0.83rem] text-ink-2">
-          Nothing has failed and nothing has been lost. Results only come back to this screen
-          through an approval step — if this run finishes without one, its answer stays in Yoxa.
-          Anything waiting on you appears at the top of this page.
+        {/*
+          Plain about an odd situation, without explaining our plumbing.
+
+          The person does not need to know which system holds the answer. They
+          need to know nothing broke, nothing they did was wrong, and what they
+          can do now.
+        */}
+        <p className="mt-1.5 text-[0.85rem] leading-relaxed text-ink-2">
+          Your question was sent and is still being worked on. Nothing has failed and nothing has
+          been lost. You can leave this page and come back. If anything needs your permission, it
+          will appear at the top of this page.
         </p>
       </div>
     )
@@ -588,7 +734,7 @@ function Working({ state, since }: { state: 'sending' | 'running'; since?: strin
         and watch a spinner that has no reason to be watched.
       */}
       {state === 'sending'
-        ? 'Starting the workflow'
+        ? 'Starting'
         : 'Working on it — this can take a minute, and you can leave this page'}
     </div>
   )
@@ -753,7 +899,7 @@ function Prose({ html }: { html: string }) {
   const [copied, setCopied] = useState(false)
 
   if (!blocks.length) {
-    return <p className="text-[0.9rem] italic text-muted">The workflow returned an empty answer.</p>
+    return <p className="text-[0.9rem] italic text-muted">The answer came back empty. Nothing was left out on purpose.</p>
   }
 
   return (
@@ -761,13 +907,21 @@ function Prose({ html }: { html: string }) {
       <div className="space-y-2.5">
         {blocks.map((b, i) => {
           if (b.kind === 'heading')
+            /*
+              A real heading, in sentence case.
+
+              This was uppercase small-caps styling, which suits a two-word
+              label and not the headings an answer actually carries — "Records
+              this drew on", "What was not shown". Setting a sentence in caps
+              costs legibility for the readers this product is for, and the
+              brief reserves caps for short labels. It is also an <h3>, so the
+              structure the answer was written with survives for a screen
+              reader instead of flattening into styled paragraphs.
+            */
             return (
-              <p
-                key={i}
-                className="pt-1 text-[0.72rem] font-semibold uppercase tracking-wide text-muted"
-              >
+              <h3 key={i} className="pt-1.5 text-[0.88rem] font-semibold leading-snug text-ink">
                 {b.text}
-              </p>
+              </h3>
             )
           if (b.kind === 'list')
             return (
@@ -895,7 +1049,7 @@ async function startRun(args: {
       const detail =
         typeof data?.detail === 'string'
           ? data.detail
-          : 'The workflow could not be started. Nothing was run, and no answer has been made up in its place.'
+          : 'Your question could not be sent. Nothing was read from your record, and no answer has been invented in its place. Please try again.'
       return { state: 'settled', status: 'error', detail }
     }
 
@@ -910,7 +1064,7 @@ async function startRun(args: {
     return {
       state: 'settled',
       status: 'error',
-      detail: 'The request failed before it reached the workflow.',
+      detail: 'Your question did not send. This is usually a connection problem. Check your connection, then send it again.',
     }
   }
 }
