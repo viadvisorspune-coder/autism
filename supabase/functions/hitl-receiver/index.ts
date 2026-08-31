@@ -39,12 +39,35 @@ async function hmacHex(secret: string, message: string): Promise<string> {
     .join('')
 }
 
+/**
+ * Every signing secret this receiver will accept.
+ *
+ * One per deployment that raises approvals. The plain name stays the primary
+ * so nothing that already works has to be re-entered; the numbered and
+ * comma-separated forms are both accepted because a person adding a second
+ * deployment will reach for whichever occurs to them first, and guessing wrong
+ * costs a silent verification failure.
+ */
+function signingSecrets(): string[] {
+  const names = [
+    'YOXA_HITL_WEBHOOK_SIGNING_SECRET',
+    'YOXA_HITL_WEBHOOK_SIGNING_SECRET_2',
+    'YOXA_HITL_WEBHOOK_SIGNING_SECRET_3',
+    'YOXA_HITL_WEBHOOK_SIGNING_SECRETS',
+  ]
+  const found = names
+    .flatMap((name) => (Deno.env.get(name) ?? '').split(','))
+    .map((s) => s.trim())
+    .filter(Boolean)
+  return [...new Set(found)]
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
 
-  const secret = Deno.env.get('YOXA_HITL_WEBHOOK_SIGNING_SECRET')
-  if (!secret) return json({ error: 'receiver_not_configured' }, 503)
+  const secrets = signingSecrets()
+  if (!secrets.length) return json({ error: 'receiver_not_configured' }, 503)
 
   // Raw bytes first. Parsing and re-serialising would change them and the
   // signature would never match.
@@ -60,8 +83,25 @@ Deno.serve(async (req) => {
     return json({ error: 'stale_timestamp' }, 400)
   }
 
-  const expected = await hmacHex(secret, `${timestamp}.${raw}`)
-  if (!timingSafeEqual(expected, presented)) return json({ error: 'invalid_signature' }, 401)
+  /**
+   * Any configured deployment may have signed this.
+   *
+   * Each Yoxa deployment mints its OWN webhook signing secret, and every
+   * deployment that raises approvals delivers to this one URL. Checking a
+   * single secret meant the first deployment configured worked and every
+   * later one failed `invalid_signature` — with no row written and nothing
+   * on screen to explain it, which is the worst way for this to break.
+   *
+   * Every candidate is tried before rejecting, and the comparison is
+   * constant-time in each case, so a failure reveals nothing about which
+   * secret was closest.
+   */
+  let verified = false
+  for (const candidate of secrets) {
+    const expected = await hmacHex(candidate, `${timestamp}.${raw}`)
+    if (timingSafeEqual(expected, presented)) verified = true
+  }
+  if (!verified) return json({ error: 'invalid_signature' }, 401)
 
   let payload: Record<string, unknown>
   try {

@@ -66,7 +66,9 @@ Deno.serve(async (req) => {
    */
   const asked = str(body.workflow)
   const workflow: WorkflowName =
-    asked === 'understand' || asked === 'produce' ? asked : routeFor(message)
+    asked === 'understand' || asked === 'produce' || asked === 'chat'
+      ? asked
+      : routeFor(message)
 
   const lookup = deploymentFor(workflow)
   if (!lookup.ok) {
@@ -124,7 +126,7 @@ Deno.serve(async (req) => {
     .insert({
       patient_id: patientId,
       actor_id: actor.id,
-      type: workflow === 'understand' ? 'Understand' : 'Produce',
+      type: { understand: 'Understand', produce: 'Produce', chat: 'Chat' }[workflow],
       workflow_name: workflow,
       stakeholder: actor.name,
       current_step: 'Trigger composed',

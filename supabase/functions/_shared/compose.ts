@@ -16,7 +16,17 @@
  * the file.
  */
 
-export type WorkflowName = 'understand' | 'produce'
+/**
+ * `chat` is a third lane for the same job as `understand`.
+ *
+ * It exists because of a delivery constraint rather than a difference in
+ * intent: the chat workflow is short, retrieves and rewrites, and — crucially —
+ * has API connectors, so its answer can be written back into ORCA. UNDERSTAND
+ * is locked after deployment with no connectors, and Yoxa has no runs API, so
+ * its answers can only return through an approval gate. Same question, same
+ * preamble; the difference is whether the answer can get home.
+ */
+export type WorkflowName = 'understand' | 'produce' | 'chat'
 
 export interface Identity {
   name: string
@@ -108,8 +118,23 @@ const DOCUMENT_VERB =
 const DOCUMENT_NOUN =
   /\b(handover|summary|request|letter|report|brief|plan|note for|document)\b/i
 
-export const routeFor = (message: string): WorkflowName =>
-  DOCUMENT_VERB.test(message) || DOCUMENT_NOUN.test(message) ? 'produce' : 'understand'
+export function routeFor(message: string): WorkflowName {
+  if (DOCUMENT_VERB.test(message) || DOCUMENT_NOUN.test(message)) return 'produce'
+
+  /**
+   * Questions prefer the chat lane when it exists.
+   *
+   * Not because it answers better — both retrieve and explain — but because
+   * its answer can get back. The chat workflow has API connectors and writes
+   * into the conversation directly; UNDERSTAND is locked with none, so its
+   * answer stops at Yoxa. An answer the person never sees is not an answer,
+   * which makes deliverability the deciding factor rather than a detail.
+   *
+   * Falls back to UNDERSTAND when chat is not configured, so nothing breaks
+   * before the lane exists and nothing needs changing the day it does.
+   */
+  return isConfigured('chat') ? 'chat' : 'understand'
+}
 
 /* ------------------------------------------------------------ chaining */
 
@@ -236,8 +261,22 @@ function usableUrl(raw: string): string | null {
   return cleaned.endsWith('/trigger') ? cleaned : `${cleaned}/trigger`
 }
 
+const PREFIX: Record<WorkflowName, string> = {
+  understand: 'YOXA_UNDERSTAND',
+  produce: 'YOXA_PRODUCE',
+  chat: 'YOXA_CHAT',
+}
+
+/** Whether a lane is configured at all, without building anything. */
+export const isConfigured = (workflow: WorkflowName): boolean =>
+  Boolean(
+    Deno.env.get(`${PREFIX[workflow]}_DEPLOYMENT_SECRET`) &&
+      (Deno.env.get(`${PREFIX[workflow]}_TRIGGER_URL`) ||
+        Deno.env.get(`${PREFIX[workflow]}_DEPLOYMENT_ID`)),
+  )
+
 export function deploymentFor(workflow: WorkflowName): DeploymentLookup {
-  const prefix = workflow === 'understand' ? 'YOXA_UNDERSTAND' : 'YOXA_PRODUCE'
+  const prefix = PREFIX[workflow]
   const secret = Deno.env.get(`${prefix}_DEPLOYMENT_SECRET`)
   if (!secret) return { ok: false, reason: `${prefix}_DEPLOYMENT_SECRET is not set.` }
 
