@@ -23,13 +23,69 @@
 
 import { admin, cors, json, str } from '../_shared/yoxa.ts'
 import { actorFromRequest, mayActOnPatient, forbidden, unauthorised } from '../_shared/app.ts'
-import {
-  type WorkflowName,
-  composeTrigger,
-  deploymentFor,
-  identityFor,
-  routeFor,
-} from '../_shared/compose.ts'
+import { type WorkflowName, isConfigured } from '../_shared/compose.ts'
+import { type Lane, type Plan, SAME_QUESTION, planFor, similarity } from '../_shared/route.ts'
+import { launch, launchError } from '../_shared/start.ts'
+
+/** How long a retrieval stays fresh enough to draft from without looking again. */
+const EVIDENCE_FRESH_MS = 60 * 60 * 1000
+
+/**
+ * The two facts routing cannot read off the sentence.
+ *
+ * Both are scoped to this actor and this subject. The same question asked by
+ * two people has two different correct answers, because what may be shown
+ * depends on who is asking — so a replay or a reuse that crossed that line
+ * would hand one person an answer computed for another.
+ */
+async function routingFacts(
+  actorId: string,
+  patientId: string | null,
+  message: string,
+): Promise<{ recentEvidenceRunId: string | null; alreadyAnsweredRunId: string | null }> {
+  const query = admin
+    .from('workflow_runs')
+    .select('id, workflow_name, trigger_text, answer_html, started_at')
+    .eq('actor_id', actorId)
+    .not('answer_html', 'is', null)
+    .order('started_at', { ascending: false })
+    .limit(25)
+
+  const { data } = patientId ? await query.eq('patient_id', patientId) : await query
+  const rows = data ?? []
+
+  const fresh = rows.filter(
+    (r) => Date.now() - Date.parse(String(r.started_at)) < EVIDENCE_FRESH_MS,
+  )
+
+  // Evidence to draft from: a recent look at the record, not a recent draft.
+  const evidence = fresh.find((r) => r.workflow_name === 'understand') ?? null
+
+  /**
+   * A prior answer to the same question.
+   *
+   * Compared against the person's own words, which are the quoted last line of
+   * the stored trigger. Comparing whole triggers would score every pair as
+   * near-identical: they share a preamble naming the same person, role,
+   * subject and purpose, so the only part that differs is swamped.
+   */
+  const answered =
+    rows.find((r) => {
+      const asked = quotedQuestion(String(r.trigger_text ?? ''))
+      return asked ? similarity(asked, message) >= SAME_QUESTION : false
+    }) ?? null
+
+  return {
+    recentEvidenceRunId: evidence?.id ?? null,
+    alreadyAnsweredRunId: answered?.id ?? null,
+  }
+}
+
+/** The person's own words back out of a composed trigger. */
+function quotedQuestion(trigger: string): string | null {
+  const quoted = trigger.match(/"([^"]+)"/)
+  return quoted ? quoted[1].trim() : null
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
@@ -53,184 +109,108 @@ Deno.serve(async (req) => {
     return forbidden('You do not have access to this record.')
   }
 
+  const recipientIn = asRecipient(body.recipient)
+
   /**
-   * The route, with the caller allowed to correct it but not to invent it.
+   * The two facts routing needs that the sentence cannot tell us.
    *
-   * `routeFor` is a regular expression and will sometimes be wrong — "can you
+   * Whether a question has already been answered, and whether a recent look at
+   * the record still stands, are properties of the record rather than of the
+   * wording. Both are read here, scoped to this actor: the same question from
+   * two people has two different correct answers, because what may be shown
+   * depends on who is asking, and replaying across that line would hand one
+   * person another person's answer.
+   */
+  const facts = await routingFacts(actor.id, patientId, message)
+
+  /**
+   * The plan, with the caller allowed to correct it but not to invent it.
+   *
+   * Routing is a set of readable rules and will sometimes be wrong — "can you
    * write down what changed" reads as a document request and is not one. The
-   * interface shows which workflow is about to run, so a person can say
-   * otherwise; that override arrives here as `workflow`. Anything that is not
-   * one of the two known names is ignored rather than trusted, because an
-   * unknown workflow name has no deployment and would fail later and less
-   * clearly.
+   * interface shows the chosen path before it runs so a person can say
+   * otherwise, and that override arrives as `workflow`. An unrecognised name
+   * is ignored rather than trusted: it has no deployment and would fail later
+   * and far less clearly.
    */
   const asked = str(body.workflow)
-  const workflow: WorkflowName =
-    asked === 'understand' || asked === 'produce' || asked === 'chat'
+  const override: Lane | null =
+    asked === 'understand' || asked === 'produce' || asked === 'chat' || asked === 'fifteen'
       ? asked
-      : routeFor(message)
+      : null
 
-  const lookup = deploymentFor(workflow)
-  if (!lookup.ok) {
-    return json({ error: 'workflow_not_configured', detail: lookup.reason }, 503)
-  }
-  const deployment = lookup.deployment
+  const plan: Plan = override
+    ? {
+        path: 'understand_only',
+        lane: override,
+        then: null,
+        reason: 'You chose this yourself.',
+      }
+    : planFor(message, {
+        recipientRole: recipientIn?.role ?? null,
+        recentEvidenceRunId: facts.recentEvidenceRunId,
+        alreadyAnsweredRunId: facts.alreadyAnsweredRunId,
+        available: isConfigured,
+      })
 
   /**
-   * The previous step, when this turn continues one.
+   * A replay never starts a run.
    *
-   * Read from the database rather than accepted from the caller. The browser
-   * could post any text as "what the last run said", and the whole value of a
-   * hand-off is that the second workflow is reading something a first workflow
-   * actually produced.
+   * The CHATBOT path serves output that already exists. Firing a workflow to
+   * fetch something ORCA is already holding would cost a run, a minute of the
+   * person's time, and — because the record moves — could come back different
+   * from the answer being replayed.
    */
-  let previous: { answerText: string | null; sources: unknown; withheld: unknown } | null = null
-  const chainedFrom = str(body.chain_from)
-  if (chainedFrom) {
+  if (plan.path === 'chatbot_replay' && facts.alreadyAnsweredRunId) {
     const { data: prior } = await admin
       .from('workflow_runs')
-      .select('id, actor_id, answer_html, result')
-      .eq('id', chainedFrom)
+      .select('id, answer_html, result')
+      .eq('id', facts.alreadyAnsweredRunId)
       .maybeSingle()
-
-    if (!prior) return json({ error: 'chain_source_not_found' }, 404)
-    // A run belonging to somebody else is not source material for this one.
-    if (prior.actor_id && prior.actor_id !== actor.id) {
-      return forbidden('That earlier step belongs to a different person.')
-    }
-
-    const envelope = (prior.result ?? {}) as Record<string, unknown>
-    previous = {
-      answerText: textFromHtml(String(prior.answer_html ?? '')),
-      sources: envelope.sources ?? [],
-      withheld: envelope.withheld ?? [],
+    if (prior?.answer_html) {
+      return json({
+        run_id: prior.id,
+        path: plan.path,
+        workflow: 'chat',
+        status: 'replayed',
+        reason: plan.reason,
+        answer_html: prior.answer_html,
+        result: prior.result ?? null,
+      })
     }
   }
 
-  const identity = identityFor(actor, patientId ?? 'ANANYA-001')
-  const recipient = asRecipient(body.recipient)
-  /**
-   * The run row is created before the trigger is composed, not after.
-   *
-   * A workflow with API connectors writes its answer back against ORCA's run
-   * id, and the only way it learns that id is from the trigger text. So the
-   * row has to exist first — the id cannot be in a message that was already
-   * sent. It also means a trigger that fails still leaves a record that it was
-   * attempted.
-   */
-  const idempotencyKey = str(body.idempotency_key) ?? crypto.randomUUID()
-  const { data: run, error: runError } = await admin
-    .from('workflow_runs')
-    .insert({
-      patient_id: patientId,
-      actor_id: actor.id,
-      type: { understand: 'Understand', produce: 'Produce', chat: 'Chat' }[workflow],
-      workflow_name: workflow,
-      stakeholder: actor.name,
-      current_step: 'Trigger composed',
-      status: 'In progress',
-      idempotency_key: idempotencyKey,
-      // Empty when configured by a URL that carries no recognisable id. Null
-      // says "we do not know it"; an empty string would read as a real value
-      // and quietly fail any later lookup that tried to match on it.
-      deployment_id: deployment.id || null,
-      chained_from: chainedFrom,
-    })
-    .select('id')
-    .single()
-
-  if (runError || !run) return json({ error: 'could_not_record_run' }, 500)
-
-  const triggerText = composeTrigger({
-    workflow,
-    identity,
+  const started = await launch({
+    actor,
+    patientId,
+    lane: plan.lane as WorkflowName,
     message,
-    recipient,
+    recipient: recipientIn,
     artifactType: str(body.artifact_type),
-    previous,
-    runId: run.id,
+    chainedFrom: str(body.chain_from),
+    path: plan.path,
+    reason: plan.reason,
+    then: (plan.then as WorkflowName | null) ?? null,
+    idempotencyKey: str(body.idempotency_key),
   })
 
-  await admin.from('workflow_runs').update({ trigger_text: triggerText }).eq('id', run.id)
-
-  let upstream: Response
-  try {
-    upstream = await fetch(deployment.url, {
-      method: 'POST',
-      headers: {
-        'X-Yoxa-Deployment-Secret': deployment.secret,
-        'Idempotency-Key': idempotencyKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ trigger_text: triggerText }),
-    })
-  } catch (error) {
-    /**
-     * Why it could not be reached, and where it was trying to go.
-     *
-     * The URL is not a secret — it is a deployment id on a public host — and
-     * withholding it made this the least diagnosable failure in the system:
-     * a malformed value in the URL variable surfaced as a bare
-     * `yoxa_unreachable`, which reads as a network problem and sends people
-     * to check things that were never wrong. The secret is still never
-     * logged or returned.
-     */
-    console.error('trigger failed', String(error))
-    const why = error instanceof Error ? error.message : String(error)
-    await admin
-      .from('workflow_runs')
-      .update({ status: 'Blocked', current_step: `Could not reach Yoxa: ${why}` })
-      .eq('id', run.id)
-    return json(
-      { error: 'yoxa_unreachable', detail: why, url: deployment.url, run_id: run.id },
-      502,
-    )
-  }
-
-  if (!upstream.ok) {
-    /**
-     * The status code is the diagnosis, so it is kept.
-     *
-     * 401 and 403 look identical from a chat window and mean opposite things:
-     * a wrong secret against a live deployment, versus a correct secret
-     * against one nobody activated. Collapsing them into "it failed" is what
-     * turns a two-minute fix into an afternoon.
-     */
-    const detail = upstream.status === 403
-      ? 'Yoxa accepted the credentials but the deployment is not activated.'
-      : upstream.status === 401
-        ? 'Yoxa rejected the deployment secret.'
-        : `Yoxa refused the trigger (HTTP ${upstream.status}).`
-
-    await admin
-      .from('workflow_runs')
-      .update({ status: 'Blocked', current_step: detail })
-      .eq('id', run.id)
-    return json({ error: 'trigger_refused', status: upstream.status, detail, run_id: run.id }, 502)
-  }
-
-  const accepted = (await upstream.json().catch(() => ({}))) as Record<string, unknown>
-  await admin
-    .from('workflow_runs')
-    .update({
-      current_step: 'Queued at Yoxa',
-      yoxa_run_id: str(accepted.workflow_run_id),
-    })
-    .eq('id', run.id)
+  if (!started.ok) return launchError(started)
 
   return json({
-    run_id: run.id,
-    workflow,
+    run_id: started.runId,
+    workflow: plan.lane,
+    path: plan.path,
+    reason: plan.reason,
     status: 'queued',
-    yoxa_run_id: str(accepted.workflow_run_id),
+    yoxa_run_id: started.yoxaRunId,
     /**
      * The exact text that was sent.
      *
      * Returned so the interface can show what left rather than what it
-     * predicted would leave. The page composes its own preview to display
-     * before sending, and if the two ever drift, this is the one that is true.
+     * predicted would leave. The page composes its own preview before sending,
+     * and if the two ever drift, this is the one that is true.
      */
-    trigger_text: triggerText,
+    trigger_text: started.triggerText,
   })
 })
 
@@ -242,28 +222,3 @@ function asRecipient(v: unknown): { name: string; role: string; org: string } | 
   return { name, role: str(r.role) ?? 'recipient', org: str(r.org) ?? '' }
 }
 
-/**
- * HTML to plain text, for material being handed to another workflow.
- *
- * A trigger is prose a model reads, not a document it renders. Sending markup
- * spends its attention on tags and invites it to echo them into its own
- * output. Block tags become line breaks first, so an unclosed paragraph does
- * not weld the end of one sentence onto the start of the next.
- */
-function textFromHtml(html: string): string {
-  if (!html) return ''
-  return html
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
-    .replace(/<\/?(p|div|h[1-6]|li|ul|ol|tr|blockquote|br)\b[^>]*>/gi, '\n')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&(?:ldquo|rdquo);/g, '"')
-    .replace(/&(?:lsquo|rsquo);/g, "'")
-    .replace(/&mdash;/g, '—')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/[ \t]+/g, ' ')
-    .trim()
-}

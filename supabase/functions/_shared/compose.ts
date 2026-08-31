@@ -26,7 +26,7 @@
  * its answers can only return through an approval gate. Same question, same
  * preamble; the difference is whether the answer can get home.
  */
-export type WorkflowName = 'understand' | 'produce' | 'chat'
+export type WorkflowName = 'understand' | 'produce' | 'chat' | 'fifteen'
 
 export interface Identity {
   name: string
@@ -147,22 +147,26 @@ const DOCUMENT_VERB =
 const DOCUMENT_NOUN =
   /\b(handover|summary|request|letter|report|brief|plan|note for|document)\b/i
 
+/**
+ * Which lane a message belongs in, from the message alone.
+ *
+ * CHATBOT IS NOT DECIDED HERE, DELIBERATELY. It replays output that already
+ * exists, scoped to this actor and purpose — it does no retrieval and no
+ * reasoning. Whether a question has already been answered is a fact about the
+ * record, not about the wording, so it cannot be read off the text and is
+ * decided in `orca-chat`, which can look.
+ *
+ * An earlier version sent every question to the chat lane whenever it was
+ * configured, on the mistaken belief that it retrieved and rewrote like
+ * UNDERSTAND does. That would have replayed a stale answer to a fresh
+ * question and presented it as current — the worst failure this system has
+ * available to it, because it is silent and it is about somebody's medical
+ * record.
+ */
 export function routeFor(message: string): WorkflowName {
-  if (DOCUMENT_VERB.test(message) || DOCUMENT_NOUN.test(message)) return 'produce'
-
-  /**
-   * Questions prefer the chat lane when it exists.
-   *
-   * Not because it answers better — both retrieve and explain — but because
-   * its answer can get back. The chat workflow has API connectors and writes
-   * into the conversation directly; UNDERSTAND is locked with none, so its
-   * answer stops at Yoxa. An answer the person never sees is not an answer,
-   * which makes deliverability the deciding factor rather than a detail.
-   *
-   * Falls back to UNDERSTAND when chat is not configured, so nothing breaks
-   * before the lane exists and nothing needs changing the day it does.
-   */
-  return isConfigured('chat') ? 'chat' : 'understand'
+  return DOCUMENT_VERB.test(message) || DOCUMENT_NOUN.test(message)
+    ? 'produce'
+    : 'understand'
 }
 
 /* ------------------------------------------------------------ chaining */
@@ -297,6 +301,9 @@ const PREFIX: Record<WorkflowName, string> = {
   understand: 'YOXA_UNDERSTAND',
   produce: 'YOXA_PRODUCE',
   chat: 'YOXA_CHAT',
+  // The original end-to-end coordination workflow. Its variables predate the
+  // per-lane naming, so the plain YOXA_ names are its.
+  fifteen: 'YOXA',
 }
 
 /** Whether a lane is configured at all, without building anything. */
