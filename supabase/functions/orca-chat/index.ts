@@ -43,26 +43,37 @@ async function routingFacts(
   actorId: string,
   patientId: string | null,
   message: string,
+  rehearsing: boolean,
 ): Promise<{ recentEvidenceRunId: string | null; alreadyAnsweredRunId: string | null }> {
   /**
-   * Rehearsals are invisible to routing.
+   * A real request sees only real runs. A rehearsal sees rehearsals too.
    *
-   * Without this, a few practice runs start steering real requests: their
-   * stand-in answers would count as "already answered" and replay to somebody
-   * asking about their own record, or as "recent evidence" and become the
-   * material a real document is drafted from. A rehearsal that can change what
-   * a real person is told is worse than having no rehearsal at all.
+   * The first half is the safety property: without it, a few practice runs
+   * start steering real requests — a stand-in answer counting as "already
+   * answered" and replaying to somebody asking about their own record, or as
+   * "recent evidence" and becoming the material a real document is drafted
+   * from. A rehearsal that can change what a real person is told is worse than
+   * having no rehearsal at all.
+   *
+   * The second half is what makes rehearsing worth anything. Two of the five
+   * paths exist only as a consequence of history — PRODUCE alone needs a
+   * recent retrieval, CHATBOT replay needs a prior answer — so a rehearsal
+   * blind to other rehearsals could never reach them, and the mode would
+   * exercise three paths while claiming to exercise five.
+   *
+   * The asymmetry is the whole design: rehearsals can see each other and
+   * cannot be seen.
    */
   const query = admin
     .from('workflow_runs')
     .select('id, workflow_name, trigger_text, answer_html, started_at')
     .eq('actor_id', actorId)
-    .eq('dry_run', false)
     .not('answer_html', 'is', null)
     .order('started_at', { ascending: false })
     .limit(25)
 
-  const { data } = patientId ? await query.eq('patient_id', patientId) : await query
+  const scoped = rehearsing ? query : query.eq('dry_run', false)
+  const { data } = patientId ? await scoped.eq('patient_id', patientId) : await scoped
   const rows = data ?? []
 
   const fresh = rows.filter(
@@ -143,7 +154,7 @@ Deno.serve(async (req) => {
    * depends on who is asking, and replaying across that line would hand one
    * person another person's answer.
    */
-  const facts = await routingFacts(actor.id, patientId, message)
+  const facts = await routingFacts(actor.id, patientId, message, body.dry_run === true)
 
   /**
    * The plan, with the caller allowed to correct it but not to invent it.
