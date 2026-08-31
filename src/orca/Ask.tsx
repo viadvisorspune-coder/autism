@@ -15,7 +15,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSession } from '../state/session'
 import { ACCEPTED_FILES, type Attached, attachFile } from '../lib/attach'
-import { type Shape, useAsks } from './asks'
+import { type Ask, useAsks } from './asks'
 import { useSubject } from './subject'
 import { Card, PageTitle, SectionHead, shortDate } from './parts'
 import { toneClass } from './system'
@@ -192,7 +192,7 @@ export default function Ask() {
                       <p className="o-h3">{a.question}</p>
                       <p className="o-meta mt-6">
                         {shortDate(a.at)}
-                        {outcomeLabel(a.shape)}
+                        {outcomeLabel(a)}
                       </p>
                     </div>
                   </Card>
@@ -216,6 +216,9 @@ function showsRecent(role: string | null): boolean {
   return role !== 'employer' && role !== 'university'
 }
 
+/** Matches the answer screen: past this, "still working" stops being true. */
+const SILENT_AFTER_MS = 10 * 60 * 1000
+
 /**
  * How a card says what became of the question.
  *
@@ -224,10 +227,14 @@ function showsRecent(role: string | null): boolean {
  * otherwise have six identical cards. Colour is the second signal here, never
  * the only one.
  */
-function outcomeLabel(shape: Shape): string {
-  switch (shape) {
+function outcomeLabel(a: Ask): string {
+  switch (a.shape) {
     case 'waiting':
-      return ' · still working'
+      // A card that still says "working" an hour later is the same false
+      // promise the answer screen used to make, in miniature.
+      return Date.now() - Date.parse(a.at) > SILENT_AFTER_MS
+        ? ' · no answer came back'
+        : ' · still working'
     case 'refusal':
       return ' · not available to you'
     case 'gate':

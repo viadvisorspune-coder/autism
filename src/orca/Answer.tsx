@@ -402,10 +402,21 @@ function Routing({ item }: { item: Ask }) {
 /**
  * How long a run may sit unanswered before the screen says something.
  *
- * Not a timeout — nothing is cancelled, and the run is still going. It is the
- * point at which continuing to show a spinner stops being honest.
+ * Neither of these is a timeout. Nothing is cancelled and the run is still
+ * going at Yoxa; these are the two points at which what the screen was saying
+ * stops being true.
+ *
+ * SLOW, at three minutes: longer than usual, still entirely normal.
+ *
+ * SILENT, at ten: long enough that this is no longer a slow run. The interface
+ * had been saying "the answer will be here", which it cannot know and, for a
+ * workflow with no return step configured, is simply false — ORCA has no way
+ * to ask Yoxa whether a run has finished, so an answer arrives only if the
+ * workflow sends one. Continuing to promise it would make this screen the most
+ * confidently wrong thing in the product.
  */
-const STALL_AFTER_MS = 3 * 60 * 1000
+const SLOW_AFTER_MS = 3 * 60 * 1000
+const SILENT_AFTER_MS = 10 * 60 * 1000
 
 function Waiting({ at, status }: { at: string; status?: string }) {
   // Nothing else on this screen re-renders on a schedule, so the notice needs
@@ -433,16 +444,76 @@ function Waiting({ at, status }: { at: string; status?: string }) {
     )
   }
 
-  const stalled = Date.now() - Date.parse(at) > STALL_AFTER_MS
+  const waited = Date.now() - Date.parse(at)
+
+  /**
+   * Nothing has come back, and by now that means something.
+   *
+   * The honest version of this screen, and the reason it exists: ORCA cannot
+   * poll Yoxa. There is no read API, so a run's answer reaches this record only
+   * because the workflow pushed it — into the conversation, onto the run row,
+   * or through an approval gate. A workflow with none of those configured
+   * produces a perfectly good answer that has nowhere to go.
+   *
+   * That is not the person's fault and not a failure of their record, so this
+   * says which of those it is, and does not pretend the answer is still on its
+   * way.
+   */
+  if (waited > SILENT_AFTER_MS) {
+    return (
+      <Card tone="past">
+        <div className="o-card-body">
+          <h2 className="o-h2 mb-6">No answer has come back</h2>
+          <p className="o-body o-measure">
+            Your question was accepted and the work was started. Nothing has been returned since,
+            and at this point it probably will not be.
+          </p>
+
+          <h3 className="o-h3 mb-2 mt-8">What this is not</h3>
+          <p className="o-body o-measure">
+            Nothing failed in your record, nothing was lost, and nothing was refused. This is a
+            connection between two systems, not a boundary and not a fault of yours.
+          </p>
+
+          <h3 className="o-h3 mb-2 mt-8">Why it happens</h3>
+          <p className="o-body o-measure">
+            ORCA cannot ask whether a run has finished — it can only be told. An answer arrives
+            because the workflow sends it back, and a workflow that has not been given a way to
+            send it will finish quietly on the other side.
+          </p>
+
+          <h3 className="o-h3 mb-2 mt-8">What you can do</h3>
+          <p className="o-body o-measure">
+            Ask it again if you want to. Nothing is duplicated by trying, and nothing was written
+            by the attempt that went quiet.
+          </p>
+          <Link to="/ask" className="o-btn o-btn-primary mt-6 no-underline">
+            Ask something
+          </Link>
+        </div>
+      </Card>
+    )
+  }
+
+  const slow = waited > SLOW_AFTER_MS
 
   return (
     <Card tone="current">
       <div className="o-card-body">
-        <h2 className="o-h2 mb-6">{stalled ? 'Still working on this' : 'Working on this'}</h2>
+        <h2 className="o-h2 mb-6">{slow ? 'Still working on this' : 'Working on this'}</h2>
         <p className="o-body o-measure">
-          {stalled
-            ? 'This is taking longer than usual. Nothing has failed and nothing has been lost. You can leave this page and come back — the answer will be here.'
+          {slow
+            ? 'This is taking longer than usual. Nothing has failed and nothing has been lost. You can leave this page and come back.'
             : 'The record is being read. This usually takes under a minute, and you can leave this page and come back.'}
+        </p>
+        {/*
+          Never "the answer will be here". Whether it arrives depends on the
+          workflow sending it, which this screen cannot know and must not
+          promise on its behalf.
+        */}
+        <p className="o-meta o-measure mt-4">
+          If an answer comes back it appears here on its own. You do not need to keep this page
+          open.
         </p>
       </div>
     </Card>
