@@ -26,7 +26,14 @@
   --color-line-strong: #e2ddf0;
   --color-ink: #1e1b2e;
   --color-ink-2: #46425c;
-  --color-muted: #6f6a86;
+  /* Two steps darker than it was. At #6f6a86 this cleared 4.5:1 on white and
+     on canvas, and failed on seven of the tinted grounds — 4.37 against the
+     alert tint, 4.39 against neutral — which is precisely where quiet
+     secondary text tends to sit: inside a status card. Passing on the ground
+     you tested and failing on the ones you did not is the usual shape of this
+     mistake. #6a6580 keeps the lavender bias and clears every ground at 4.71
+     or better. */
+  --color-muted: #6a6580;
 
   /* Experience accents — one per experience, not per screen */
   --color-brand: #6355c7; /* ORCA / patient */
