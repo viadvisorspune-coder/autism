@@ -11,7 +11,7 @@
  * says so, dated, with the current version one tap away.
  */
 import { useMemo } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useSession } from '../state/session'
 import { useRecordStatus } from '../data/RecordProvider'
 import { eventsFor, personName } from '../data/db'
@@ -210,6 +210,21 @@ export function Entry() {
   const { subjectId, subjectName } = useSubject()
   const mine = role === 'patient'
 
+  /**
+   * Back goes where you came from, not where this screen usually sits.
+   *
+   * An entry opened from a source line on an answer belongs, for the length of
+   * that visit, to the answer — sending somebody to the top of Record instead
+   * loses the thing they were reading and the question they were reading it
+   * for. The route that opened it says so; without that it falls back to
+   * Record, which is where the entry lives the rest of the time.
+   */
+  const { state } = useLocation() as {
+    state: { from?: string; label?: string } | null
+  }
+  const back = state?.from ?? '/record'
+  const backLabel = state?.label ?? 'Record'
+
   const event = subjectId
     ? visible(eventsFor(subjectId), role).find((e) => e.id === entryId)
     : undefined
@@ -217,7 +232,7 @@ export function Entry() {
   if (!event) {
     return (
       <>
-        <Back to="/record">Back to Record</Back>
+        <Back to={back}>Back to {backLabel}</Back>
         {/* Never confirms existence. An entry outside this person's access and
             an entry that was never written read identically. */}
         <Nothing>That entry is not part of your access to this record.</Nothing>
@@ -227,7 +242,7 @@ export function Entry() {
 
   return (
     <>
-      <Back to="/record">Back to Record</Back>
+      <Back to={back}>Back to {backLabel}</Back>
       <p className="o-meta mb-3">{longDate(event.date)}</p>
       <h1 className="o-h2 o-measure mb-8">{event.title}</h1>
 

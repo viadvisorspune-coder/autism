@@ -208,16 +208,68 @@ export default function Answer() {
         between an answer and an assertion, and it is the part a clinician reads
         first.
       */}
-      {item.sources?.length ? (
+      {/*
+        What the answer rests on, and — the half usually left out — the
+        statement that it rests on nothing else.
+
+        A list of citations tells you what was used. It does not tell you
+        whether anything else was consulted and discarded, which for a system
+        that reads somebody's whole record is the more important question. The
+        closing line answers it.
+
+        Each source opens the entry it names. Provenance you cannot follow is a
+        reference, not evidence.
+      */}
+      {item.shape === 'answer' && item.sources?.length ? (
         <section className="o-section">
           <SectionHead>Where this comes from</SectionHead>
-          <ul className="space-y-3">
-            {item.sources.map((s, i) => (
-              <li key={i} className="o-meta">
-                {[s.label ?? s.id, s.reporter, longDate(s.date) || s.date].filter(Boolean).join(' · ')}
-              </li>
-            ))}
+          <p className="o-body o-measure mb-6">
+            Based on {item.sources.length}{' '}
+            {item.sources.length === 1 ? 'entry' : 'entries'} in the record.
+          </p>
+          <ul className="space-y-4">
+            {item.sources.map((s, i) => {
+              const label = [s.label ?? s.id, s.reporter, longDate(s.date) || s.date]
+                .filter(Boolean)
+                .join(' · ')
+              return (
+                <li key={i}>
+                  {s.id ? (
+                    <Link
+                      to={`/record/${s.id}`}
+                      state={{ from: `/ask/${item.id}`, label: 'the answer' }}
+                      className="o-body underline"
+                    >
+                      {label}
+                    </Link>
+                  ) : (
+                    <span className="o-body">{label}</span>
+                  )}
+                </li>
+              )
+            })}
           </ul>
+          <p className="o-meta o-measure mt-6">
+            No other entries were used to write this.
+          </p>
+        </section>
+      ) : null}
+
+      {/*
+        An answer that cites nothing says so.
+
+        Silence here used to read as "there were no sources worth listing",
+        when what it actually means is that the answer arrived without any —
+        and an unattributed statement about somebody's health is exactly the
+        thing this product exists to stop being normal.
+      */}
+      {item.shape === 'answer' && item.answer && !item.sources?.length ? (
+        <section className="o-section">
+          <SectionHead>Where this comes from</SectionHead>
+          <p className="o-body o-measure">
+            This answer came back without naming the entries it was drawn from. Treat it as a
+            starting point rather than as something the record has confirmed.
+          </p>
         </section>
       ) : null}
 

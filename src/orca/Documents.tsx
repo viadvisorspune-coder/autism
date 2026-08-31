@@ -13,7 +13,7 @@
  * recipient and a period, and asking somebody to phrase those as a sentence so
  * a router can parse them back out is a worse experience than four fields.
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSession } from '../state/session'
 import { useRecordStatus } from '../data/RecordProvider'
@@ -23,6 +23,7 @@ import { type Attachment, type ConversationData, useLive } from '../lib/live'
 import { useAsks } from './asks'
 import { useSubject } from './subject'
 import { Card, CouldNotLoad, Nothing, PageTitle, SectionHead, longDate } from './parts'
+import { type DocumentDraft, ago, clearDraft, hasContent, readDraft, writeDraft } from './draft'
 import type { Tone } from './system'
 
 type State = 'Draft' | 'Waiting for a decision' | 'Sent' | 'Not sent'
@@ -41,10 +42,17 @@ const stateTone: Record<State, Tone> = {
 }
 
 export default function Documents() {
-  const { role } = useSession()
+  const { role, option } = useSession()
   const { status } = useRecordStatus()
   const { subjectId, subjectName, choosable } = useSubject()
   const [composing, setComposing] = useState(false)
+  const personId = option?.personId ?? ''
+  // Re-read whenever the form closes, so finishing or discarding one is
+  // reflected here without a reload.
+  const [draft, setDraft] = useState<DocumentDraft | null>(() => readDraft(personId))
+  useEffect(() => {
+    if (!composing) setDraft(readDraft(personId))
+  }, [composing, personId])
   const { data, failed, refresh } = useLive<ConversationData>('conversation', subjectId)
 
   const mine = role === 'patient'
@@ -72,6 +80,8 @@ export default function Documents() {
 
   if (composing) return <NewDocument onCancel={() => setComposing(false)} />
 
+  const resumable = draft && draft.subjectId === subjectId ? draft : null
+
   return (
     <>
       <PageTitle>{mine ? 'Your documents' : `Documents about ${subjectName}`}</PageTitle>
@@ -84,6 +94,51 @@ export default function Documents() {
         <button type="button" className="o-btn o-btn-primary mb-12" onClick={() => setComposing(true)}>
           New document
         </button>
+      ) : null}
+
+      {/*
+        An unfinished thing, said where it lives.
+
+        A draft nobody can find is a draft that was lost with extra steps. It
+        says what it is, who it was for and when it was last touched, so
+        picking it up again is recognition rather than recall — nobody should
+        have to remember they had an unfinished task.
+
+        Shown only for the record it was started under. A draft about Ananya
+        appearing on Rohan's screen would be the worst kind of helpful.
+      */}
+      {resumable ? (
+        <div className="mb-12">
+          <Card tone="current">
+            <div className="o-card-body">
+              <h2 className="o-h3">Continue your draft</h2>
+              <p className="o-body o-measure mt-3">
+                {resumable.type}
+                {resumable.recipient ? ` for ${resumable.recipient}` : ''}
+              </p>
+              <p className="o-meta mt-2">Last edited {ago(resumable.savedAt)}. Nothing has been sent.</p>
+              <div className="mt-6 flex flex-wrap gap-4">
+                <button
+                  type="button"
+                  className="o-btn o-btn-primary"
+                  onClick={() => setComposing(true)}
+                >
+                  Continue
+                </button>
+                <button
+                  type="button"
+                  className="o-btn"
+                  onClick={() => {
+                    clearDraft(personId)
+                    setDraft(null)
+                  }}
+                >
+                  Discard it
+                </button>
+              </div>
+            </div>
+          </Card>
+        </div>
       ) : null}
 
       {failed ? (
@@ -180,17 +235,42 @@ export default function Documents() {
  * The output is a draft. It goes to Decisions, and Ananya decides.
  */
 function NewDocument({ onCancel }: { onCancel: () => void }) {
-  const { role } = useSession()
+  const { role, option } = useSession()
   const { subjectId, subjectName } = useSubject()
   const { ask } = useAsks()
   const navigate = useNavigate()
+  const personId = option?.personId ?? ''
 
-  const [type, setType] = useState('Handover')
-  const [recipient, setRecipient] = useState('')
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
-  const [purpose, setPurpose] = useState('')
+  /**
+   * Opened on whatever was left behind, when it belongs to this record.
+   *
+   * Read once, at mount, into the initial state — reading it on every render
+   * would fight the person's typing.
+   */
+  const saved = useMemo(() => {
+    const held = readDraft(personId)
+    return held && held.subjectId === subjectId ? held : null
+  }, [personId, subjectId])
+
+  const [type, setType] = useState(saved?.type ?? 'Handover')
+  const [recipient, setRecipient] = useState(saved?.recipient ?? '')
+  const [from, setFrom] = useState(saved?.from ?? '')
+  const [to, setTo] = useState(saved?.to ?? '')
+  const [purpose, setPurpose] = useState(saved?.purpose ?? '')
   const [sending, setSending] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+
+  const current = { type, recipient, from, to, purpose, subjectId: subjectId ?? '' }
+  const dirty = hasContent(current)
+
+  // Saved as it is typed, not on some later event that might never happen.
+  // A draft that only survives if you remember to press something is not a
+  // draft, it is a quiz.
+  useEffect(() => {
+    writeDraft(personId, current)
+    // The fields are the dependency; `current` is rebuilt each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personId, type, recipient, from, to, purpose, subjectId])
 
   const types = typesFor(role)
   const roster = useMemo(() => {
@@ -208,8 +288,58 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
     const id = await ask(
       `Write a ${type.toLowerCase()} about ${subjectName || patientName(subjectId ?? '')} for ${recipient}${period}.${why}`,
     )
+    // Finished, so it is no longer a draft. Cleared only after the request has
+    // been accepted, never before.
+    clearDraft(personId)
     setSending(false)
     navigate(`/ask/${id}`)
+  }
+
+  /**
+   * Cancel means cancel — and says what it would cost.
+   *
+   * Not saved silently, not discarded silently, and not returned somewhere
+   * unexpected. The one case that needs asking is a form with work in it; an
+   * untouched form just closes.
+   */
+  if (confirming) {
+    return (
+      <>
+        <PageTitle>Discard this draft?</PageTitle>
+        <Card tone="decision">
+          <div className="o-card-body">
+            <p className="o-body o-measure">
+              You have filled in {[
+                recipient.trim() && 'a recipient',
+                (from.trim() || to.trim()) && 'a period',
+                purpose.trim() && 'a purpose',
+              ]
+                .filter(Boolean)
+                .join(', ')}
+              . Discarding removes all of it. Nothing has been written or sent either way.
+            </p>
+            <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+              <button type="button" className="o-btn o-btn-primary flex-1" onClick={() => setConfirming(false)}>
+                Keep editing
+              </button>
+              <button
+                type="button"
+                className="o-btn flex-1"
+                onClick={() => {
+                  clearDraft(personId)
+                  onCancel()
+                }}
+              >
+                Discard the draft
+              </button>
+            </div>
+            <p className="o-meta o-measure mt-6">
+              You can also leave it. It waits on Documents and nothing expires.
+            </p>
+          </div>
+        </Card>
+      </>
+    )
   }
 
   return (
@@ -217,7 +347,15 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
       <button type="button" className="o-body mb-8 block font-semibold underline" onClick={onCancel}>
         ← Back to Documents
       </button>
-      <PageTitle>New document</PageTitle>
+      <PageTitle
+        sub={
+          saved
+            ? `Picked up where you left off — last edited ${ago(saved.savedAt)}.`
+            : undefined
+        }
+      >
+        New document
+      </PageTitle>
 
       <div className="space-y-10">
         <div>
@@ -294,7 +432,11 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
           >
             {sending ? 'Writing' : 'Write the draft'}
           </button>
-          <button type="button" className="o-btn flex-1" onClick={onCancel}>
+          <button
+            type="button"
+            className="o-btn flex-1"
+            onClick={() => (dirty ? setConfirming(true) : onCancel())}
+          >
             Cancel
           </button>
         </div>
@@ -304,6 +446,13 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
           may see. It goes to {subjectName ? `${subjectName.split(' ')[0]}` : 'them'} for a
           decision before it reaches anyone. Nothing is sent by writing it.
         </p>
+
+        {dirty ? (
+          <p className="o-meta o-measure">
+            What you have typed is kept on this device as you go. Leaving this screen does not
+            lose it, and nothing here expires.
+          </p>
+        ) : null}
       </div>
     </>
   )
