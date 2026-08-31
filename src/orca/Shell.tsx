@@ -16,6 +16,7 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useSession } from '../state/session'
 import { useUI } from '../state/ui'
+import { useRecordStatus } from '../data/RecordProvider'
 import { AsksProvider } from './asks'
 import { SubjectProvider, useSubject } from './subject'
 import { homeFor, navFor, paletteFor } from './system'
@@ -180,9 +181,36 @@ function Frame() {
             ORCA holds one record and shows each person only their part of it. Nothing is sent to
             anyone without a decision from {option?.role === 'patient' ? 'you' : 'Ananya'}.
           </p>
+          <NotLive />
         </div>
       </footer>
     </div>
+  )
+}
+
+/**
+ * Whether what is on screen is the real record.
+ *
+ * The one thing this interface must never be vague about. If the backend
+ * cannot be reached, every screen still renders — deliberately, because a
+ * blank page is the worst thing to hand somebody who is already finding the
+ * day expensive — but it renders the seeded example record, and an example
+ * record that is indistinguishable from a real one is worse than an error.
+ * Somebody would read a sentence about their own mornings that nobody ever
+ * wrote.
+ *
+ * Renders nothing at all when the record is live, which is almost always.
+ * A permanent banner saying "this is real" would be noise, and would train
+ * people to stop reading the strip they actually need to see.
+ */
+function NotLive() {
+  const { status, note } = useRecordStatus()
+  if (status !== 'mock') return null
+  return (
+    <p className="o-body o-measure mt-6 border border-black p-4">
+      <span className="font-semibold">This is example data, not a real record.</span>{' '}
+      {note} Nothing you do here reaches anyone, and nothing here was written by a person.
+    </p>
   )
 }
 
