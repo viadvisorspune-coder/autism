@@ -50,6 +50,30 @@ const ALLOWED: Record<string, string> = {
   'video/webm': 'Video',
 }
 
+/**
+ * What to call a file type when telling somebody it was refused.
+ *
+ * Falls back to the extension, then to "that kind of file" — never to the MIME
+ * type, which is the one thing guaranteed to mean nothing to the person
+ * reading it.
+ */
+const FAMILIAR: [RegExp, string][] = [
+  [/wordprocessingml|msword/, 'a Word document'],
+  [/spreadsheetml|ms-excel/, 'an Excel spreadsheet'],
+  [/presentationml|ms-powerpoint/, 'a PowerPoint file'],
+  [/zip|compressed/, 'a zip file'],
+  [/rtf/, 'a rich text file'],
+  [/^image\//, 'that image format'],
+  [/^audio\//, 'that audio format'],
+  [/^video\//, 'that video format'],
+]
+
+function describeType(contentType: string, fileName: string): string {
+  for (const [pattern, name] of FAMILIAR) if (pattern.test(contentType)) return name
+  const ext = fileName.match(/\.([a-z0-9]{1,6})$/i)?.[1]
+  return ext ? `.${ext.toLowerCase()} files` : 'that kind of file'
+}
+
 const safeName = (name: string) =>
   name.replace(/[^a-zA-Z0-9._-]/g, '-').replace(/-+/g, '-').slice(0, 120) || 'attachment'
 
@@ -84,17 +108,25 @@ Deno.serve(async (req) => {
   const kind = ALLOWED[file.contentType]
   if (!kind) {
     /**
-     * Refused by name, with the list.
+     * Refused in words a person can read.
      *
-     * A person who attached something and saw nothing happen cannot tell a
-     * refusal from a failure, and will usually try the same file again.
+     * The first version printed the MIME type back —
+     * "ORCA cannot read application/vnd.openxmlformats-officedocument.
+     * wordprocessingml.document" — which is technically precise and useless
+     * to the person holding the file. Saying "a Word document" tells them
+     * what to convert, which is the only thing the message is for.
+     *
+     * Refused by name rather than ignored, because somebody who attached a
+     * file and saw nothing happen cannot tell refusal from failure and will
+     * try the same file again.
      */
     return json(
       {
         error: 'unsupported_type',
         detail:
-          `ORCA cannot read ${file.contentType || 'that kind of file'}. ` +
-          'It accepts PDFs, text, images, audio and video.',
+          `ORCA cannot read ${describeType(file.contentType, file.name)}. ` +
+          'It accepts PDFs, plain text, images, audio and video. ' +
+          'Saving it as a PDF usually works.',
       },
       415,
     )
