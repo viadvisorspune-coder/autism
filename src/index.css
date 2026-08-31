@@ -2,7 +2,8 @@
 
 @theme {
   --font-sans:
-    'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    'Archivo Narrow', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
 
   /* Neutral ground — a lavender-leaning grey rather than a warm one, so the
      purple accent sits in the same family as the surfaces around it instead
@@ -317,37 +318,31 @@ html[data-palette='low'] {
  * per person, not one per page.
  */
 html[data-experience='patient'] {
-  --color-canvas: #f6f2ea;
-  --color-surface: #ffffff;
-  --color-surface-2: #fbf8f2;
-  --color-paper: #ffffff;
-  --color-ink: #141414;
-  --color-ink-2: #3d3a36;
-  --color-muted: #6b665e;
-  --color-line: #e8e1d4;
-  --color-line-strong: #ddd4c3;
+  /* Straight from the mockups. A warm off-white ground, near-black ink, and
+     hairline greys — the colour does not live in the surfaces, it lives in the
+     block at the top of each card. */
+  --color-canvas: #fbf9f5;
+  --color-surface: #fbf9f5;
+  --color-surface-2: #f5f3ef;
+  --color-paper: #fbf9f5;
+  --color-ink: #1b1c1a;
+  --color-ink-2: #444748;
+  --color-muted: #5c6060;
+  --color-line: #c4c7c7;
+  --color-line-strong: #1b1c1a;
 
-  /* The brand accent becomes ink, so a primary control is a black pill on
-     cream — the references' own move, and the highest contrast available. */
-  --color-brand: #141414;
-  --color-brand-ink: #141414;
-  --color-brand-tint: #efe9dc;
-}
+  /* Primary is black. A filled control is a black rectangle with white type,
+     which is the mockups' own move and the highest contrast available. */
+  --color-brand: #1b1c1a;
+  --color-brand-ink: #1b1c1a;
+  --color-brand-tint: #efeeea;
 
-/*
- * The block colours.
- *
- * Assigned per turn rather than per meaning, so a conversation reads as a
- * sequence of distinct moments instead of a colour-coded status system. Status
- * is carried by words here; colour is carried by rhythm.
- */
-html[data-experience='patient'] {
-  --play-1: #c9cbf7;
-  --play-2: #f5e45c;
-  --play-3: #f79a8e;
-  --play-4: #9ed9c5;
-  --play-5: #c89be0;
-  --play-6: #f4a259;
+  --play-1: #f2c230;
+  --play-2: #bddbd2;
+  --play-3: #ee6c4d;
+  --play-4: #d9c3eb;
+  --play-5: #f2c230;
+  --play-6: #bddbd2;
 }
 
 .play-1 { background-color: var(--play-1); }
@@ -405,4 +400,106 @@ html:not([data-experience='patient']) .answer-tone.play-4,
 html:not([data-experience='patient']) .answer-tone.play-5,
 html:not([data-experience='patient']) .answer-tone.play-6 {
   background-color: var(--color-paper);
+}
+
+/* ---------------------------------------------------- the person's own view
+ *
+ * The mockups' structural language, and it is a different one from the rest of
+ * ORCA: hairline black borders on everything, square corners, no shadow, and a
+ * solid block of colour along the top of each card. Definition comes from the
+ * line, not from elevation.
+ *
+ * Scoped to the patient experience. Everyone else keeps the soft, shadowed,
+ * rounded surfaces — two languages on purpose, because they are two different
+ * acts.
+ */
+html[data-experience='patient'] {
+  --radius-card: 0px;
+}
+
+/* The base sheet makes these transparent and adds a shadow instead. Here the
+   border IS the design, so it comes back — at full strength, in ink. */
+html[data-experience='patient'] .border-line,
+html[data-experience='patient'] .border-line-strong {
+  border-color: var(--color-ink) !important;
+  box-shadow: none !important;
+}
+
+/* Square. Every corner, including the ones utilities round. */
+html[data-experience='patient'] [class*='rounded'] {
+  border-radius: 0 !important;
+}
+
+/* Fields are outlined here rather than filled, to match. */
+html[data-experience='patient'] textarea,
+html[data-experience='patient'] input[type='text'] {
+  border: 1px solid var(--color-ink) !important;
+  background-color: var(--color-surface) !important;
+}
+
+/* Nothing floats. */
+html[data-experience='patient'] .elevate,
+html[data-experience='patient'] .frost,
+html[data-experience='patient'] .frost-tint {
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background-color: var(--color-surface) !important;
+}
+
+/*
+ * The type scale, taken from the mockups.
+ *
+ * Five roles and no more. A scale with a step for every occasion is a scale
+ * nobody follows, and the reference gets its authority from using very few
+ * sizes at very different weights.
+ */
+.t-display {
+  font-size: 56px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-weight: 800;
+  text-wrap: balance;
+}
+.t-headline {
+  font-size: 32px;
+  line-height: 1.2;
+  font-weight: 600;
+}
+.t-answer {
+  font-size: 21px;
+  line-height: 1.65;
+  font-weight: 400;
+}
+.t-body {
+  font-size: 19px;
+  line-height: 1.6;
+  font-weight: 400;
+}
+.t-label {
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Display type has to come down on a phone, or one word fills the screen. */
+@media (max-width: 640px) {
+  .t-display { font-size: 36px; }
+  .t-headline { font-size: 24px; }
+  .t-answer { font-size: 18px; }
+  .t-body { font-size: 17px; }
+}
+
+/*
+ * The colour block.
+ *
+ * A 32px band along the top of a card, with a hairline under it. This is where
+ * all the colour in the person's view lives — which is what lets everything
+ * else stay black on off-white and still feel warm.
+ */
+.tone-band {
+  height: 32px;
+  border-bottom: 1px solid var(--color-ink);
 }

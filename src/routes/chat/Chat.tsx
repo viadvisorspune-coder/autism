@@ -352,14 +352,38 @@ export function WorkflowChat() {
         know what they can do, and "workflow" is a word from our side of the
         screen.
       */}
-      <header className="border-b border-line bg-paper">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-5 py-3">
-          <div className="min-w-0">
-            <h1 className="display text-[1.35rem]">Ask about your record</h1>
-            <p className="truncate text-[0.82rem] leading-relaxed text-muted">
-              Signed in as {identity.name} · {String(identity.role)}
-              {organisation ? ` · ${organisation}` : ''}
-            </p>
+      {/*
+        The nav from the mockups: five sections, a hairline under, sticky.
+        
+        Naming the sections is what turns this from a chat window into a
+        product — a person can see the whole of what ORCA does without having
+        to ask it. Only Ask is built; the rest point at the existing screens.
+      */}
+      <header className="sticky top-0 z-50 border-b border-line-strong bg-surface">
+        <div className="mx-auto flex max-w-[720px] items-center justify-between gap-4 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-6">
+            <span className="t-headline shrink-0 font-bold">ORCA</span>
+            <nav className="hidden items-center gap-5 md:flex">
+              {[
+                ['Ask', '/chat'],
+                ['Record', '/patient/story'],
+                ['Decisions', '/patient/requests'],
+                ['Documents', '/patient/documents'],
+                ['Sharing', '/patient/privacy'],
+              ].map(([label, to]) => (
+                <Link
+                  key={label}
+                  to={to}
+                  className={
+                    label === 'Ask'
+                      ? 't-label border-b-2 border-line-strong pb-1 text-ink'
+                      : 't-label pb-1 text-ink-2 hover:text-ink'
+                  }
+                >
+                  {label}
+                </Link>
+              ))}
+            </nav>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {/*
@@ -386,7 +410,13 @@ export function WorkflowChat() {
         {helpOpen ? <Help /> : null}
       </header>
 
-      <main className="mx-auto max-w-3xl px-5 pb-56 pt-6">
+      <main className="mx-auto max-w-[720px] px-4 pb-56 pt-8">
+        <h1 className="t-display mb-8">Ask about your record</h1>
+        <p className="-mt-6 mb-8 t-body text-ink-2">
+          Signed in as {identity.name}
+          {organisation ? ` · ${organisation}` : ''}
+        </p>
+
         <LiveApprovals actorId={option?.personId ?? null} />
         {turns.length === 0 ? <Opening onPick={send} role={String(identity.role)} /> : null}
         {resumedFrom ? <Returning at={resumedFrom} /> : null}
@@ -660,7 +690,11 @@ function LiveApprovalCard({
   }
 
   return (
-    <div className="rounded-xl border border-line-strong bg-paper p-4">
+    <div className="border border-line-strong bg-surface">
+      {/* Coral, not rotated. A decision is the one thing on this screen whose
+          colour should mean something rather than mark a position. */}
+      <div className="tone-band play-3" />
+      <div className="p-6">
       {/*
         A heading that says what is being asked, not what our system is doing.
 
@@ -669,8 +703,7 @@ function LiveApprovalCard({
         important action while it is present, so it is a heading rather than a
         label.
       */}
-      <h2 className="text-[0.9rem] font-semibold text-ink">Your permission is needed</h2>
-      <p className="mt-1 text-[0.88rem] leading-relaxed text-ink-2">{approval.title}</p>
+      <h2 className="t-headline mb-3">{approval.title}</h2>
       {/*
         The description, rendered rather than printed.
 
@@ -724,8 +757,8 @@ function LiveApprovalCard({
             onClick={() => decide(c.id, c.message)}
             className={
               i === 0
-                ? 'rounded-lg bg-brand px-4 py-2.5 text-[0.88rem] font-medium text-paper disabled:opacity-50'
-                : 'rounded-lg border border-line-strong px-4 py-2.5 text-[0.88rem] font-medium text-ink-2 hover:bg-canvas disabled:opacity-50'
+                ? 't-label flex-1 bg-ink px-6 py-4 text-surface disabled:opacity-50'
+                : 't-label flex-1 border border-line-strong px-6 py-4 text-ink hover:bg-surface-2 disabled:opacity-50'
             }
           >
             {c.label}
@@ -733,13 +766,14 @@ function LiveApprovalCard({
         ))}
       </div>
 
-      <p className="mt-2.5 text-[0.82rem] leading-relaxed text-muted" aria-live="polite">
+      <p className="mt-3 t-body text-ink-2" aria-live="polite">
         {sending
           ? 'Sending your decision…'
           : failed
             ? failed
             : 'Nothing has been sent yet. This waits as long as you need.'}
       </p>
+      </div>
     </div>
   )
 }
@@ -826,8 +860,8 @@ function Composer({
             lost by anyone who looks away mid-sentence.
           */}
           <div className="px-3.5 pt-3">
-            <label htmlFor="orca-question" className="block text-[0.85rem] font-medium text-ink">
-              Your question
+            <label htmlFor="orca-question" className="t-label block text-ink">
+              Type your question
             </label>
             <p className="mt-0.5 text-[0.8rem] leading-relaxed text-muted">
               Ask about what is in your record, or ask for a document to be written. Nothing is
@@ -872,8 +906,8 @@ function Composer({
                 paperclip means here, and the brief asks for controls that are
                 labelled or self-evident rather than either.
               */}
-              <label className="cursor-pointer rounded-lg border border-line-strong px-3.5 py-2 text-[0.85rem] font-medium text-ink-2 hover:border-brand hover:text-brand">
-                Add a file
+              <label className="t-label cursor-pointer border border-line-strong px-5 py-3 text-ink hover:bg-surface-2">
+                Attach a file
                 <input
                   type="file"
                   className="sr-only"
@@ -890,16 +924,16 @@ function Composer({
                 onClick={onRehearse}
                 disabled={busy || !value.trim()}
                 title="Decide the route and compose the trigger, without running anything"
-                className="rounded-lg border border-line-strong px-3.5 py-2 text-[0.85rem] font-medium text-ink-2 hover:border-brand hover:text-brand disabled:opacity-40"
+                className="t-label border border-line-strong px-5 py-3 text-ink hover:bg-surface-2 disabled:opacity-40"
               >
                 Rehearse
               </button>
               <button
                 onClick={onSend}
                 disabled={busy || !value.trim()}
-                className="rounded-lg bg-brand px-4 py-2 text-[0.85rem] font-medium text-paper disabled:opacity-40"
+                className="t-label bg-ink px-6 py-3 text-surface disabled:opacity-40"
               >
-                {busy ? 'Running…' : 'Send'}
+                {busy ? 'Running…' : 'Ask'}
               </button>
             </div>
           </div>
@@ -923,7 +957,7 @@ function Asked({ turn }: { turn: Turn }) {
           Sent with {turn.sent.map((f) => f.title).join(', ')}
         </p>
       ) : null}
-      <div className="mt-1.5 flex items-center justify-end gap-3">
+      <div className="mt-2 flex items-center justify-end gap-4">
         <button
           onClick={() => setOpen((o) => !o)}
           className="py-1 text-[0.8rem] font-medium text-brand hover:underline"
@@ -1197,7 +1231,7 @@ function Documents({ files }: { files: Attachment[] }) {
  */
 function answerTone(turn: Turn): string {
   const sum = [...turn.id].reduce((n, c) => n + c.charCodeAt(0), 0)
-  return `answer-tone play-${(sum % 6) + 1}`
+  return `play-${(sum % 6) + 1}`
 }
 
 function Answered({
@@ -1261,8 +1295,11 @@ function Answered({
           so the conversation reads as a sequence of distinct moments rather
           than a list of identical panels.
         */
-        <div className={`rounded-[22px] px-5 py-4 ${answerTone(turn)}`}>
-          <Prose html={turn.answer} />
+        <div className="border border-line-strong bg-surface">
+          <div className={`tone-band ${answerTone(turn)}`} />
+          <div className="px-6 py-6">
+            <Prose html={turn.answer} />
+          </div>
         </div>
       ) : null}
 
@@ -1278,8 +1315,8 @@ function Answered({
         concealment.
       */}
       {turn.sources?.length || turn.withheld?.length ? (
-        <details className="rounded-xl border border-line-strong bg-paper px-4 py-2.5">
-          <summary className="cursor-pointer text-[0.83rem] font-medium text-ink-2">
+        <details className="border border-line-strong bg-surface px-5 py-3">
+          <summary className="t-label cursor-pointer text-ink">
             {[
               turn.sources?.length
                 ? `${turn.sources.length} source${turn.sources.length === 1 ? '' : 's'}`
@@ -1325,17 +1362,26 @@ function Answered({
         can ignore all of them.
       */}
       {actions.length ? (
-        <div className="flex flex-wrap gap-2 pt-0.5">
-          {actions.map((a) => (
-            <button
-              key={a}
-              onClick={() => onPick(a)}
-              className="rounded-lg border border-line-strong px-3.5 py-2 text-left text-[0.83rem] text-ink-2 hover:border-brand hover:text-brand"
-            >
-              {a}
-            </button>
-          ))}
-        </div>
+        <section className="pt-2">
+          <h2 className="t-label mb-3 border-b border-line-strong pb-2 text-ink">
+            What you can do next
+          </h2>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            {actions.map((a, i) => (
+              <button
+                key={a}
+                onClick={() => onPick(a)}
+                className={
+                  i === 0
+                    ? 't-label flex-1 bg-ink px-6 py-4 text-surface'
+                    : 't-label flex-1 border border-line-strong px-6 py-4 text-ink hover:bg-surface-2'
+                }
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+        </section>
       ) : null}
     </div>
   )
