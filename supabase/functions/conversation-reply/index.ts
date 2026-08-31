@@ -60,6 +60,28 @@ Deno.serve(
         resolvedRun = resolvedRun || guess.runId
       }
     }
+    /**
+     * A run id we do not recognise is dropped, not fatal.
+     *
+     * `conversation_messages.workflow_run_id` is a foreign key, so an id that
+     * does not exist here fails the insert — and takes the answer down with
+     * it. That happens easily and for uninteresting reasons: a workflow tested
+     * inside Yoxa invents a run id, and a redelivery can arrive after a run
+     * was removed.
+     *
+     * Losing the link costs a cross-reference. Losing the reply costs the
+     * person the answer they asked for, which is the entire point of this
+     * function, so the link is what gives way.
+     */
+    if (resolvedRun) {
+      const { data: known } = await admin
+        .from('workflow_runs')
+        .select('id')
+        .eq('id', resolvedRun)
+        .maybeSingle()
+      if (!known) resolvedRun = null
+    }
+
     if (!resolvedPatient) return json({ error: 'patient_id is required' }, 400)
     if (!resolvedActor) return json({ error: 'actor_id is required' }, 400)
     if (!text) return json({ error: 'text is required' }, 400)
