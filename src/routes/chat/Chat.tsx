@@ -270,7 +270,22 @@ export function WorkflowChat() {
    */
   const seeded = useRef(false)
   useEffect(() => {
-    const said = convoData?.messages ?? []
+    /**
+     * Only what this chat actually produced.
+     *
+     * The conversation table is shared with the rest of ORCA and already held
+     * two hundred messages from the older interface — a hundred and six of
+     * them ORCA-authored. Restoring the thread wholesale dropped all of them
+     * onto this screen at once, instantly, as though a workflow had answered.
+     * From the outside that is indistinguishable from hardcoded replies, and
+     * it is worse than losing the conversation on reload: it makes every
+     * answer on the page suspect, including the real ones.
+     *
+     * A `workflow_run_id` is the discriminator, and a reliable one — this
+     * screen stamps every message it writes with the run that caused it, and
+     * nothing else in ORCA does. Two of the two hundred qualify.
+     */
+    const said = (convoData?.messages ?? []).filter((m) => m.workflow_run_id)
     if (seeded.current || !said.length || turns.length) return
     seeded.current = true
 
