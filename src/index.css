@@ -905,9 +905,11 @@ html[data-experience='patient'] .frost-tint {
   html[data-ia='orca'] textarea.o-input,
   html[data-ia='orca'] input.o-input,
   html[data-ia='orca'] select.o-input {
+    /* Micro, not state. Focus is the answer to a press, and somebody tabbing
+       through four fields should not be waiting on four fades. */
     transition:
-      box-shadow var(--t-state) var(--ease),
-      background-color var(--t-state) var(--ease);
+      box-shadow var(--t-micro) var(--ease),
+      background-color var(--t-micro) var(--ease);
   }
   html[data-ia='orca'] textarea.o-input:focus,
   html[data-ia='orca'] input.o-input:focus,
@@ -925,9 +927,11 @@ html[data-experience='patient'] .frost-tint {
    * explicit that nothing in ORCA floats.
    */
   html[data-ia='orca'] .o-card {
+    /* Ground and inner line only. `border-color` was in this list and nothing
+       ever changes it — a transition on a property that never moves. */
     transition:
       background-color var(--t-state) var(--ease),
-      border-color var(--t-state) var(--ease);
+      box-shadow var(--t-state) var(--ease);
   }
   html[data-ia='orca'] a:hover > .o-card,
   html[data-ia='orca'] button:hover > .o-card {
@@ -954,59 +958,52 @@ html[data-experience='patient'] .frost-tint {
     transition: background-color var(--t-state) var(--ease);
   }
 
-  /* ---------------------------------------- arrival, completion, navigation */
-
-  @keyframes o-enter {
-    from { opacity: 0; transform: translateY(4px); }
-    to   { opacity: 1; transform: none; }
-  }
+  /* ------------------------------------------- things that arrive unbidden */
 
   /*
-   * A screenful arriving.
+   * THERE IS NO PAGE TRANSITION, AND THAT IS THE DECISION.
    *
-   * Four pixels, once. Enough to read as "this is new" and far too little to
-   * read as movement. Applied to the direct children of the main column, which
-   * React replaces on navigation and reuses on every other render — so it
-   * plays when the screen changes and never when a poll returns.
+   * There was one: four pixels and a fade on every direct child of the main
+   * column, on every navigation. It failed the only question worth asking of a
+   * piece of motion — does this help somebody understand what changed? Pressing
+   * Record and arriving at Record is the most obvious change in the product.
+   * The layout is identical on every screen by design, focus moves to the
+   * heading and announces it, and the animation was left saying "something
+   * happened" to a person who had just made it happen. Repetition on top of the
+   * obvious is exactly what the restraint rules exist to remove.
    *
-   * `translateY` finishes at `none` rather than `0` so nothing is left holding
-   * a transform that would create a containing block over a later position:
-   * fixed child.
-   */
-  html[data-ia='orca'] #orca-main > * {
-    animation: o-enter var(--t-section) var(--ease) both;
-  }
-
-  /*
-   * Progressive disclosure.
+   * What remains is this one keyframe, used only where content appears on a
+   * screen somebody is already looking at, without their having pressed
+   * anything. Three places: the answer landing in place of "Working on this",
+   * the offline strip, and the strip that says the connection came back. In
+   * each of those the change is genuinely unannounced, and the fade is what
+   * separates "this just arrived" from "this was always there and you missed
+   * it".
    *
-   * The account panel and the sections list on a narrow screen. They open
-   * downward and push what follows, which is what a person expects from a
-   * disclosure and is the reason no height is animated here: an animating
-   * height means the content underneath is still moving while somebody is
-   * already reading it.
+   * A panel somebody opened is not on that list. The account panel and the
+   * sections list open because they were pressed; fading them in does not
+   * smooth the layout shift — that happens on the same frame regardless — it
+   * just adds movement to an outcome nobody was in doubt about.
    */
   @keyframes o-disclose {
     from { opacity: 0; transform: translateY(-3px); }
     to   { opacity: 1; transform: none; }
   }
 
-  html[data-ia='orca'] [data-disclose] {
-    animation: o-disclose var(--t-state) var(--ease) both;
-  }
-
-  /* ------------------------------------------------------ error and recovery */
-
   /*
-   * The offline strip.
+   * The connection strips.
    *
-   * It arrives above everything and pushes the whole page down, so it is the
-   * one entrance given the longer duration: the thing that moved is the entire
-   * screen, and a person is owed a moment to see why before they read anything
-   * that has shifted underneath them.
+   * They arrive above everything and push the whole page down, which is the
+   * largest unbidden change ORCA makes to a screen. Given the longer duration
+   * because a person is owed a moment to see why the page moved before they
+   * read anything that shifted underneath them.
+   *
+   * `translateY` finishes at `none` rather than `0`, so nothing is left holding
+   * a transform that would create a containing block over a later
+   * position: fixed child.
    */
   html[data-ia='orca'] [data-disclose='page'] {
-    animation-duration: var(--t-section);
+    animation: o-disclose var(--t-section) var(--ease) both;
   }
 
   /*
@@ -1015,7 +1012,7 @@ html[data-experience='patient'] .frost-tint {
    * The answer replacing "Working on this" is the one moment in ORCA where
    * something appears on a screen the person is already looking at without
    * their having pressed anything. One settle, once, and the text is fully
-   * legible for every frame of it — this is opacity and four pixels, not a
+   * legible for every frame of it — this is opacity and three pixels, not a
    * reveal. Nothing is withheld until the animation finishes.
    */
   html[data-ia='orca'] [data-arrive] {
@@ -1041,7 +1038,10 @@ html[data-experience='patient'] .frost-tint {
   html[data-ia='orca'] .o-reveal {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows var(--t-section) var(--ease);
+    /* State, not section: one region of one component is changing, not a
+       screenful. 180ms is long enough to show where the content came from and
+       short enough that nobody is waiting on it. */
+    transition: grid-template-rows var(--t-state) var(--ease);
   }
   html[data-ia='orca'] .o-reveal[data-open='yes'] {
     grid-template-rows: 1fr;
@@ -1050,7 +1050,7 @@ html[data-experience='patient'] .frost-tint {
     overflow: hidden;
     min-height: 0;
     opacity: 0;
-    transition: opacity var(--t-state) var(--ease);
+    transition: opacity var(--t-micro) var(--ease);
   }
   html[data-ia='orca'] .o-reveal[data-open='yes'] > * {
     opacity: 1;
@@ -1073,20 +1073,20 @@ html[data-experience='patient'] .frost-tint {
     align-items: center;
     justify-items: center;
   }
+  /*
+   * The swap is instant, and the grid is not motion.
+   *
+   * These labels used to crossfade. For 120ms both words were partly
+   * transparent, which is a legibility dip on the exact text carrying the state
+   * — the one thing on a working button that must be readable. The stack stays,
+   * because that is what holds the width still; the fade goes.
+   */
   html[data-ia='orca'] .o-swap-item {
     grid-area: label;
     visibility: hidden;
-    opacity: 0;
-    transition:
-      opacity var(--t-micro) var(--ease),
-      visibility 0s linear var(--t-micro);
   }
   html[data-ia='orca'] .o-swap-item[data-shown='yes'] {
     visibility: visible;
-    opacity: 1;
-    transition:
-      opacity var(--t-micro) var(--ease),
-      visibility 0s;
   }
 
   /*
@@ -1178,13 +1178,13 @@ html[data-experience='patient'] .frost-tint {
    * content wholesale, and fading a hundred entries out and a different
    * hundred in makes a person wait to read something they have already asked
    * for twice.
+   *
+   * There is no rule here. There was one, and it declared the same three
+   * properties over the same duration as the base `.o-btn` transition above —
+   * a second copy of an existing behaviour, which is the kind of thing that
+   * drifts apart later and becomes an inconsistency between two controls that
+   * should feel identical.
    */
-  html[data-ia='orca'] .o-btn[aria-pressed] {
-    transition:
-      background-color var(--t-micro) var(--ease),
-      color var(--t-micro) var(--ease),
-      box-shadow var(--t-micro) var(--ease);
-  }
 
   /* --------------------------------------------------------------- keyboard */
 
