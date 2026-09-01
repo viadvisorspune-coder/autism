@@ -97,7 +97,8 @@ export async function resolveRecipient(
    * psychologist", and if both appear they refer to the same person anyway.
    */
   const named = people.filter((p) => aliases(p.name).some((a) => mentions(message, a)))
-  if (named.length === 1) return { name: named[0].name, role: named[0].role, org: named[0].org }
+  if (named.length === 1)
+    return { id: named[0].id, name: named[0].name, role: named[0].role, org: named[0].org }
 
   /**
    * Two people matched, so no recipient is chosen.
@@ -113,7 +114,8 @@ export async function resolveRecipient(
   for (const [pattern, role] of ROLE_WORDS) {
     if (!pattern.test(message)) continue
     const byRole = people.filter((p) => p.role === role)
-    if (byRole.length === 1) return { name: byRole[0].name, role: byRole[0].role, org: byRole[0].org }
+    if (byRole.length === 1)
+      return { id: byRole[0].id, name: byRole[0].name, role: byRole[0].role, org: byRole[0].org }
     // More than one person in that role is the same ambiguity as above.
     if (byRole.length > 1) return null
     /**

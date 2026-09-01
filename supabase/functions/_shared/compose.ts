@@ -45,6 +45,17 @@ export interface Recipient {
   name: string
   role: string
   org: string
+  /**
+   * The recipient's own user id, when a real connected person was matched.
+   *
+   * Absent when the person named only a role — "my employer" identifies a role
+   * unambiguously and a person not at all — and absent for the default
+   * recipient a lane falls back to. A workflow checking whether a disclosure
+   * may be made needs the id rather than the name: names are ambiguous, and a
+   * check performed against a name is a check against whoever that name
+   * happened to match.
+   */
+  id?: string
 }
 
 /**
@@ -152,6 +163,16 @@ export const producePreamble = (
   `${id.name} (${id.role}, subject ${id.subjectId})\n` +
   `asks via ORCA chat on ${id.today}.\n` +
   `Recipient: ${recipient.name}, ${recipient.role}, ${recipient.org}\n` +
+  /**
+   * The recipient as an id, on its own labelled line, when there is one.
+   *
+   * A disclosure check answers "may this go to that person", and it takes the
+   * person's id. Without this line the workflow had only a name to work from,
+   * so its reviewer could not establish a connection or a consent status and
+   * correctly refused to draft anything — a block that reads like a fault in
+   * the request and is actually a fact missing from it.
+   */
+  (recipient.id ? `recipient_id: ${recipient.id}\n` : '') +
   `Artifact type: ${artifactType}\n\n` +
   `${identifierBlock(id, runId, hints)}`
 
