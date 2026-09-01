@@ -23,7 +23,7 @@ import { Link } from 'react-router-dom'
 import { useSession } from '../state/session'
 import { useSubject } from './subject'
 import { actOnRecord, useLive } from '../lib/live'
-import { patientName } from '../data/db'
+import { connections, patientName, people } from '../data/db'
 import {
   Card,
   CouldNotLoad,
@@ -197,6 +197,20 @@ export default function Tasks() {
                     run={() => change(t.id, { status: 'Cancelled' })}
                   />
                 </div>
+
+                {/*
+                  Chasing, written down.
+
+                  The useful fact is never that somebody chased. It is that
+                  they chased three times and nothing happened, which is the
+                  thing you take to a meeting — so each one is appended and
+                  dated rather than overwriting the last.
+
+                  Nothing is sent by it. Nobody is emailed and no reminder
+                  fires; this records that you asked, and asking still happens
+                  in whatever way it happens.
+                */}
+                <Chase onChase={(note) => change(t.id, { chase: note })} />
               </div>
             </Card>
           </li>
@@ -209,6 +223,16 @@ export default function Tasks() {
         role={role}
         onCreated={refresh}
       />
+
+      {/*
+        Who is involved, for the person whose job is connecting them.
+
+        A coordinator's second question after "what is open" is "who is on
+        this", and until now the answer lived only inside Sharing — which is
+        the subject's screen, not hers. This is the same connections she can
+        already see, listed where the chasing happens.
+      */}
+      {acrossAll ? <Involved /> : null}
 
       {closed.length ? (
         <section className="o-section">
@@ -241,6 +265,130 @@ export default function Tasks() {
 
       <Updated at={updatedAt} />
     </>
+  )
+}
+
+/**
+ * Recording that you chased something.
+ *
+ * Deliberately not a button that sends anything. ORCA has no way to email
+ * somebody's colleague and should not pretend to — what it can do is keep the
+ * count and the dates, which is the half that gets lost and the half that
+ * matters when a thing has been outstanding for two months.
+ */
+function Chase({ onChase }: { onChase: (note: string) => Promise<boolean> }) {
+  const [open, setOpen] = useState(false)
+  const [note, setNote] = useState('')
+
+  const send = useAction(async () => {
+    if (!note.trim()) return false
+    const ok = await onChase(note.trim())
+    if (ok) {
+      setNote('')
+      setOpen(false)
+    }
+    return ok
+  })
+
+  return (
+    <>
+      <button
+        type="button"
+        className={`o-btn o-btn-small mt-4 ${open ? 'o-btn-on' : ''}`}
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        I chased this
+      </button>
+      <div className="o-reveal" data-open={open ? 'yes' : 'no'}>
+        <div inert={!open}>
+          <label className="o-h3 mb-3 mt-5 block" htmlFor="chase-note">
+            Who you asked, and how
+          </label>
+          <input
+            id="chase-note"
+            className="o-input"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <p className="o-meta o-measure mt-2">
+            Nothing is sent by this. It records that you asked, dated, so a thing outstanding for
+            two months shows three chases rather than none.
+          </p>
+          <div className="mt-5">
+            <ActionButton
+              action={send}
+              idle="Record it"
+              working="Saving…"
+              done="Recorded ✓"
+              failed="Not saved"
+              small
+              disabled={!note.trim()}
+            />
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+/**
+ * Everybody connected to the records this coordinator holds.
+ *
+ * WHAT THIS IS NOT is a way to add a professional to somebody's record.
+ * Connections are made by the person whose record it is, from Sharing, and a
+ * coordinator quietly attaching a colleague to a medical record would be the
+ * consent model going round the back of itself. What she can do is see who is
+ * there, and raise an open item asking somebody to be brought in — which is a
+ * request, addressed to a role, that the subject still has to agree to.
+ */
+function Involved() {
+  const { patientId } = useSession()
+  const { caseload } = useSubject()
+  const ids = caseload.length ? caseload.map((c) => c.id) : patientId ? [patientId] : []
+
+  const rows = ids.flatMap((id) =>
+    connections
+      .filter((c) => c.patientId === id && c.consentStatus !== 'Revoked')
+      .map((c) => ({
+        subject: patientName(id),
+        person: people.find((p) => p.id === c.personId),
+        connection: c,
+      }))
+      .filter((r) => r.person),
+  )
+
+  if (!rows.length) return null
+
+  return (
+    <section className="o-section">
+      <SectionHead>Who is involved</SectionHead>
+      <p className="o-body o-measure mb-6">
+        Read from the connections each person has agreed to. You cannot add anybody here —
+        connections are made by the person whose record it is. What you can do is raise an open
+        item asking for somebody to be brought in, which they still decide on.
+      </p>
+      <ul className="space-y-4">
+        {rows.map((r, i) => (
+          <li key={i} className="o-panel p-4">
+            <p className="o-body font-semibold">{r.person?.name}</p>
+            <p className="o-meta mt-1">
+              {[
+                ROLE_LABEL[String(r.person?.role)] ?? r.person?.role,
+                r.person?.organisation,
+                `for ${r.subject}`,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+            <p className="o-meta mt-1">
+              Since {longDate(r.connection.consentGiven)}
+              {r.connection.reviewDue ? ` · review due ${longDate(r.connection.reviewDue)}` : ''}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 

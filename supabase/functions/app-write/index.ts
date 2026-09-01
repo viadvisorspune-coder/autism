@@ -35,6 +35,8 @@ type Action =
   | 'set_sharing'
   | 'add_task'
   | 'update_task'
+  | 'update_entry'
+  | 'prepare_appointment'
   | 'decide_request'
   | 'ask_about_request'
   | 'add_strategy'
@@ -948,11 +950,172 @@ Deno.serve(async (req) => {
         patch.for_roles = forRoles
       }
       if (str(body.due_on)) patch.due_on = str(body.due_on)
+
+      /**
+       * Chasing, which is a coordinator's whole job and had no record.
+       *
+       * Appended rather than replacing, and dated, because the useful fact is
+       * not that somebody chased — it is that they chased three times and
+       * nothing happened, which is the thing you take to a meeting. A field
+       * that overwrites loses exactly that.
+       */
+      const chase = str(body.chase)
+      if (chase) {
+        const { data: existing } = await admin
+          .from('tasks')
+          .select('detail')
+          .eq('id', id)
+          .maybeSingle()
+        patch.detail = [
+          String(existing?.detail ?? '').trim(),
+          `Chased ${new Date().toISOString().slice(0, 10)} by ${actor.name}: ${chase}`,
+        ]
+          .filter(Boolean)
+          .join('\n')
+      }
+
       if (!Object.keys(patch).length) return json({ error: 'nothing to change' }, 400)
 
       const { error } = await admin.from('tasks').update(patch).eq('id', id)
       if (error) return json({ error: error.message }, 400)
       return json({ updated: true })
+    }
+
+    /**
+     * Correcting a note you have just written.
+     *
+     * TWENTY-FOUR HOURS, AND ONLY YOUR OWN. The window is short because the
+     * thing being allowed is fixing a typo or a sentence that came out wrong
+     * while it was being written — not revising what you thought last March
+     * once you know how it turned out. After a day, the way to change a record
+     * is to add to it, which is what everything else here does.
+     *
+     * NOTHING IS DESTROYED. The previous text is kept on the entry with the
+     * time it was replaced, so the current version reads first and the earlier
+     * one is still there. An edit that erases what was said is indistinguishable
+     * from the note never having said it, and in a record that exists to show
+     * what was known and when, that is the one thing an edit must not be.
+     */
+    case 'update_entry': {
+      const entryId = str(body.entry_id)
+      const what = str(body.what)
+      if (!entryId || !what) return json({ error: 'entry_id and what are required' }, 400)
+
+      const { data: entry } = await admin
+        .from('timeline_events')
+        .select('id, patient_id, source_id, summary, context, recorded_on')
+        .eq('id', entryId)
+        .maybeSingle()
+      if (!entry) return json({ error: 'entry_not_found' }, 404)
+      if (entry.patient_id !== patientId) {
+        return json({ error: 'entry_belongs_to_another_patient' }, 400)
+      }
+
+      // Yours only. Editing somebody else's note is not a correction, it is a
+      // rewrite of what they said — and the way to disagree with a colleague's
+      // entry is to write your own.
+      if (entry.source_id !== actor.id) {
+        await recordAudit({
+          actorId: actor.id,
+          actorLabel: actor.name,
+          actorRole: actor.role,
+          patientId,
+          action: 'Attempted to edit an entry written by somebody else',
+          record: `Entry ${entryId}`,
+          accessType: 'Write',
+          why: 'Not the author',
+          result: 'Denied',
+        })
+        return forbidden(
+          'This was written by somebody else. You can add your own entry saying what you think is wrong with it, but you cannot change theirs.',
+        )
+      }
+
+      const written = Date.parse(String(entry.recorded_on ?? ''))
+      const age = Number.isFinite(written) ? Date.now() - written : Infinity
+      if (age > 24 * 60 * 60 * 1000) {
+        return json(
+          {
+            error: 'too_old',
+            fix: 'This was written more than a day ago. Add a new entry saying what has changed — the record keeps both, which is what makes it worth anything later.',
+          },
+          400,
+        )
+      }
+
+      const kept = [
+        String(entry.context ?? '').trim(),
+        `Replaced ${new Date().toISOString().slice(0, 16).replace('T', ' ')}: ${entry.summary}`,
+      ]
+        .filter(Boolean)
+        .join('\n\n')
+
+      const { error } = await admin
+        .from('timeline_events')
+        .update({ summary: what, context: kept })
+        .eq('id', entryId)
+      if (error) return json({ error: error.message }, 400)
+
+      await recordAudit({
+        actorId: actor.id,
+        actorLabel: actor.name,
+        actorRole: actor.role,
+        patientId,
+        action: 'Corrected their own entry within a day of writing it',
+        record: `Entry ${entryId}`,
+        accessType: 'Write',
+        why: str(body.reason) ?? 'Correction',
+        result: 'Allowed',
+      })
+
+      return json({
+        updated: true,
+        note: 'The earlier wording is kept on the entry. Nothing was erased.',
+      })
+    }
+
+    /**
+     * The questions somebody wants to ask at an appointment.
+     *
+     * The column has been there since the first migration and nothing has ever
+     * written to it. This is the smallest feature in the product and possibly
+     * the most useful one in it: the reason people leave appointments without
+     * asking the thing they came to ask is not that they forgot it, it is that
+     * recalling it while somebody is talking at you is a different and much
+     * harder task than having written it down.
+     *
+     * NOT SENT ANYWHERE. These are notes to self, visible to the person and to
+     * the clinician they are for — which is the point, because a clinician who
+     * can see the list before the room can plan around it. Nothing is
+     * disclosed by writing one and nobody is notified.
+     */
+    case 'prepare_appointment': {
+      const appointmentId = str(body.appointment_id)
+      if (!appointmentId) return json({ error: 'appointment_id is required' }, 400)
+
+      const questions = Array.isArray(body.questions)
+        ? (body.questions as unknown[]).map(String).map((q) => q.trim()).filter(Boolean)
+        : []
+
+      const { data, error } = await admin
+        .from('appointments')
+        .update({
+          questions,
+          // Three states rather than a boolean: "not started", "in progress"
+          // and "ready" are different things to a person deciding whether they
+          // have done enough, and a checkbox collapses the middle one.
+          preparation_status: questions.length ? 'In progress' : 'Not started',
+        })
+        .eq('id', appointmentId)
+        .eq('patient_id', patientId)
+        .select('id, questions, preparation_status')
+        .single()
+      if (error) return json({ error: error.message }, 400)
+
+      return json({
+        appointment: data,
+        note: 'Kept with the appointment. Nothing was sent and nobody was told.',
+      })
     }
 
     /* -------------------------------------------------- accommodations

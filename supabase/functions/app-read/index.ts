@@ -729,7 +729,7 @@ async function read(
        */
       const { data, error } = await admin
         .from('timeline_events')
-        .select('id, occurred_on, recorded_on, title, summary, category, source_id, source_label, evidence, status, visible_to')
+        .select('id, occurred_on, recorded_on, title, summary, context, category, source_id, source_label, evidence, status, visible_to')
         .eq('patient_id', patientId)
         .order('recorded_on', { ascending: false })
         .limit(100)

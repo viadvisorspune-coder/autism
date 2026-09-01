@@ -20,6 +20,7 @@ import OrcaTasks from '../orca/Tasks'
 import OrcaStrategies from '../orca/Strategies'
 import OrcaRequests from '../orca/Requests'
 import OrcaRegister from '../orca/Register'
+import OrcaAppointments from '../orca/Appointments'
 import { Access, Health, Incidents, Runs } from '../orca/Admin'
 import { hasCaseload, homeFor } from '../orca/system'
 
@@ -230,6 +231,14 @@ export default function App() {
           }
         />
         <Route path="/adjust" element={<OrcaAdjust />} />
+        <Route
+          path="/appointments"
+          element={
+            <Only when={notAdmin && role !== 'employer' && role !== 'university'}>
+              <OrcaAppointments />
+            </Only>
+          }
+        />
         <Route
           path="/register"
           element={

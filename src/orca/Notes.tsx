@@ -29,6 +29,7 @@ import { useSubject } from './subject'
 import { actOnRecord, useLive } from '../lib/live'
 import { Card, CouldNotLoad, Loading, Nothing, PageTitle, SectionHead, Updated, longDate } from './parts'
 import { ActionButton, useAction } from './action'
+import { ROLE_LABEL } from './system'
 
 interface Row {
   id: string
@@ -36,11 +37,21 @@ interface Row {
   recorded_on?: string | null
   title?: string
   summary?: string
+  context?: string | null
   category?: string
   source_id?: string
   source_label?: string
   evidence?: string
   status?: string
+  visible_to?: string[] | null
+}
+
+const DAY = 24 * 60 * 60 * 1000
+
+/** Whether this is still inside the window in which it can be corrected. */
+function editable(row: Row): boolean {
+  const written = Date.parse(String(row.recorded_on ?? ''))
+  return Number.isFinite(written) && Date.now() - written < DAY
 }
 
 /**
@@ -300,6 +311,8 @@ export default function Notes() {
                         : (e.status ?? 'In the record')}
                     {e.evidence ? ` · ${e.evidence}` : ''}
                   </p>
+
+                  <Entry row={e} record={record} actorId={option?.personId ?? null} onSaved={refresh} />
                 </div>
               </Card>
             </li>
@@ -308,6 +321,158 @@ export default function Notes() {
 
         <Updated at={updatedAt} />
       </section>
+    </>
+  )
+}
+
+/**
+ * What an entry did, and the day in which it can still be corrected.
+ *
+ * TWO DIFFERENT THINGS, ON PURPOSE. "See what this changed" answers a question
+ * about the record — who this became visible to, and what it did or did not
+ * set off. "Edit" answers a question about the writing, and only for a day.
+ *
+ * The window is short because what is being allowed is fixing a sentence that
+ * came out wrong while it was being written, not revising last March once you
+ * know how it turned out. After a day the way to change a record is to add to
+ * it, which is what everything else in this product does — and the message
+ * says so rather than leaving somebody to discover the control is gone.
+ */
+function Entry({
+  row,
+  record,
+  actorId,
+  onSaved,
+}: {
+  row: Row
+  record: string | null
+  actorId: string | null
+  onSaved: () => void
+}) {
+  const [open, setOpen] = useState<'edit' | 'effect' | null>(null)
+  const [text, setText] = useState(row.summary ?? '')
+  const [problem, setProblem] = useState<string | null>(null)
+  const canEdit = editable(row)
+
+  const save = useAction(async () => {
+    setProblem(null)
+    if (!record || !actorId || !text.trim()) return false
+    const result = await actOnRecord('update_entry', record, actorId, {
+      entry_id: row.id,
+      what: text.trim(),
+    })
+    if (!result.ok) {
+      setProblem(result.error ?? 'That could not be saved. What you typed is still here.')
+      return false
+    }
+    setOpen(null)
+    onSaved()
+    return true
+  })
+
+  return (
+    <>
+      <div className="mt-5 flex flex-wrap gap-3">
+        <button
+          type="button"
+          className={`o-btn o-btn-small ${open === 'effect' ? 'o-btn-on' : ''}`}
+          aria-expanded={open === 'effect'}
+          onClick={() => setOpen(open === 'effect' ? null : 'effect')}
+        >
+          See what this changed
+        </button>
+        {canEdit ? (
+          <button
+            type="button"
+            className={`o-btn o-btn-small ${open === 'edit' ? 'o-btn-on' : ''}`}
+            aria-expanded={open === 'edit'}
+            onClick={() => setOpen(open === 'edit' ? null : 'edit')}
+          >
+            Correct this
+          </button>
+        ) : null}
+      </div>
+
+      <div className="o-reveal" data-open={open ? 'yes' : 'no'}>
+        <div inert={!open}>
+          {open === 'effect' ? (
+            <div className="mt-6">
+              <h4 className="o-h3 mb-3">What this changed</h4>
+              <p className="o-body o-measure">
+                {row.status === 'Awaiting review'
+                  ? 'Nothing yet. It is waiting for a decision before it goes into the record, so nobody but you and the person it is about can see it.'
+                  : 'It is in the record. Anybody who asks a question this bears on can be answered from it, and it is named as a source when it is.'}
+              </p>
+
+              <h4 className="o-h3 mb-3 mt-6">Who can see it</h4>
+              <p className="o-body o-measure">
+                {row.visible_to?.length
+                  ? row.visible_to.map((r) => ROLE_LABEL[r] ?? r).join(', ')
+                  : 'Only the person whose record this is.'}
+              </p>
+
+              <h4 className="o-h3 mb-3 mt-6">What it did not do</h4>
+              {/*
+                The half people assume wrongly. Writing something down is not
+                telling anybody, and somebody who believes an entry alerted a
+                colleague will not follow it up with the conversation that was
+                actually needed.
+              */}
+              <p className="o-body o-measure">
+                Nobody was notified and nothing was sent. Writing something down is not the same
+                as telling somebody — if this needs acting on, it needs a conversation or an open
+                item as well.
+              </p>
+
+              {row.context ? (
+                <>
+                  <h4 className="o-h3 mb-3 mt-6">Earlier wording</h4>
+                  <p className="o-body o-measure whitespace-pre-line">{row.context}</p>
+                </>
+              ) : null}
+            </div>
+          ) : (
+            <div className="mt-6">
+              <label htmlFor={`edit-${row.id}`} className="o-h3 mb-3 block">
+                What it should say
+              </label>
+              <p className="o-body o-measure mb-3">
+                The earlier wording is kept on the entry rather than erased — a record that can be
+                silently rewritten cannot show what was known and when, which is most of what a
+                record is for. After a day this is no longer offered and the way to change
+                something is to add to it.
+              </p>
+              <textarea
+                id={`edit-${row.id}`}
+                className="o-input"
+                rows={5}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                aria-invalid={problem ? true : undefined}
+              />
+              {problem ? (
+                <p role="alert" className="o-body o-measure mt-4 o-panel p-5">
+                  {problem}
+                </p>
+              ) : null}
+              <div className="mt-6 flex flex-wrap gap-4">
+                <ActionButton
+                  action={save}
+                  idle="Save the correction"
+                  working="Saving…"
+                  done="Saved ✓"
+                  failed="Not saved"
+                  primary
+                  disabled={!text.trim() || text.trim() === row.summary}
+                />
+                <button type="button" className="o-btn" onClick={() => setOpen(null)}>
+                  Leave it as it is
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </>
   )
 }

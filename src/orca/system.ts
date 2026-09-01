@@ -140,8 +140,18 @@ export function navFor(role: Role | null): Destination[] {
   const notes: Destination = { label: 'Notes', to: '/notes' }
   const caseload: Destination = { label: 'Caseload', to: '/caseload' }
 
+  const appointments: Destination = { label: 'Appointments', to: '/appointments' }
+
   if (role === 'patient') {
-    return [ask, record, decisions, documents, { label: 'Sharing', to: '/sharing' }, adjust]
+    return [
+      ask,
+      record,
+      appointments,
+      decisions,
+      documents,
+      { label: 'Sharing', to: '/sharing' },
+      adjust,
+    ]
   }
 
   /**
