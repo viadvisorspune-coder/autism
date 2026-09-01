@@ -187,6 +187,28 @@ Deno.serve(async (req) => {
       })
 
   /**
+   * A plan with no lane starts nothing, and says why.
+   *
+   * Routing returns this when the only workflow that could serve a request is
+   * not configured. Before, that fell through to whichever lane was left --
+   * usually PRODUCE, which cannot answer a cold question and returned something
+   * drafted from the sentence rather than from the record.
+   *
+   * Shaped as a refusal rather than an error: no `run_id`, which is what the
+   * interface already reads as "this did not run", and `detail` carries the
+   * sentence explaining which piece is missing. Nothing is written, no run row
+   * is created, and nothing is left In progress for the sweeper to settle.
+   */
+  if (!plan.lane) {
+    return json({
+      path: plan.path,
+      reason: plan.reason,
+      detail: plan.reason,
+      status: 'not_configured',
+    })
+  }
+
+  /**
    * The replay path fires the workflow; it does not answer on its own.
    *
    * This used to short-circuit — find the prior answer, hand it straight back,
@@ -241,7 +263,15 @@ Deno.serve(async (req) => {
         ? facts.alreadyAnsweredRunId
         : plan.path === 'produce_only'
           ? facts.recentEvidenceRunId
-          : null),
+          : /**
+             * `chatbot_direct` is deliberately not chained.
+             *
+             * A replay is handed the earlier run whose output it is replaying.
+             * A direct lookup has no earlier run -- it is reading the record for
+             * the first time -- and handing it one would make it answer from
+             * prior ORCA output rather than from what is written down.
+             */
+            null),
     path: plan.path,
     reason: plan.reason,
     then: (plan.then as WorkflowName | null) ?? null,

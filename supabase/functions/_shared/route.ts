@@ -1,20 +1,31 @@
 /**
- * Choosing which of the five paths a request takes.
+ * Choosing which path a request takes.
  *
  * The paths, and what each is for:
  *
- *   UNDERSTAND alone         a question about the record. Answer read in chat,
- *                            nothing produced, nothing sent.
+ *   UNDERSTAND alone         a question that needs the record read and thought
+ *                            about. Answer read in chat, nothing sent.
+ *   CHATBOT direct           a question that is a lookup rather than a
+ *                            judgement — a date, a name, a count. Retrieved
+ *                            and answered without the reasoning chain.
+ *   CHATBOT replay           something already answered. Replays stored output
+ *                            scoped to this actor and purpose.
  *   PRODUCE alone            a document, when evidence already exists from a
- *                            recent run. No retrieval, no reasoning — draft,
- *                            review, approve.
+ *                            recent run. No retrieval — draft, review, approve.
  *   UNDERSTAND → PRODUCE     a document requested cold. Both fire in sequence
  *                            and the person sees one result.
  *   15-step                  a formal document for an external party, where
  *                            the whole governance chain runs and the output is
  *                            a PDF.
- *   CHATBOT                  something already answered. Replays stored output
- *                            scoped to this actor and purpose. No reasoning.
+ *   NOTHING                  no lane that could do this is configured. Refused
+ *                            here rather than started and left to fail.
+ *
+ * PRODUCE IS NEVER THE WHOLE OF A REQUEST. It writes the contents of a
+ * document from material somebody else retrieved; handed a cold question it
+ * either drafts from the question alone or retrieves anyway, and the second is
+ * a wider read than the person was told about. So it is only ever chosen when
+ * a real earlier run is on the record to draft from, and the caller passes that
+ * run's id in `chainedFrom`. There is no path where it runs on nothing.
  *
  * TWO OF THESE CANNOT BE DECIDED FROM THE WORDING. "Already answered" and
  * "evidence already exists" are facts about the record, not about the
@@ -34,13 +45,23 @@ export type Path =
   | 'understand_then_produce'
   | 'fifteen_step'
   | 'chatbot_replay'
+  | 'chatbot_direct'
+  | 'nothing_configured'
 
 export type Lane = 'understand' | 'produce' | 'chat' | 'fifteen'
 
 export interface Plan {
   path: Path
-  /** The lane to start now. */
-  lane: Lane
+  /**
+   * The lane to start now, or null when nothing can run.
+   *
+   * Null is a real outcome rather than an error. A request whose only lane is
+   * unconfigured used to be sent to whichever lane was left, which meant
+   * PRODUCE being handed a cold question and returning something drafted from
+   * the sentence rather than from the record. Saying so and starting nothing is
+   * the honest answer, and it is one the person can act on.
+   */
+  lane: Lane | null
   /** The lane to run when that one finishes, for a chained path. */
   then: Lane | null
   /** One sentence, in plain words, shown to the person before anything runs. */
@@ -77,6 +98,48 @@ const EXTERNAL_ROLES = new Set(['employer', 'university', 'statutory', 'clinic']
  */
 const FORMAL = /\b(formal|official|statutory|legal|tribunal|occupational health|pdf|on letterhead)\b/i
 
+/**
+ * A question shaped like a lookup rather than a judgement.
+ *
+ * Anchored at the start, because the opening word is what actually decides
+ * this: "when is my next appointment" is a date, "when should I tell my
+ * employer" is a decision that happens to begin the same way. The second is
+ * caught by the reasoning test below.
+ */
+const LOOKUP_OPENER = /^\s*(what|when|who|which|where|how many|how much|is|are|does|did|do)\b/i
+
+/**
+ * Anything asking for judgement, comparison, cause or advice.
+ *
+ * Deliberately broad, and deliberately the veto rather than the selector. A
+ * question wrongly sent to the reasoning lane costs a slower answer; one
+ * wrongly sent to the lookup lane gets a shallow answer to a question that
+ * needed thought, and the person has no way to tell that is what happened.
+ * Those are not symmetric, so anything in this list wins.
+ */
+const NEEDS_REASONING =
+  /\b(why|should|compare|compared|comparison|chang(?:e|ed|es|ing)|differ|difference|pattern|trend|better|worse|improv|recommend|suggest|advis|explain|mean|means|meaning|think|opinion|likely|risk|cause|because|help|cope|manage|struggl|going well|over time)\b/i
+
+/**
+ * Short enough to be one question.
+ *
+ * A long sentence is nearly always carrying a second clause, and a lookup lane
+ * answers the first and drops the rest silently. Counted in words rather than
+ * characters so a long place name does not disqualify a simple question.
+ */
+const LOOKUP_MAX_WORDS = 12
+
+/** Whether this is a plain retrieval the chatbot can answer directly. */
+export const isLookup = (message: string): boolean => {
+  const words = message.trim().split(/\s+/).filter(Boolean)
+  return (
+    words.length > 0 &&
+    words.length <= LOOKUP_MAX_WORDS &&
+    LOOKUP_OPENER.test(message) &&
+    !NEEDS_REASONING.test(message)
+  )
+}
+
 export interface RoutingFacts {
   /** Whose eyes: used only to tell an external disclosure from an internal note. */
   recipientRole?: string | null
@@ -112,8 +175,10 @@ export function planFor(message: string, facts: RoutingFacts): Plan {
       }
     }
 
-    // Evidence is already on the record from a recent look, so do not look again.
-    if (facts.recentEvidenceRunId) {
+    // Evidence is already on the record from a recent look, so do not look
+    // again. Guarded on the lane being configured: `available` exists so a plan
+    // never names a dead one, and this was the one place that ignored it.
+    if (facts.recentEvidenceRunId && facts.available('produce')) {
       return {
         path: 'produce_only',
         lane: 'produce',
@@ -136,11 +201,27 @@ export function planFor(message: string, facts: RoutingFacts): Plan {
       }
     }
 
+    /**
+     * Nothing left that could do this, so nothing is started.
+     *
+     * This used to fall through to PRODUCE alone, which is the one thing
+     * PRODUCE cannot do: it writes the contents of a document from material
+     * somebody else retrieved, and there is no material here — no recent run to
+     * draft from and no retrieval lane to make one. What came back was drafted
+     * from the sentence, or from a wider read than the person had been told
+     * about, and neither announced itself.
+     *
+     * The reason names the missing piece rather than apologising, because the
+     * fix is configuration and the person reading this may be the one who can
+     * do it.
+     */
     return {
-      path: 'produce_only',
-      lane: 'produce',
+      path: 'nothing_configured',
+      lane: null,
       then: null,
-      reason: 'A draft will be written. You see it before anyone else.',
+      reason:
+        'Writing a document needs the record read first, and the lane that does the reading ' +
+        'is not configured. Nothing was sent and nothing was written.',
     }
   }
 
@@ -162,11 +243,62 @@ export function planFor(message: string, facts: RoutingFacts): Plan {
     }
   }
 
+  /**
+   * A lookup, answered by the lane that looks things up.
+   *
+   * "When is my next appointment" and "what has changed about my mornings" are
+   * not the same kind of question, and sending both through the reasoning chain
+   * treats them as though they were. The first wants a date retrieved and said
+   * back; the second wants a record read and thought about.
+   *
+   * The test is conservative in one direction on purpose — see NEEDS_REASONING.
+   * A question that needed thought and got a lookup is a shallow answer the
+   * person cannot tell is shallow; a question that was a lookup and got the
+   * reasoning chain is merely slower.
+   *
+   * Below the replay check, so a question already answered is still replayed
+   * rather than retrieved again.
+   */
+  if (isLookup(message) && facts.available('chat')) {
+    return {
+      path: 'chatbot_direct',
+      lane: 'chat',
+      then: null,
+      reason:
+        'This is a lookup, so it is answered straight from your record without the longer ' +
+        'chain. Nothing is sent to anyone.',
+    }
+  }
+
+  if (facts.available('understand')) {
+    return {
+      path: 'understand_only',
+      lane: 'understand',
+      then: null,
+      reason: 'Your record will be read and the answer shown here. Nothing is sent to anyone.',
+    }
+  }
+
+  // Last resort, and the same honesty as the document branch: the chat lane can
+  // retrieve, so it is a real fallback rather than a lane picked because it was
+  // the only one left.
+  if (facts.available('chat')) {
+    return {
+      path: 'chatbot_direct',
+      lane: 'chat',
+      then: null,
+      reason:
+        'Your record will be read and the answer shown here. Nothing is sent to anyone.',
+    }
+  }
+
   return {
-    path: 'understand_only',
-    lane: 'understand',
+    path: 'nothing_configured',
+    lane: null,
     then: null,
-    reason: 'Your record will be read and the answer shown here. Nothing is sent to anyone.',
+    reason:
+      'No lane that can read your record is configured, so nothing was sent and nothing was ' +
+      'read. This is a setup problem rather than anything about your record.',
   }
 }
 

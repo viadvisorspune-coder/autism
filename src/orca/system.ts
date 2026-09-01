@@ -82,6 +82,8 @@ export const pathName: Record<string, string> = {
   understand_then_produce: 'Understand, then Produce',
   fifteen_step: 'Fifteen-step governed pipeline',
   chatbot_replay: 'Record-grounded reply',
+  chatbot_direct: 'Direct lookup',
+  nothing_configured: 'Nothing ran',
 }
 
 export const pathMeaning: Record<string, string> = {
@@ -90,6 +92,8 @@ export const pathMeaning: Record<string, string> = {
   understand_then_produce: 'the record is read first, then a document is drafted from it',
   fifteen_step: 'full checks before anything leaves, because this one goes outside',
   chatbot_replay: 'an answer you were already given is brought back, unchanged',
+  chatbot_direct: 'a fact is looked up and said back, without the longer chain',
+  nothing_configured: 'nothing was sent, because the workflow it needed is not set up',
 }
 
 /* ------------------------------------------------------------ navigation */
