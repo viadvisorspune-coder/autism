@@ -1,11 +1,23 @@
 /**
- * The shell: one row of navigation, one column beneath it, and nothing else.
+ * The shell — two of them, and which one you get depends on whose record it is.
  *
- * Four items for everyone except the administrator, in the same words, the same
- * order and the same place on every screen. No sidebar, no drawer, no
- * responsive rearrangement — the column is 720px on a laptop and 720px on a
- * phone, because a layout that changes shape between devices is the map you
- * learned being redrawn while you are using it.
+ * THE HEADER SHELL is the original and still the default: one row of
+ * navigation, one 720px column beneath it, the same words in the same order and
+ * the same place on every screen. It is what a clinician, a coordinator, an
+ * employer and an administrator get, and the reasoning behind it has not
+ * changed. They arrive to do a piece of work, the column is the work, and a
+ * persistent sidebar would be furniture taking width away from it.
+ *
+ * THE RAIL SHELL is Ananya's, and only Ananya's. She is not doing a piece of
+ * work. This is her own record, she is in it often and sometimes on a bad day,
+ * and she is the only person here whose screens put things side by side — what
+ * is today, what is new, what is waiting. A left rail is what makes that
+ * layout legible, and it lets the destinations stay visible while she reads,
+ * which for somebody who navigates by recognising a stable map matters more
+ * than the width it costs.
+ *
+ * Both shells take the same `navFor(role)` list, in the same order, with the
+ * same words. What differs is where the list is drawn.
  *
  * The palette is set here, on the root element, from who is signed in. It is a
  * statement about whose record this is rather than a preference: the further
@@ -18,7 +30,17 @@ import { useSession } from '../state/session'
 import { useRecordStatus } from '../data/RecordProvider'
 import { AsksProvider, useAsks } from './asks'
 import { SubjectProvider, useSubject } from './subject'
-import { homeFor, navFor, paletteFor } from './system'
+import { type Destination, type IconName, homeFor, navFor, paletteFor } from './system'
+import {
+  IconAdjust,
+  IconAppointments,
+  IconAsk,
+  IconDecisions,
+  IconDocuments,
+  IconHome,
+  IconRecord,
+  IconSharing,
+} from './icons'
 import { SkipLink, screenName, useConnection, useFocusOnNavigate, useTitle } from './orientation'
 
 export default function Shell() {
@@ -77,9 +99,17 @@ function Frame() {
     clearRestored()
   }, [pathname, clearRestored])
 
-  return (
-    <div className="min-h-screen">
-      <SkipLink />
+  /**
+   * The rail is Ananya's, decided from the role and nothing else.
+   *
+   * Not a preference and not a breakpoint. Which shell you are in is a fact
+   * about which account you are signed into, so it cannot drift, and a
+   * clinician cannot end up in the patient's shell by resizing a window.
+   */
+  const rail = role === 'patient'
+
+  const notices = (
+    <>
       {/*
         Said once, at the top, before anything the person might act on.
 
@@ -126,6 +156,46 @@ function Frame() {
           </div>
         </div>
       ) : null}
+    </>
+  )
+
+  /**
+   * The record footnote, on both shells.
+   *
+   * Whether what is on screen is the real record is the one thing this
+   * interface must never be vague about, so it is not something either shell
+   * gets to leave out.
+   */
+  const footnote = (
+    <p className="o-meta o-measure">
+      ORCA holds one record and shows each person only their part of it. Nothing is sent to anyone
+      without a decision from {option?.role === 'patient' ? 'you' : 'Ananya'}.
+    </p>
+  )
+
+  if (rail) {
+    return (
+      <div className="o-app">
+        <SkipLink />
+        <Rail items={items} name={option?.name ?? 'You'} onSignOut={signOut} />
+        <div className="min-w-0">
+          {notices}
+          <main id="orca-main" className="o-canvas">
+            <Outlet />
+          </main>
+          <div className="o-canvas pt-0">
+            {footnote}
+            <NotLive />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen">
+      <SkipLink />
+      {notices}
       <header className="border-b border-black bg-[var(--paper)]">
         {/*
           Wraps rather than clips.
@@ -232,13 +302,91 @@ function Frame() {
 
       <footer className="mt-16 border-t border-black">
         <div className="o-wrap py-8">
-          <p className="o-meta o-measure">
-            ORCA holds one record and shows each person only their part of it. Nothing is sent to
-            anyone without a decision from {option?.role === 'patient' ? 'you' : 'Ananya'}.
-          </p>
+          {footnote}
           <NotLive />
         </div>
       </footer>
+    </div>
+  )
+}
+
+const GLYPH: Record<IconName, (p: { size?: number }) => React.ReactElement> = {
+  home: IconHome,
+  ask: IconAsk,
+  record: IconRecord,
+  decisions: IconDecisions,
+  documents: IconDocuments,
+  sharing: IconSharing,
+  appointments: IconAppointments,
+  adjust: IconAdjust,
+}
+
+/**
+ * The map down the left, for the one person who lives here.
+ *
+ * IT IS A LIST OF LINKS AND NOTHING ELSE. No collapse control, no pinning, no
+ * flyout on hover, no nesting. Every one of those is a way for the map to be in
+ * a different state than the last time you looked at it, and the entire value
+ * of a persistent rail is that it is not.
+ *
+ * The icon is decoration and the word is the destination — see `icons.tsx`.
+ * Read aloud, this is a list of the same words the header shell reads out, in
+ * the same order, because it is the same list.
+ */
+function Rail({
+  items,
+  name,
+  onSignOut,
+}: {
+  items: Destination[]
+  name: string
+  onSignOut: () => void
+}) {
+  return (
+    <div className="o-rail">
+      <Link
+        to="/home"
+        className="o-h3 flex shrink-0 items-center gap-2 px-3 font-extrabold no-underline"
+      >
+        <span aria-hidden className="o-avatar">
+          O
+        </span>
+        ORCA
+      </Link>
+
+      <nav aria-label="Sections" className="o-rail-grow">
+        {items.map((item) => {
+          const Icon = item.icon ? GLYPH[item.icon] : null
+          return (
+            <NavLink key={item.to} to={item.to} className="o-rail-link">
+              {Icon ? (
+                <span className="o-rail-icon">
+                  <Icon />
+                </span>
+              ) : null}
+              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+              <Waiting to={item.to} pill />
+            </NavLink>
+          )
+        })}
+      </nav>
+
+      {/*
+        Signing out is behind the name rather than beside the destinations.
+        It is not a place you go, and a rail of seven destinations with an
+        eighth item that ends the session is a rail with a trapdoor in it.
+      */}
+      <div className="o-rail-foot">
+        <span aria-hidden className="o-avatar">
+          {name.slice(0, 1)}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="o-row-title block truncate">{name}</span>
+          <button type="button" className="o-meta underline" onClick={onSignOut}>
+            Sign out
+          </button>
+        </span>
+      </div>
     </div>
   )
 }
@@ -260,13 +408,15 @@ function Frame() {
  * Only on Decisions, and only when there is something there. A nav item that
  * permanently carries a zero has taught everybody to stop reading it.
  */
-function Waiting({ to }: { to: string }) {
+function Waiting({ to, pill }: { to: string; pill?: boolean }) {
   const { waiting } = useAsks()
   if (to !== '/decisions' || waiting < 1) return null
   return (
     <>
       {' '}
-      <span aria-hidden>({waiting})</span>
+      <span aria-hidden className={pill ? 'o-count' : undefined}>
+        {pill ? waiting : `(${waiting})`}
+      </span>
       <span className="sr-only">, {waiting} waiting</span>
     </>
   )

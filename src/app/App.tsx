@@ -7,6 +7,7 @@ import { Login } from '../routes/auth/Auth'
 import Onboarding from '../routes/auth/Onboarding'
 
 import Shell from '../orca/Shell'
+import OrcaHome from '../orca/Home'
 import Ask from '../orca/Ask'
 import Answer from '../orca/Answer'
 import OrcaRecord, { Entry } from '../orca/Record'
@@ -208,6 +209,20 @@ export default function App() {
         URL — nothing was deleted — but nothing links to them any more.
       */}
       <Route element={<Shell />}>
+        {/*
+          Ananya's only. Everybody else lands on the screen that is their work —
+          a caseload, the open tasks, the requests waiting on them — and a
+          summary screen for somebody who arrived to do one specific thing is a
+          detour with a heading on it.
+        */}
+        <Route
+          path="/home"
+          element={
+            <Only when={role === 'patient'}>
+              <OrcaHome />
+            </Only>
+          }
+        />
         <Route path="/ask" element={<Only when={notAdmin}><Ask /></Only>} />
         <Route path="/ask/:askId" element={<Only when={notAdmin}><Answer /></Only>} />
         <Route path="/record" element={<Only when={notAdmin}><OrcaRecord /></Only>} />

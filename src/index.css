@@ -1,9 +1,19 @@
 @import 'tailwindcss';
 
 @theme {
+  /*
+   * Ubuntu everywhere, with a real fallback stack behind it.
+   *
+   * The fallbacks are not decoration: the family is fetched from Google Fonts
+   * and the fetch can fail — a blocked host, an offline first load, a
+   * corporate proxy — and a stack that ends at `sans-serif` alone hands the
+   * browser its own default, which on Windows is still Arial. The named faces
+   * below are the closest humanist sans on each platform, so a failed font
+   * load changes the texture of the page and not its shape.
+   */
   --font-sans:
-    'Archivo', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica,
-    Arial, sans-serif;
+    'Ubuntu', ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable Text', 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
 
   /* Neutral ground — a lavender-leaning grey rather than a warm one, so the
      purple accent sits in the same family as the surfaces around it instead
@@ -377,7 +387,7 @@ html[data-experience='patient'] {
  * interface.
  */
 .display {
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.02;
   text-wrap: balance;
@@ -475,13 +485,13 @@ html[data-experience='patient'] .frost-tint {
   font-size: 56px;
   line-height: 1.1;
   letter-spacing: -0.02em;
-  font-weight: 800;
+  font-weight: 700;
   text-wrap: balance;
 }
 .t-headline {
   font-size: 32px;
   line-height: 1.2;
-  font-weight: 600;
+  font-weight: 500;
 }
 .t-answer {
   font-size: 21px;
@@ -505,7 +515,7 @@ html[data-experience='patient'] .frost-tint {
 .t-label {
   font-size: 15px;
   line-height: 1.2;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* Display type has to come down on a phone, or one word fills the screen. */
@@ -733,7 +743,7 @@ html[data-experience='patient'] .frost-tint {
   .o-title {
     font-size: 44px;
     line-height: 1.1;
-    font-weight: 800;
+    font-weight: 700;
     letter-spacing: -0.02em;
     text-wrap: balance;
   }
@@ -747,7 +757,7 @@ html[data-experience='patient'] .frost-tint {
   .o-h3 {
     font-size: 20px;
     line-height: 1.3;
-    font-weight: 600;
+    font-weight: 500;
   }
   .o-answer {
     font-size: 20px;
@@ -762,7 +772,7 @@ html[data-experience='patient'] .frost-tint {
   .o-label {
     font-size: 14px;
     line-height: 1.3;
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: 0.02em;
     color: var(--ink-2);
   }
@@ -942,7 +952,7 @@ html[data-experience='patient'] .frost-tint {
     color: var(--ink);
     font: inherit;
     font-size: 18px;
-    font-weight: 600;
+    font-weight: 500;
     line-height: 1.2;
     cursor: pointer;
     text-align: center;
@@ -1039,6 +1049,514 @@ html[data-experience='patient'] .frost-tint {
    */
   html[data-ia='orca'] .border-black {
     border-color: var(--line-soft) !important;
+  }
+
+  /* ==========================================================================
+   * Ananya's shell.
+   *
+   * ONE PERSON'S SCREENS, AND ONLY HERS. Everything below is scoped to
+   * `[data-look='full']`, which is the patient and nobody else. The reasoning
+   * behind the original ink-on-paper system has not changed for the people it
+   * was written for: an employer looking at a disclosure request, an
+   * administrator reading run logs, a clinician working through a caseload are
+   * all doing a piece of work, and a soft lilac card would be the interface
+   * having an opinion about a task that does not need one.
+   *
+   * Ananya is not doing a piece of work. This is her record, she is in it
+   * daily, often on a difficult day, and it is the one screen in the product
+   * that has to be somewhere a person wants to be. That is the whole argument
+   * for the colour, the rail and the rounded cards, and it is why they stop at
+   * her account.
+   *
+   * The colour still means what it meant. The five governance tones are
+   * untouched below — lilac, mint and amber here are surface tints on cards
+   * that group different KINDS of thing (today, new, waiting), which is a
+   * different job from the tones that say what a single item IS.
+   * ------------------------------------------------------------------------ */
+
+  html[data-ia='orca'][data-look='full'] {
+    --paper: #fbf9f5;
+    --surface: #ffffff;
+    --surface-2: #f5f2ec;
+    --ink: #1c1a25;
+    --ink-2: #5f5b6b;
+    --ink-3: #8e8a99;
+
+    /* The one accent. Purple because it belongs to nothing else in the
+       product — no tone, no status, no other role — so it can only ever mean
+       "this is the control". */
+    --accent: #7c5cf0;
+    --accent-soft: #efeafe;
+    --accent-ink: #ffffff;
+
+    --tint-plan: #f2edfd;
+    --tint-new: #e8f6f0;
+    --tint-waiting: #fdf3e2;
+
+    --r-sm: 10px;
+    --r-md: 18px;
+    --r-lg: 26px;
+
+    --line-hair: rgba(28, 26, 37, 0.07);
+    --line-soft: rgba(28, 26, 37, 0.11);
+
+    --shadow-rest: 0 1px 2px rgba(28, 26, 37, 0.03), 0 6px 20px rgba(28, 26, 37, 0.05);
+    --shadow-raised: 0 2px 4px rgba(28, 26, 37, 0.04), 0 14px 34px rgba(28, 26, 37, 0.07);
+
+    /* The rail is a fixed width because it is a map. A sidebar that resizes
+       with the window moves the thing people navigate by. */
+    --rail: 232px;
+  }
+
+  /*
+   * A slightly smaller top of the scale on this shell, and only the top.
+   *
+   * The 44px page title was set for a 720px column with one thing on it. This
+   * shell puts three cards in a row, and a title that size above them stops
+   * being a heading and becomes a third of the screen — the eye lands on the
+   * greeting rather than on the cards, which are what somebody came for.
+   *
+   * BODY TEXT IS UNTOUCHED. The large body size is the accessibility decision
+   * and it stays exactly where it is; what moves is the display line, which
+   * nobody has trouble reading. Even reduced, this is well above the 30-32px
+   * a conventional dashboard would set, and Adjust still scales all of it.
+   */
+  html[data-ia='orca'][data-look='full'] .o-title {
+    font-size: 36px;
+  }
+  html[data-ia='orca'][data-look='full'] .o-h2 {
+    font-size: 24px;
+  }
+  html[data-ia='orca'][data-look='full'] .o-tile .o-h3 {
+    font-size: 18px;
+  }
+
+  /* ------------------------------------------------------------------ layout */
+
+  .o-app {
+    display: grid;
+    grid-template-columns: var(--rail) minmax(0, 1fr);
+    min-height: 100vh;
+    background: var(--paper);
+  }
+
+  .o-rail {
+    position: sticky;
+    top: 0;
+    display: flex;
+    height: 100vh;
+    flex-direction: column;
+    gap: var(--s-4);
+    padding: var(--s-5) var(--s-4);
+    background: var(--paper);
+    border-right: 1px solid var(--line-hair);
+  }
+
+  /*
+   * The rail becomes a strip at the top on a narrow screen, and that is the
+   * only rearrangement in the whole shell.
+   *
+   * It is allowed here for the reason it is refused elsewhere: a 232px column
+   * beside a 360px viewport does not leave a readable measure, so the choice is
+   * not "same shape everywhere" against "two shapes" but "two shapes" against
+   * "unreadable". The order of the destinations never changes, which is the
+   * part somebody actually learned.
+   */
+  @media (max-width: 860px) {
+    .o-app {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .o-rail {
+      position: static;
+      height: auto;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--s-3);
+      overflow-x: auto;
+      border-right: 0;
+      border-bottom: 1px solid var(--line-hair);
+      padding: var(--s-3) var(--s-4);
+    }
+    .o-rail-grow {
+      display: flex;
+      flex-direction: row;
+      gap: var(--s-2);
+    }
+    .o-rail-foot {
+      margin-left: auto;
+    }
+  }
+
+  .o-rail-grow {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  /* One destination. The whole row is the target, not the word in it. */
+  .o-rail-link {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    border-radius: var(--r-sm);
+    padding: 10px var(--s-3);
+    color: var(--ink-2);
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.3;
+    text-decoration: none;
+    white-space: nowrap;
+    transition:
+      background-color var(--t-micro, 120ms) var(--ease, ease),
+      color var(--t-micro, 120ms) var(--ease, ease);
+  }
+  .o-rail-link:hover {
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+  .o-rail-link[aria-current='page'] {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .o-rail-icon {
+    display: grid;
+    height: 20px;
+    width: 20px;
+    flex: none;
+    place-items: center;
+  }
+
+  /* Who is signed in, at the foot of the map rather than behind their own
+     name in a dropdown. */
+  .o-rail-foot {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    border: 1px solid var(--line-hair);
+    border-radius: var(--r-md);
+    background: var(--surface);
+    padding: 10px;
+    color: inherit;
+    text-decoration: none;
+    text-align: left;
+    width: 100%;
+  }
+
+  .o-avatar {
+    display: grid;
+    height: 34px;
+    width: 34px;
+    flex: none;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  /* The working area. Wider than the 720px column because Ananya's screens put
+     things side by side; still capped, because prose inside them uses
+     .o-measure and a card is not a reason to set a 1400px line. */
+  .o-canvas {
+    width: 100%;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: var(--s-5) var(--s-5) var(--s-8);
+  }
+
+  .o-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--s-3);
+    margin-bottom: var(--s-5);
+  }
+
+  /* --------------------------------------------------------------- surfaces */
+
+  /* A card that groups a kind of thing rather than holding one thing. The tint
+     is the grouping; it carries no status. */
+  .o-tile {
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--r-md);
+    border: 1px solid var(--line-hair);
+    background: var(--surface);
+    padding: var(--s-4);
+  }
+  .o-tile-plan {
+    background: var(--tint-plan, var(--surface));
+  }
+  .o-tile-new {
+    background: var(--tint-new, var(--surface));
+  }
+  .o-tile-waiting {
+    background: var(--tint-waiting, var(--surface));
+  }
+
+  .o-tile-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-3);
+    margin-bottom: var(--s-3);
+  }
+
+  /* The Ask panel. The one place in the product that is allowed to look
+     inviting, because it is the one place that has to be approached. */
+  .o-invite {
+    border-radius: var(--r-lg);
+    border: 1px solid var(--line-hair);
+    background: linear-gradient(135deg, var(--accent-soft, var(--surface-2)) 0%, var(--surface) 78%);
+    padding: var(--s-5);
+  }
+
+  /* ------------------------------------------------------------------ pieces */
+
+  /*
+   * A row in a list of things you can open.
+   *
+   * Used on Record, Decisions and Documents, which are the same shape of screen
+   * three times over and were three different shapes of markup. A row is a
+   * white plate with a hairline; the whole plate is the target.
+   */
+  .o-row {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    width: 100%;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--line-hair);
+    background: var(--surface);
+    padding: var(--s-3) var(--s-4);
+    text-align: left;
+    color: inherit;
+    text-decoration: none;
+    transition:
+      border-color var(--t-micro, 120ms) var(--ease, ease),
+      box-shadow var(--t-micro, 120ms) var(--ease, ease);
+  }
+  .o-row:hover {
+    border-color: var(--line-soft);
+    box-shadow: var(--shadow-rest);
+  }
+  .o-row-main {
+    min-width: 0;
+    flex: 1;
+  }
+  .o-row-title {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--ink);
+  }
+  .o-row-meta {
+    margin-top: 2px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--ink-3);
+  }
+  .o-rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-2);
+  }
+
+  /* The small square that marks what kind of thing a row is. Shape, not
+     colour, because it has to survive the palettes that have no colour. */
+  .o-row-mark {
+    display: grid;
+    height: 32px;
+    width: 32px;
+    flex: none;
+    place-items: center;
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--ink-2);
+  }
+
+  /*
+   * A status word, in a shape that is not a button.
+   *
+   * Rounded, tinted, never clickable. The distinction matters on Decisions,
+   * where "Pending" sits inches from a control that acts on it, and a pill that
+   * looked pressable would be a pill people press.
+   */
+  .o-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.4;
+    white-space: nowrap;
+    background: var(--surface-2);
+    color: var(--ink-2);
+  }
+  .o-pill-waiting {
+    background: var(--tint-waiting, var(--surface-2));
+    color: #8a5a12;
+  }
+  .o-pill-done {
+    background: var(--tint-new, var(--surface-2));
+    color: #1f6547;
+  }
+  .o-pill-live {
+    background: var(--accent-soft, var(--surface-2));
+    color: var(--accent);
+  }
+  html[data-ia='orca'][data-look='none'] .o-pill,
+  html[data-ia='orca'][data-look='mono'] .o-pill {
+    background: var(--surface-2);
+    color: var(--ink-2);
+  }
+
+  /*
+   * A filter, which is a choice among peers rather than an action.
+   *
+   * Selected is a filled ground in the accent's tint plus the accent's ink —
+   * emphatically not `.o-btn-primary`, for the reason Part 6's second check
+   * exists: a five-item filter row borrowing the primary style puts six filled
+   * black rectangles on a screen that has one real action on it.
+   */
+  .o-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    border: 1px solid var(--line-hair);
+    background: var(--surface);
+    padding: 7px 14px;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--ink-2);
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color var(--t-micro, 120ms) var(--ease, ease),
+      color var(--t-micro, 120ms) var(--ease, ease),
+      border-color var(--t-micro, 120ms) var(--ease, ease);
+  }
+  .o-chip:hover:not(:disabled) {
+    border-color: var(--line-soft);
+    color: var(--ink);
+  }
+  .o-chip[aria-pressed='true'] {
+    background: var(--accent-soft, var(--surface-2));
+    border-color: transparent;
+    color: var(--accent);
+  }
+  html[data-ia='orca'][data-look='none'] .o-chip[aria-pressed='true'],
+  html[data-ia='orca'][data-look='mono'] .o-chip[aria-pressed='true'] {
+    background: var(--surface-2);
+    border-color: var(--ink);
+    color: var(--ink);
+  }
+  .o-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-2);
+  }
+
+  /* --------------------------------------------------------------- timeline */
+
+  /*
+   * The rail down the left of the record.
+   *
+   * A line and a dot per entry, grouped under the day. The dot takes the
+   * governance tone of the entry it marks, so the colour on the rail is the
+   * same colour vocabulary as everywhere else rather than a second one.
+   */
+  .o-time {
+    position: relative;
+    padding-left: 26px;
+  }
+  .o-time::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    left: 5px;
+    width: 2px;
+    border-radius: 2px;
+    background: var(--line-hair);
+  }
+  .o-time-dot {
+    position: absolute;
+    left: 0;
+    top: 18px;
+    height: 12px;
+    width: 12px;
+    border-radius: 999px;
+    background: var(--tone, var(--accent));
+    box-shadow: 0 0 0 3px var(--paper);
+  }
+  .o-time-day {
+    margin: var(--s-4) 0 var(--s-2);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--ink-3);
+  }
+  .o-time-day:first-child {
+    margin-top: 0;
+  }
+
+  /* An input that sits inside a tinted panel and still reads as an input. */
+  .o-input-pill {
+    width: 100%;
+    border-radius: 999px;
+    border: 1px solid var(--line-hair);
+    background: var(--surface);
+    padding: 14px 56px 14px 20px;
+    font: inherit;
+    font-size: 16px;
+    color: var(--ink);
+  }
+  .o-input-pill::placeholder {
+    color: var(--ink-3);
+  }
+
+  .o-send {
+    position: absolute;
+    right: 7px;
+    top: 50%;
+    display: grid;
+    height: 38px;
+    width: 38px;
+    translate: 0 -50%;
+    place-items: center;
+    border: 0;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink, #fff);
+    cursor: pointer;
+  }
+  .o-send:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  /* A count beside a destination or a heading. Never the only carrier of the
+     fact — the word beside it always says what is being counted. */
+  .o-count {
+    display: inline-grid;
+    min-width: 20px;
+    height: 20px;
+    place-items: center;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--accent-soft, var(--surface-2));
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
   }
 
   /* ==========================================================================

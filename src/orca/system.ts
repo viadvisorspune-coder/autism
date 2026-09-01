@@ -101,7 +101,29 @@ export const pathMeaning: Record<string, string> = {
 export interface Destination {
   label: string
   to: string
+  /**
+   * Which drawing sits beside the word, on the shells that draw one.
+   *
+   * A name rather than a component, because this module has no JSX in it and
+   * should not acquire any: it is where the product's rules live, and a rule
+   * file that imports React starts being imported for its React. The rail maps
+   * the name to a glyph.
+   *
+   * Optional throughout. The header shell shows words only, and a destination
+   * with no icon there is not missing anything.
+   */
+  icon?: IconName
 }
+
+export type IconName =
+  | 'home'
+  | 'ask'
+  | 'record'
+  | 'decisions'
+  | 'documents'
+  | 'sharing'
+  | 'appointments'
+  | 'adjust'
 
 /**
  * Four items for everyone except the administrator. Same words, same order,
@@ -125,7 +147,7 @@ export function navFor(role: Role | null): Destination[] {
    * unusable one. Last in the row because it is not a place you work; present
    * in the row because it is a place you go.
    */
-  const adjust: Destination = { label: 'Adjust', to: '/adjust' }
+  const adjust: Destination = { label: 'Adjust', to: '/adjust', icon: 'adjust' }
 
   if (role === 'admin') {
     return [
@@ -137,23 +159,41 @@ export function navFor(role: Role | null): Destination[] {
     ]
   }
 
-  const ask: Destination = { label: 'Ask', to: '/ask' }
-  const record: Destination = { label: 'Record', to: '/record' }
-  const decisions: Destination = { label: 'Decisions', to: '/decisions' }
-  const documents: Destination = { label: 'Documents', to: '/documents' }
-  const notes: Destination = { label: 'Notes', to: '/notes' }
-  const caseload: Destination = { label: 'Caseload', to: '/caseload' }
+  const ask: Destination = { label: 'Ask', to: '/ask', icon: 'ask' }
+  const record: Destination = { label: 'Record', to: '/record', icon: 'record' }
+  const decisions: Destination = { label: 'Decisions', to: '/decisions', icon: 'decisions' }
+  const documents: Destination = { label: 'Documents', to: '/documents', icon: 'documents' }
+  const notes: Destination = { label: 'Notes', to: '/notes', icon: 'record' }
+  const caseload: Destination = { label: 'Caseload', to: '/caseload', icon: 'record' }
 
-  const appointments: Destination = { label: 'Appointments', to: '/appointments' }
+  const appointments: Destination = {
+    label: 'Appointments',
+    to: '/appointments',
+    icon: 'appointments',
+  }
 
+  /**
+   * Ananya alone starts on a Home rather than in the chat box.
+   *
+   * Everybody else in the product arrives to do one thing, and the shortest
+   * route to it is the front door: a coordinator wants the open tasks, an
+   * employer wants what is waiting on them. Ananya arrives without a task. She
+   * is the only person for whom the honest first screen is "here is where
+   * things stand", and dropping her into an empty text field made her supply
+   * the reason for the visit before the product had told her anything.
+   *
+   * Ask keeps its place directly under it, and its own screen is unchanged.
+   * What moved is the landing, not the feature.
+   */
   if (role === 'patient') {
     return [
-      ask,
+      { label: 'Home', to: '/home', icon: 'home' },
+      { label: 'Ask ORCA', to: '/ask', icon: 'ask' },
       record,
       appointments,
       decisions,
       documents,
-      { label: 'Sharing', to: '/sharing' },
+      { label: 'Sharing', to: '/sharing', icon: 'sharing' },
       adjust,
     ]
   }
@@ -275,6 +315,9 @@ export function homeFor(role: Role | null): string {
   // a chat box was the whole shape of the mistake this fixes.
   if (role === 'employer' || role === 'university') return '/requests'
   if (hasCaseload(role)) return '/caseload'
+  // Ananya arrives without a task, so she lands on where things stand rather
+  // than on an empty text field asking her to supply one.
+  if (role === 'patient') return '/home'
   return '/ask'
 }
 
