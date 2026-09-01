@@ -228,12 +228,29 @@ export async function launch(req: LaunchRequest): Promise<LaunchResult> {
      * against one nobody activated. Collapsing them into "it failed" turns a
      * two-minute fix into an afternoon.
      */
+    /**
+     * What Yoxa said, not only that it said no.
+     *
+     * 401 and 403 are self-explaining, so their own sentences stand. Every
+     * other refusal was collapsed into the status code alone — and a 400 is
+     * precisely the case where the status says nothing and the body says
+     * everything: a malformed field, a deployment in the wrong state, a
+     * payload the workflow does not accept. Discarding it left the one person
+     * who could fix it reading "HTTP 400" and guessing.
+     *
+     * Trimmed, because this is stored on the run and shown on a screen, and
+     * an unbounded upstream body has no business in either.
+     */
+    const said = await upstream.text().catch(() => '')
+    const because = said.trim().slice(0, 400)
+
     const detail =
       upstream.status === 403
         ? 'Yoxa accepted the credentials but the deployment is not activated.'
         : upstream.status === 401
           ? 'Yoxa rejected the deployment secret.'
-          : `Yoxa refused the trigger (HTTP ${upstream.status}).`
+          : `Yoxa refused the trigger (HTTP ${upstream.status})` +
+            (because ? `: ${because}` : '.')
     await admin
       .from('workflow_runs')
       .update({ status: 'Blocked', current_step: detail })
