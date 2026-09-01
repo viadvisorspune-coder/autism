@@ -138,11 +138,28 @@ html[data-textsize='xlarge'] {
   font-size: 19px;
 }
 
+/* The person's own setting, and the one their operating system already holds.
+   The in-app toggle was honoured and the OS preference was not, so somebody who
+   had turned motion off everywhere still had to find the setting again here.
+   Anyone arriving with it set has already answered this question. */
 html[data-motion='reduced'] *,
 html[data-motion='reduced'] *::before,
 html[data-motion='reduced'] *::after {
   animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion='default']) *,
+  html:not([data-motion='default']) *::before,
+  html:not([data-motion='default']) *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 body {
@@ -821,6 +838,310 @@ html[data-experience='patient'] .frost-tint {
     border-radius: 0 !important;
   }
 
+  /* ==========================================================================
+   * Motion.
+   *
+   * Nothing here introduces movement of its own. Every rule below is attached
+   * to something the person did or something that genuinely changed, and each
+   * one is short enough that it finishes before anybody could be waiting on it.
+   *
+   * WHAT IS DELIBERATELY ABSENT. No idle animation, no pulsing "still working"
+   * indicator, no staggered reveals, no attention-seeking transition anywhere.
+   * The waiting screen already says "Working on this" in words and changes
+   * those words at three minutes and again at ten; a pulse on top of that is
+   * decoration attached to something already stated, and this is an interface
+   * for people who find unnecessary movement expensive.
+   *
+   * Three durations, and they mean different things. Micro is the answer to a
+   * press or a hover — it has to feel like the same instant. State is a
+   * component becoming something else. Section is a screenful arriving.
+   * ------------------------------------------------------------------------ */
+
+  html[data-ia='orca'] {
+    --t-micro: 120ms;
+    --t-state: 180ms;
+    --t-section: 220ms;
+    /* Decelerating: fast to leave, settled on arrival. Nothing overshoots,
+       because an element that passes its destination and comes back has moved
+       twice to end up somewhere it could have gone once. */
+    --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+
+  /* -------------------------------------------------------- input registered */
+
+  .o-btn {
+    transition:
+      background-color var(--t-micro) var(--ease),
+      color var(--t-micro) var(--ease),
+      box-shadow var(--t-micro) var(--ease),
+      opacity var(--t-micro) var(--ease);
+  }
+
+  /*
+   * Pressed, without moving.
+   *
+   * The conventional press is a one-pixel drop, and it is conventional because
+   * it works. It is still a thing on the screen moving underneath a finger or
+   * a cursor, and the whole point of the two-colour tone system above is that
+   * this interface stays still. An inset line reads as depth and holds its
+   * position exactly.
+   */
+  html[data-ia='orca'] .o-btn:active:not(:disabled) {
+    box-shadow: inset 0 2px 0 0 color-mix(in srgb, var(--ink) 22%, transparent);
+    transition-duration: 60ms;
+  }
+  html[data-ia='orca'] .o-btn-primary:active:not(:disabled) {
+    box-shadow: inset 0 2px 0 0 color-mix(in srgb, var(--paper) 26%, transparent);
+  }
+
+  /*
+   * The field knows you are in it.
+   *
+   * A second line inside the existing border rather than a thicker border:
+   * changing border-width would reflow the text inside the field by a pixel on
+   * focus, which is the one place a person is actively reading their own
+   * typing.
+   */
+  html[data-ia='orca'] textarea.o-input,
+  html[data-ia='orca'] input.o-input,
+  html[data-ia='orca'] select.o-input {
+    transition:
+      box-shadow var(--t-state) var(--ease),
+      background-color var(--t-state) var(--ease);
+  }
+  html[data-ia='orca'] textarea.o-input:focus,
+  html[data-ia='orca'] input.o-input:focus,
+  html[data-ia='orca'] select.o-input:focus {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--ink);
+  }
+
+  /* ------------------------------------------------------------ state change */
+
+  /*
+   * A card that leads somewhere says so on hover, in the two properties this
+   * interface already uses to mean structure: its border and its ground.
+   * Nothing lifts, nothing scales, nothing casts a shadow — the sheet above is
+   * explicit that nothing in ORCA floats.
+   */
+  html[data-ia='orca'] .o-card {
+    transition:
+      background-color var(--t-state) var(--ease),
+      border-color var(--t-state) var(--ease);
+  }
+  html[data-ia='orca'] a:hover > .o-card,
+  html[data-ia='orca'] button:hover > .o-card {
+    background: color-mix(in srgb, var(--ink) 4%, var(--paper));
+  }
+
+  /* The colour band is the one carrier of meaning in a card, so a tone that
+     changes — a question settling from waiting into answered — changes visibly
+     rather than swapping between two frames. */
+  html[data-ia='orca'] .o-band {
+    transition: background-color var(--t-state) var(--ease);
+  }
+
+  /* ---------------------------------------- arrival, completion, navigation */
+
+  @keyframes o-enter {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /*
+   * A screenful arriving.
+   *
+   * Four pixels, once. Enough to read as "this is new" and far too little to
+   * read as movement. Applied to the direct children of the main column, which
+   * React replaces on navigation and reuses on every other render — so it
+   * plays when the screen changes and never when a poll returns.
+   *
+   * `translateY` finishes at `none` rather than `0` so nothing is left holding
+   * a transform that would create a containing block over a later position:
+   * fixed child.
+   */
+  html[data-ia='orca'] #orca-main > * {
+    animation: o-enter var(--t-section) var(--ease) both;
+  }
+
+  /*
+   * Progressive disclosure.
+   *
+   * The account panel and the sections list on a narrow screen. They open
+   * downward and push what follows, which is what a person expects from a
+   * disclosure and is the reason no height is animated here: an animating
+   * height means the content underneath is still moving while somebody is
+   * already reading it.
+   */
+  @keyframes o-disclose {
+    from { opacity: 0; transform: translateY(-3px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  html[data-ia='orca'] [data-disclose] {
+    animation: o-disclose var(--t-state) var(--ease) both;
+  }
+
+  /* ------------------------------------------------------ error and recovery */
+
+  /*
+   * The offline strip.
+   *
+   * It arrives above everything and pushes the whole page down, so it is the
+   * one entrance given the longer duration: the thing that moved is the entire
+   * screen, and a person is owed a moment to see why before they read anything
+   * that has shifted underneath them.
+   */
+  html[data-ia='orca'] [data-disclose='page'] {
+    animation-duration: var(--t-section);
+  }
+
+  /* ---------------------------------------------- what a control is doing */
+
+  /*
+   * The label stack.
+   *
+   * All four labels occupy one grid cell, so the button is as wide as its
+   * longest state before anybody presses it and never resizes afterwards.
+   * Hidden labels keep `visibility: hidden` rather than `display: none`,
+   * because a display-none child contributes nothing to the grid and the whole
+   * point is that it does.
+   */
+  html[data-ia='orca'] .o-swap {
+    display: grid;
+    grid-template-areas: 'label';
+    align-items: center;
+    justify-items: center;
+  }
+  html[data-ia='orca'] .o-swap-item {
+    grid-area: label;
+    visibility: hidden;
+    opacity: 0;
+    transition:
+      opacity var(--t-micro) var(--ease),
+      visibility 0s linear var(--t-micro);
+  }
+  html[data-ia='orca'] .o-swap-item[data-shown='yes'] {
+    visibility: visible;
+    opacity: 1;
+    transition:
+      opacity var(--t-micro) var(--ease),
+      visibility 0s;
+  }
+
+  /*
+   * Working, done, failed.
+   *
+   * Each is a change of ground, never of size or position, and each is paired
+   * with a change of words — the label beside it already says "Sending" or
+   * "Sent".
+   *
+   * The rings are drawn in `currentColor` rather than in the governance tones,
+   * for two reasons. A tone would not survive the palettes: `--c-confirmed` is
+   * near-paper for a psychologist and plain ink for an administrator, so the
+   * same rule would have drawn an invisible line on one screen and an
+   * indistinguishable one on another. And the five tones already mean something
+   * specific on this interface — who has confirmed a thing — which is not what
+   * a button reporting its own send is saying. `currentColor` contrasts with
+   * the button's own ground by construction, on a plain button and an inverted
+   * one alike.
+   *
+   * Done and failed are then separated by shape, not hue: one line, or a line
+   * doubled. Somebody who sees no colour difference at all still sees two
+   * different controls, and reads two different words.
+   */
+  html[data-ia='orca'] .o-btn[data-state='working'] {
+    cursor: progress;
+    opacity: 0.72;
+  }
+  html[data-ia='orca'] .o-btn[data-state='done'] {
+    box-shadow: inset 0 0 0 2px currentColor;
+  }
+  /* Earlier shadows paint over later ones, so this is line, gap, line — the gap
+     taking the button's own ground. */
+  html[data-ia='orca'] .o-btn[data-state='failed'] {
+    box-shadow:
+      inset 0 0 0 2px currentColor,
+      inset 0 0 0 3px var(--paper),
+      inset 0 0 0 5px currentColor;
+  }
+  html[data-ia='orca'] .o-btn-primary[data-state='failed'] {
+    box-shadow:
+      inset 0 0 0 2px currentColor,
+      inset 0 0 0 3px var(--ink),
+      inset 0 0 0 5px currentColor;
+  }
+
+  /* A working control is disabled, and a disabled control is already dimmed.
+     Two dimmings compound into something close to invisible. */
+  html[data-ia='orca'] .o-btn[data-state='working']:disabled {
+    opacity: 0.72;
+  }
+
+  /* ----------------------------------------------- fields that need fixing */
+
+  /*
+   * An error on a field, marked on the field.
+   *
+   * The doubled inner line is what carries this, not the colour: somebody who
+   * cannot separate coral from ink still sees a field drawn differently from
+   * every other field on the screen. The sentence explaining what to change
+   * sits next to it in the markup, where it is read in order rather than
+   * hunted for at the top of a form.
+   */
+  html[data-ia='orca'] textarea.o-input[aria-invalid='true'],
+  html[data-ia='orca'] input.o-input[aria-invalid='true'],
+  html[data-ia='orca'] select.o-input[aria-invalid='true'] {
+    box-shadow:
+      inset 0 0 0 2px var(--c-decision),
+      inset 0 0 0 4px var(--paper);
+  }
+  html[data-ia='orca'] textarea.o-input[aria-invalid='true']:focus,
+  html[data-ia='orca'] input.o-input[aria-invalid='true']:focus,
+  html[data-ia='orca'] select.o-input[aria-invalid='true']:focus {
+    box-shadow:
+      inset 0 0 0 2px var(--c-decision),
+      inset 0 0 0 4px var(--paper),
+      inset 0 0 0 6px var(--ink);
+  }
+
+  /* ------------------------------------------------------- filters and tabs */
+
+  /*
+   * A pressed filter is already an inverted button, which is a change of
+   * ground and of contrast rather than of hue — legible without colour, and
+   * unchanged from what was there. All that is added is the transition
+   * between the two, so selecting a filter reads as this control changing
+   * rather than as two controls swapping places.
+   *
+   * The list beneath it is deliberately not animated. Filtering replaces the
+   * content wholesale, and fading a hundred entries out and a different
+   * hundred in makes a person wait to read something they have already asked
+   * for twice.
+   */
+  html[data-ia='orca'] .o-btn[aria-pressed] {
+    transition:
+      background-color var(--t-micro) var(--ease),
+      color var(--t-micro) var(--ease),
+      box-shadow var(--t-micro) var(--ease);
+  }
+
+  /* --------------------------------------------------------------- keyboard */
+
+  /*
+   * A visible focus ring that does not move anything.
+   *
+   * Outline rather than border or shadow, because outline is drawn outside the
+   * box and cannot reflow what is next to it, and because a person tabbing
+   * through a governance screen needs the ring to be the most obvious thing on
+   * it.
+   */
+  html[data-ia='orca'] a:focus-visible,
+  html[data-ia='orca'] button:focus-visible,
+  html[data-ia='orca'] [tabindex]:focus-visible {
+    outline: 3px solid var(--c-decision);
+    outline-offset: 2px;
+  }
 
 }
 

@@ -19,6 +19,7 @@ import { type Ask, useAsks } from './asks'
 import { useSubject } from './subject'
 import { Card, PageTitle, SectionHead, shortDate } from './parts'
 import { boundaryFor, toneClass } from './system'
+import { ActionButton, useAction } from './action'
 
 export default function Ask() {
   const { role, option } = useSession()
@@ -29,7 +30,6 @@ export default function Ask() {
   const [question, setQuestion] = useState('')
   const [file, setFile] = useState<Attached | null>(null)
   const [fileProblem, setFileProblem] = useState<string | null>(null)
-  const [sending, setSending] = useState(false)
 
   const mine = role === 'patient'
   /**
@@ -50,16 +50,34 @@ export default function Ask() {
     else setFileProblem(result.error)
   }
 
-  async function send(rehearse = false) {
+  async function send(rehearse: boolean) {
     const body = question.trim()
-    if (!body || sending) return
-    setSending(true)
+    if (!body) return false
     const id = await ask(body, { file, rehearse })
     setQuestion('')
     setFile(null)
-    setSending(false)
     navigate(`/ask/${id}`)
+    return true
   }
+
+  /**
+   * Two controls, one at a time.
+   *
+   * Each holds its own state so the label that changes is the one that was
+   * pressed — the old single `sending` flag disabled both and re-labelled
+   * neither, so somebody who pressed Rehearse watched Ask say "Sending". They
+   * still lock each other out, because one question cannot be both rehearsed
+   * and sent.
+   *
+   * Both of these navigate away on success, so the finished label is not really
+   * for the person who is still looking — it is for the case where `ask` comes
+   * back without a run and the navigation never happens. Before this, that path
+   * left the button disabled and silent, and the only recovery on offer was a
+   * reload.
+   */
+  const asking = useAction(() => send(false))
+  const rehearsing = useAction(() => send(true))
+  const busy = asking.busy || rehearsing.busy
 
   if (blocked) {
     return (
@@ -112,25 +130,40 @@ export default function Ask() {
           </div>
         ) : null}
 
+        {/*
+          Said in words, next to the control it belongs to, and announced.
+
+          `role="alert"` because the file is chosen in an operating-system dialog
+          that closes over this page: somebody using a screen reader is looking
+          somewhere else entirely at the moment the message appears, and an
+          unannounced sentence four lines above the button is a sentence nobody
+          reads. `aria-describedby` ties it to the input rather than leaving the
+          association to proximity.
+        */}
         {fileProblem ? (
-          <p className="o-body o-measure mt-4 border border-black p-4">{fileProblem}</p>
+          <p id="orca-file-problem" role="alert" className="o-body o-measure mt-4 border border-black p-4">
+            {fileProblem}
+          </p>
         ) : null}
 
         <div className="mt-6 flex flex-wrap gap-4">
-          <button
-            type="button"
-            className="o-btn o-btn-primary"
-            onClick={() => void send()}
-            disabled={sending || !question.trim()}
-          >
-            {sending ? 'Sending' : 'Ask'}
-          </button>
+          <ActionButton
+            action={asking}
+            idle="Ask"
+            working="Sending"
+            done="Sent"
+            failed="Did not send"
+            primary
+            disabled={busy || !question.trim()}
+          />
           <label className="o-btn cursor-pointer">
             Attach a file
             <input
               type="file"
               className="sr-only"
               accept={ACCEPTED_FILES}
+              aria-invalid={fileProblem ? true : undefined}
+              aria-describedby={fileProblem ? 'orca-file-problem' : undefined}
               onChange={(e) => {
                 void take(e.target.files?.[0])
                 // Clearing lets the same file be chosen again after removing it.
@@ -155,15 +188,15 @@ export default function Ask() {
             routing, same composition, same rendering. That fidelity is the
             point and also the hazard.
           */}
-          <button
-            type="button"
-            className="o-btn"
-            onClick={() => void send(true)}
-            disabled={sending || !question.trim()}
+          <ActionButton
+            action={rehearsing}
+            idle="Rehearse"
+            working="Composing"
+            done="Composed"
+            failed="Did not run"
+            disabled={busy || !question.trim()}
             title="Decide the route and compose the request, without running anything"
-          >
-            Rehearse
-          </button>
+          />
         </div>
 
         <p className="o-meta o-measure mt-5">

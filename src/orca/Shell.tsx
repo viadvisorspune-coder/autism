@@ -87,7 +87,7 @@ function Frame() {
         rather than their record.
       */}
       {offline ? (
-        <div className="border-b border-black bg-[var(--paper)]">
+        <div className="border-b border-black bg-[var(--paper)]" data-disclose="page">
           <div className="o-wrap py-4">
             <p className="o-body o-measure">
               <span className="font-semibold">You are offline.</span> What is already on screen is
@@ -160,7 +160,11 @@ function Frame() {
         </div>
 
         {navOpen ? (
-          <nav aria-label="Sections" className="o-wrap border-t border-black py-3 md:hidden">
+          <nav
+            aria-label="Sections"
+            data-disclose
+            className="o-wrap border-t border-black py-3 md:hidden"
+          >
             <ul className="space-y-3">
               {items.map((item) => (
                 <li key={item.to}>
@@ -280,7 +284,7 @@ function Account({ onSignOut }: { onSignOut: () => void }) {
   const { textSize, setTextSize, reducedMotion, setReducedMotion } = useUI()
 
   return (
-    <div className="border-t border-black bg-[var(--paper)]">
+    <div className="border-t border-black bg-[var(--paper)]" data-disclose="page">
       <div className="o-wrap py-8">
         <p className="o-h3">{option?.name}</p>
         <p className="o-meta mt-1">

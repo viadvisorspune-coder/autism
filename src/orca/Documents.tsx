@@ -25,6 +25,7 @@ import { useSubject } from './subject'
 import { Card, CouldNotLoad, Nothing, PageTitle, SectionHead, longDate } from './parts'
 import { type DocumentDraft, ago, clearDraft, hasContent, readDraft, writeDraft } from './draft'
 import type { Tone } from './system'
+import { ActionButton, useAction } from './action'
 
 type State = 'Draft' | 'Waiting for a decision' | 'Sent' | 'Not sent'
 
@@ -257,7 +258,6 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
   const [from, setFrom] = useState(saved?.from ?? '')
   const [to, setTo] = useState(saved?.to ?? '')
   const [purpose, setPurpose] = useState(saved?.purpose ?? '')
-  const [sending, setSending] = useState(false)
   const [confirming, setConfirming] = useState(false)
 
   const current = { type, recipient, from, to, purpose, subjectId: subjectId ?? '' }
@@ -281,8 +281,7 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
   }, [subjectId])
 
   async function submit() {
-    if (sending || !recipient) return
-    setSending(true)
+    if (!recipient) return false
     const period = from && to ? ` covering ${longDate(from)} to ${longDate(to)}` : ''
     const why = purpose.trim() ? ` The purpose is ${purpose.trim()}` : ''
     const id = await ask(
@@ -291,9 +290,11 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
     // Finished, so it is no longer a draft. Cleared only after the request has
     // been accepted, never before.
     clearDraft(personId)
-    setSending(false)
     navigate(`/ask/${id}`)
+    return true
   }
+
+  const writing = useAction(submit)
 
   /**
    * Cancel means cancel — and says what it would cost.
@@ -424,17 +425,20 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
         </div>
 
         <div className="flex flex-col gap-4 sm:flex-row">
-          <button
-            type="button"
-            className="o-btn o-btn-primary flex-1"
-            onClick={submit}
-            disabled={sending || !recipient}
-          >
-            {sending ? 'Writing' : 'Write the draft'}
-          </button>
+          <ActionButton
+            action={writing}
+            idle="Write the draft"
+            working="Writing the draft…"
+            done="Draft started"
+            failed="Could not start it"
+            primary
+            disabled={!recipient}
+            className="flex-1"
+          />
           <button
             type="button"
             className="o-btn flex-1"
+            disabled={writing.busy}
             onClick={() => (dirty ? setConfirming(true) : onCancel())}
           >
             Cancel

@@ -9,7 +9,7 @@
  * Nothing here happens on a timer, nothing expires, and nothing has a default.
  * A decision with a default is a decision somebody else made.
  */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useSession } from '../state/session'
 import { respondToApproval } from '../lib/approvals'
 import { useLive } from '../lib/live'
@@ -18,6 +18,7 @@ import { useAsks } from './asks'
 import { useSubject } from './subject'
 import { Card, CouldNotLoad, Nothing, PageTitle, Prose, SectionHead, longDate } from './parts'
 import { domainName } from './system'
+import { ActionButton, useAction } from './action'
 
 export default function Decisions() {
   const { option, role } = useSession()
@@ -157,6 +158,17 @@ function Approval({
 }) {
   const [sending, setSending] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
+  /**
+   * A card, not a button, is what must only fire once.
+   *
+   * Each choice holds its own in-flight state so the label that changes is the
+   * one that was pressed. But a disclosure is decided once, and "Send it" and
+   * "Don't send it" landing together because somebody pressed both inside a
+   * frame is the single worst thing this screen could do. The `sending` flag
+   * disables the siblings on the next render; this ref refuses the second press
+   * in the same one.
+   */
+  const inFlight = useRef(false)
 
   const choices = approval.options.length
     ? approval.options.map((o) => ({ id: o.id as string | null, label: o.label, message: null as string | null }))
@@ -165,20 +177,28 @@ function Approval({
         { id: null, label: 'Don’t send it', message: 'Declined.' },
       ]
 
-  async function decide(optionId: string | null, message: string | null) {
-    if (sending) return
+  async function decide(optionId: string | null, message: string | null): Promise<boolean> {
+    // Refused because another choice on this card is already going. Reported as
+    // success so the button does not say "Not sent" about a decision that is,
+    // at this moment, being sent.
+    if (inFlight.current) return true
+    inFlight.current = true
     setSending(true)
     setProblem(null)
-    const failed = await respondToApproval(approval.request_id, optionId, message, actorId)
-    if (failed) {
-      setProblem(failed)
+    try {
+      const failed = await respondToApproval(approval.request_id, optionId, message, actorId)
+      if (failed) {
+        setProblem(failed)
+        return false
+      }
+      // The row is now answered. Re-read rather than hiding it locally, so what
+      // is on screen is what the record says.
+      onDecided()
+      return true
+    } finally {
+      inFlight.current = false
       setSending(false)
-      return
     }
-    // The row is now answered. Re-read rather than hiding it locally, so what
-    // is on screen is what the record says.
-    onDecided()
-    setSending(false)
   }
 
   return (
@@ -236,15 +256,13 @@ function Approval({
 
         <div className="mt-8 flex flex-col gap-4 sm:flex-row">
           {choices.map((c, i) => (
-            <button
+            <Decide
               key={`${c.id ?? c.label}-${i}`}
-              type="button"
-              disabled={sending}
-              onClick={() => decide(c.id, c.message)}
-              className={`o-btn flex-1 ${i === 0 ? 'o-btn-primary' : ''}`}
-            >
-              {c.label}
-            </button>
+              label={c.label}
+              primary={i === 0}
+              lockedOut={sending}
+              run={() => decide(c.id, c.message)}
+            />
           ))}
         </div>
 
@@ -257,5 +275,42 @@ function Approval({
         </p>
       </div>
     </Card>
+  )
+}
+
+/**
+ * One option on a gate.
+ *
+ * A component rather than a button in a loop, because each option needs its own
+ * four states and hooks cannot live inside a map. `lockedOut` is the card
+ * saying another option is already going; `useAction` handles this one.
+ *
+ * Yoxa writes the idle label, so the working and finished words are kept
+ * generic on purpose. "Send redacted" becoming "Sending redacted" would read as
+ * a promise about what is being sent, from a string this code has never seen.
+ */
+function Decide({
+  label,
+  primary,
+  lockedOut,
+  run,
+}: {
+  label: string
+  primary: boolean
+  lockedOut: boolean
+  run: () => Promise<boolean>
+}) {
+  const action = useAction(run)
+  return (
+    <ActionButton
+      action={action}
+      idle={label}
+      working="Sending"
+      done="Sent"
+      failed="Did not send"
+      primary={primary}
+      disabled={lockedOut}
+      className="flex-1"
+    />
   )
 }

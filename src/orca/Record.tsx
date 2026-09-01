@@ -126,6 +126,23 @@ export default function Record() {
       ) : null}
 
       {/*
+        The same confirmation, for somebody who cannot see the strip below.
+
+        Always in the DOM rather than rendered alongside the filter strip: a
+        live region that appears at the same moment its text does is announced
+        unreliably, and the whole point is that pressing a filter is never
+        silent. The strip below says this in the same words on screen — this is
+        the second channel, not the only one.
+      */}
+      <p className="sr-only" aria-live="polite">
+        {filter === 'Everything'
+          ? `Showing everything · ${events.length} ${events.length === 1 ? 'entry' : 'entries'}`
+          : `Filtered to ${filter} · ${shown.length} of ${events.length} ${
+              events.length === 1 ? 'entry' : 'entries'
+            }`}
+      </p>
+
+      {/*
         What is being hidden, and how to stop hiding it.
 
         A filtered list with no statement of the filter is a record that
