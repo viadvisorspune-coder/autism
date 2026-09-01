@@ -165,6 +165,13 @@ interface AsksValue {
   /** Who the subject has currently stopped sharing with. */
   stops: string[]
   setSharing: (personId: string, sharing: boolean) => Promise<boolean>
+  /**
+   * How many things are waiting on a decision from the person signed in.
+   *
+   * For the navigation, and for nothing else. Never a reason to move anybody:
+   * something arriving while you are reading your own record is not a summons.
+   */
+  waiting: number
 }
 
 const AsksContext = createContext<AsksValue | null>(null)
@@ -235,6 +242,25 @@ export function AsksProvider({ children }: { children: ReactNode }) {
     requests: AccessRequestRow[]
     stops: SharingStopRow[]
   }>('consent', patientId)
+  /**
+   * How many things are waiting on a decision, for the navigation.
+   *
+   * Read here rather than on the Decisions screen because the point of it is to
+   * be visible from the other screens. A gate that opens while somebody is
+   * halfway through reading their record must never take them to it — being
+   * moved somewhere you did not ask to go is the interruption, not the fix for
+   * one — so this exists only so the word Decisions can carry a number and the
+   * person can go when they are ready.
+   *
+   * Fifteen seconds rather than four. Nothing acts on this and nobody is
+   * watching it; polling it at the rate of a screen somebody is reading would
+   * be three extra requests a minute to change a digit nobody is waiting for.
+   */
+  const { data: gateData } = useLive<{ approvals: { status?: string }[] }>(
+    'approvals',
+    patientId,
+    15000,
+  )
 
   /**
    * The server's answer replaces the local one, wholesale.
@@ -477,6 +503,10 @@ export function AsksProvider({ children }: { children: ReactNode }) {
     [personId, patientId, refreshConsent],
   )
 
+  const gates = (gateData?.approvals ?? []).filter((a) => a.status === 'Awaiting approval').length
+  const pendingRequests = requests.filter((r) => r.status === 'pending').length
+  const waiting = gates + pendingRequests
+
   const value = useMemo<AsksValue>(
     () => ({
       asks,
@@ -488,8 +518,9 @@ export function AsksProvider({ children }: { children: ReactNode }) {
       answerRequest,
       stops,
       setSharing,
+      waiting,
     }),
-    [asks, ask, requestAccess, requests, answerRequest, stops, setSharing],
+    [asks, ask, requestAccess, requests, answerRequest, stops, setSharing, waiting],
   )
 
   return <AsksContext.Provider value={value}>{children}</AsksContext.Provider>

@@ -57,9 +57,12 @@ export default function Sharing() {
    * important with a notice that removes itself. This one stays until it is
    * dismissed or the person leaves.
    */
-  const [lastSave, setLastSave] = useState<{ name: string; ok: boolean; sharing: boolean } | null>(
-    null,
-  )
+  const [lastSave, setLastSave] = useState<{
+    personId: string
+    name: string
+    ok: boolean
+    sharing: boolean
+  } | null>(null)
 
   const held = useMemo(
     () =>
@@ -81,7 +84,7 @@ export default function Sharing() {
     const name = people.find((p) => p.id === personId)?.name ?? 'them'
     setLastSave(null)
     const ok = await setSharing(personId, sharing)
-    setLastSave({ name, ok, sharing })
+    setLastSave({ personId, name, ok, sharing })
     return ok
   }
 
@@ -149,9 +152,39 @@ export default function Sharing() {
               </p>
             </>
           )}
-          <button type="button" className="o-btn o-btn-small mt-5" onClick={() => setLastSave(null)}>
-            Got it
-          </button>
+          {/*
+            Undo, and it is a real one.
+
+            Stopping sharing and starting it again are the same control in two
+            directions, so putting it back is exactly one write — not a special
+            reversal path that might not work. Offered only on a change that
+            landed: undoing a change the record never took would write the state
+            it is already in and report success for something that did nothing.
+
+            The word is "Undo" rather than "Start sharing again" because that is
+            what it is doing here — taking back something pressed a moment ago —
+            and the audit trail records both acts either way, which the line
+            below says out loud rather than letting the button imply the first
+            one never happened.
+          */}
+          <div className="mt-5 flex flex-wrap gap-4">
+            {lastSave.ok ? (
+              <Resume
+                label="Undo"
+                small
+                run={() => save(lastSave.personId, !lastSave.sharing)}
+              />
+            ) : null}
+            <button type="button" className="o-btn o-btn-small" onClick={() => setLastSave(null)}>
+              Got it
+            </button>
+          </div>
+          {lastSave.ok ? (
+            <p className="o-meta o-measure mt-4">
+              Undoing puts it back. Both changes stay in the record&rsquo;s history, because that
+              history is yours and it is not rewritten by changing your mind.
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -248,7 +281,15 @@ export default function Sharing() {
  * and hooks cannot live inside one. The banner above carries what the record
  * now says; this carries what the control is doing while it says it.
  */
-function Resume({ label, run }: { label: string; run: () => Promise<boolean> }) {
+function Resume({
+  label,
+  small,
+  run,
+}: {
+  label: string
+  small?: boolean
+  run: () => Promise<boolean>
+}) {
   const action = useAction(run)
   return (
     <ActionButton
@@ -257,6 +298,7 @@ function Resume({ label, run }: { label: string; run: () => Promise<boolean> }) 
       working="Updating access…"
       done="Access updated"
       failed="Not updated"
+      small={small}
     />
   )
 }

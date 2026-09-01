@@ -17,7 +17,7 @@ import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useSession } from '../state/session'
 import { useUI } from '../state/ui'
 import { useRecordStatus } from '../data/RecordProvider'
-import { AsksProvider } from './asks'
+import { AsksProvider, useAsks } from './asks'
 import { SubjectProvider, useSubject } from './subject'
 import { homeFor, navFor, paletteFor } from './system'
 import { SkipLink, screenName, useConnection, useFocusOnNavigate, useTitle } from './orientation'
@@ -153,6 +153,7 @@ function Frame() {
                   }
                 >
                   {item.label}
+                  <Waiting to={item.to} />
                 </NavLink>
               ))}
             </nav>
@@ -200,6 +201,7 @@ function Frame() {
                 <li key={item.to}>
                   <NavLink to={item.to} className="o-body no-underline">
                     {item.label}
+                    <Waiting to={item.to} />
                   </NavLink>
                 </li>
               ))}
@@ -243,6 +245,35 @@ function Frame() {
         </div>
       </footer>
     </div>
+  )
+}
+
+/**
+ * Something arrived. Go when you are ready.
+ *
+ * The whole of this component is the refusal it implies. A gate opening while
+ * somebody is halfway down their own record, or a colleague asking for access
+ * while they are composing a question, must never move them: being taken
+ * somewhere you did not ask to go is the interruption, not the remedy for one.
+ * So nothing here navigates, nothing flashes, nothing pulses, and the number
+ * does not grow or announce itself when it changes.
+ *
+ * It is a number in brackets after a word, which is as quiet as an indicator
+ * can be while still being one. Read aloud it says "Decisions, 2 waiting",
+ * because "Decisions 2" is a heading in a manual.
+ *
+ * Only on Decisions, and only when there is something there. A nav item that
+ * permanently carries a zero has taught everybody to stop reading it.
+ */
+function Waiting({ to }: { to: string }) {
+  const { waiting } = useAsks()
+  if (to !== '/decisions' || waiting < 1) return null
+  return (
+    <>
+      {' '}
+      <span aria-hidden>({waiting})</span>
+      <span className="sr-only">, {waiting} waiting</span>
+    </>
   )
 }
 

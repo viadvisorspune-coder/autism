@@ -44,6 +44,22 @@ function stateOf(d: DocumentRecord): State {
   return 'Draft'
 }
 
+/**
+ * How many of the four fields have something in them.
+ *
+ * The form asks for a type, a recipient, a period and a purpose. The type is
+ * always set — it opens on Handover — so it counts, and the count is honest
+ * about that rather than pretending nothing has been chosen.
+ */
+function filledIn(d: DocumentDraft): number {
+  return (
+    1 +
+    (d.recipient.trim() ? 1 : 0) +
+    (d.from.trim() || d.to.trim() ? 1 : 0) +
+    (d.purpose.trim() ? 1 : 0)
+  )
+}
+
 const stateTone: Record<State, Tone> = {
   Draft: 'current',
   'Waiting for a decision': 'decision',
@@ -60,6 +76,8 @@ export default function Documents() {
   // Re-read whenever the form closes, so finishing or discarding one is
   // reflected here without a reload.
   const [draft, setDraft] = useState<DocumentDraft | null>(() => readDraft(personId))
+  /** The last draft thrown away, held so it can be put back. */
+  const [discarded, setDiscarded] = useState<DocumentDraft | null>(null)
   useEffect(() => {
     if (!composing) setDraft(readDraft(personId))
   }, [composing, personId])
@@ -91,7 +109,15 @@ export default function Documents() {
     )
   }
 
-  if (composing) return <NewDocument onCancel={() => setComposing(false)} />
+  if (composing)
+    return (
+      <NewDocument
+        onCancel={(justDiscarded) => {
+          setComposing(false)
+          if (justDiscarded) setDiscarded(justDiscarded)
+        }}
+      />
+    )
 
   const resumable = draft && draft.subjectId === subjectId ? draft : null
 
@@ -129,6 +155,17 @@ export default function Documents() {
                 {resumable.type}
                 {resumable.recipient ? ` for ${resumable.recipient}` : ''}
               </p>
+              {/*
+                How far in you were, not just that you were in.
+
+                "Continue your draft" tells somebody there is unfinished work;
+                it does not tell them whether continuing is two minutes or
+                twenty, which is the thing they are actually deciding. The count
+                is of the four fields the form asks for.
+              */}
+              <p className="o-body o-measure mt-2">
+                You had filled in {filledIn(resumable)} of 4.
+              </p>
               <p className="o-meta mt-2">Last edited {ago(resumable.savedAt)}. Nothing has been sent.</p>
               <div className="mt-6 flex flex-wrap gap-4">
                 <button
@@ -138,10 +175,22 @@ export default function Documents() {
                 >
                   Continue
                 </button>
+                {/*
+                  Discarded, then undoable — rather than asked about first.
+
+                  This button has never had a confirmation and does not need
+                  one: a dialog in front of it would interrupt everybody to
+                  protect the few who press it by accident, and it would not
+                  even help them, because a person who meant to press Continue
+                  and pressed Discard will read "are you sure?" and press yes.
+                  Keeping the draft in hand and offering it back costs one line
+                  and actually recovers the mistake.
+                */}
                 <button
                   type="button"
                   className="o-btn"
                   onClick={() => {
+                    setDiscarded(resumable)
                     clearDraft(personId)
                     setDraft(null)
                   }}
@@ -151,6 +200,44 @@ export default function Documents() {
               </div>
             </div>
           </Card>
+        </div>
+      ) : null}
+
+      {/*
+        The draft that was just discarded, still in hand.
+
+        It stays until it is put back or dismissed — never on a timer. An Undo
+        that expires while somebody is working out whether they meant to do
+        that is not an undo, it is a reflex test.
+      */}
+      {discarded ? (
+        <div role="status" className="o-body o-measure mb-12 border border-black p-5">
+          <p className="font-semibold">Draft discarded</p>
+          <p className="mt-3">
+            {discarded.type}
+            {discarded.recipient ? ` for ${discarded.recipient}` : ''}. Nothing was sent and
+            nothing was written to the record. It is still here until you leave this screen.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-4">
+            <button
+              type="button"
+              className="o-btn o-btn-small o-btn-primary"
+              onClick={() => {
+                writeDraft(personId, discarded)
+                setDraft(readDraft(personId))
+                setDiscarded(null)
+              }}
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              className="o-btn o-btn-small"
+              onClick={() => setDiscarded(null)}
+            >
+              Leave it discarded
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -251,7 +338,12 @@ export default function Documents() {
  *
  * The output is a draft. It goes to Decisions, and Ananya decides.
  */
-function NewDocument({ onCancel }: { onCancel: () => void }) {
+function NewDocument({
+  onCancel,
+}: {
+  /** Closes the form. A draft passed back is one the person just discarded. */
+  onCancel: (discarded?: DocumentDraft) => void
+}) {
   const { role, option } = useSession()
   const { subjectId, subjectName } = useSubject()
   const { ask } = useAsks()
@@ -354,7 +446,7 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
   if (confirming) {
     return (
       <>
-        <PageTitle>Discard this draft?</PageTitle>
+        <PageTitle>You have unsaved changes</PageTitle>
         <Card tone="decision">
           <div className="o-card-body">
             <p className="o-body o-measure">
@@ -371,19 +463,30 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
               <button type="button" className="o-btn o-btn-primary flex-1" onClick={() => setConfirming(false)}>
                 Keep editing
               </button>
+              {/*
+                Discarded, and handed back up so Documents can offer it again.
+
+                A confirmation the person read and answered is not a licence to
+                make the answer irreversible. They said discard, so it is
+                discarded; Undo on the screen they land on is what turns a
+                misread question into a two-second correction instead of
+                twenty minutes of retyping.
+              */}
               <button
                 type="button"
                 className="o-btn flex-1"
                 onClick={() => {
+                  const snapshot: DocumentDraft = { ...current, savedAt: new Date().toISOString() }
                   clearDraft(personId)
-                  onCancel()
+                  onCancel(snapshot)
                 }}
               >
-                Discard the draft
+                Discard changes
               </button>
             </div>
             <p className="o-meta o-measure mt-6">
-              You can also leave it. It waits on Documents and nothing expires.
+              You can also leave it. It waits on Documents and nothing expires — and if you
+              discard it, Documents offers it back until you leave that screen.
             </p>
           </div>
         </Card>
@@ -393,7 +496,17 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
 
   return (
     <>
-      <button type="button" className="o-body mb-8 block font-semibold underline" onClick={onCancel}>
+      {/*
+        Wrapped, not passed straight through. `onCancel` now takes a discarded
+        draft as its first argument, and handing it an onClick directly would
+        pass it a MouseEvent — which is truthy, and would have Documents offer
+        to undo a discard that never happened.
+      */}
+      <button
+        type="button"
+        className="o-body mb-8 block font-semibold underline"
+        onClick={() => onCancel()}
+      >
         ← Back to Documents
       </button>
       <PageTitle
@@ -528,7 +641,7 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
                 been accepted — so this closes the form without touching them
                 and Documents offers them straight back.
               */}
-              <button type="button" className="o-btn" onClick={onCancel}>
+              <button type="button" className="o-btn" onClick={() => onCancel()}>
                 Save request
               </button>
             </div>

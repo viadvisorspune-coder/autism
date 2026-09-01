@@ -20,6 +20,7 @@ import { useSubject } from './subject'
 import { Card, PageTitle, SectionHead, shortDate } from './parts'
 import { boundaryFor, toneClass } from './system'
 import { ActionButton, useAction } from './action'
+import { clearQuestion, readQuestion, writeQuestion } from './question'
 
 export default function Ask() {
   const { role, option } = useSession()
@@ -42,7 +43,16 @@ export default function Ask() {
    */
   const { state } = useLocation()
   const returned = (state as { question?: string } | null)?.question
-  const [question, setQuestion] = useState(returned ?? '')
+  const personId = option?.personId ?? ''
+  /**
+   * Whichever is more recent: what you were brought back with, or what you
+   * left in the box.
+   *
+   * The returned question wins because it is the more deliberate of the two —
+   * somebody pressed Back to Ask from an answer, which is a request for that
+   * question specifically.
+   */
+  const [question, setQuestion] = useState(() => returned ?? readQuestion(personId))
   const [file, setFile] = useState<Attached | null>(null)
   const [fileProblem, setFileProblem] = useState<string | null>(null)
   const box = useRef<HTMLTextAreaElement | null>(null)
@@ -78,6 +88,34 @@ export default function Ask() {
     return () => cancelAnimationFrame(id)
   }, [returned])
 
+  /**
+   * Written down as it is typed, and never discarded without saying so.
+   *
+   * There is no Save button here and there should not be one. What this
+   * replaces is silence: a question typed and then interrupted used to be gone
+   * with nothing said about it, and the interruptions this has to survive are
+   * ordinary ones — a nav press, a Back, a phone locking mid-sentence.
+   */
+  useEffect(() => {
+    writeQuestion(personId, question)
+  }, [personId, question])
+
+  /**
+   * Closing the tab is the one interruption this cannot save you from.
+   *
+   * Session storage survives a navigation and a reload; it does not survive the
+   * tab being closed, which is exactly when somebody is least expecting to lose
+   * something. The browser's own prompt is the only thing that can interrupt
+   * that, and it is only registered while there is genuinely something to lose
+   * — a permanent handler would make every ordinary tab close ask a question.
+   */
+  useEffect(() => {
+    if (!question.trim()) return
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [question])
+
   const mine = role === 'patient'
   /**
    * A clinician with no subject chosen cannot ask anything.
@@ -101,6 +139,10 @@ export default function Ask() {
     const body = question.trim()
     if (!body) return false
     const id = await ask(body, { file, rehearse })
+    // Cleared only once the question has been accepted, never before. A box
+    // emptied by a press that then failed has thrown the sentence away on the
+    // person's behalf.
+    clearQuestion(personId)
     setQuestion('')
     setFile(null)
     navigate(`/ask/${id}`)
@@ -170,6 +212,10 @@ export default function Ask() {
         {returned && question === returned ? (
           <p className="o-meta o-measure mt-3">
             This is the question you just asked. Change it, or ask it again as it is.
+          </p>
+        ) : question.trim() ? (
+          <p className="o-meta o-measure mt-3" role="status">
+            Kept as you type. Leaving this screen does not lose it.
           </p>
         ) : null}
 

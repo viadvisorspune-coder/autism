@@ -10,6 +10,7 @@
  * A decision with a default is a decision somebody else made.
  */
 import { useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useSession } from '../state/session'
 import { respondToApproval } from '../lib/approvals'
 import { useLive } from '../lib/live'
@@ -78,10 +79,26 @@ export default function Decisions() {
    * exactly one thing on the screen is a step that exists only to be consistent
    * with a case that is not on their screen.
    */
-  const [chosen, setChosen] = useState<string | null>(null)
+  /**
+   * In the URL, so coming back lands on the same one.
+   *
+   * Somebody opens a decision, follows a name into Sharing to remind themselves
+   * who that is, and comes back — in component state the screen would have
+   * closed itself and they would be choosing between three cards again. This is
+   * the same argument the Record filter and its open entries make, and it is
+   * the same mechanism, so there is one thing to understand rather than three.
+   */
+  const [params, setParams] = useSearchParams()
+  const chosen = params.get('open')
   const only = count === 1 ? (mine[0]?.id ?? waiting[0]?.request_id ?? null) : null
   const active = chosen ?? only
-  const setActiveId = (id: string) => setChosen(id)
+  const setActiveId = (id: string) => {
+    const updated = new URLSearchParams(params)
+    updated.set('open', id)
+    // Replace: opening three decisions in turn should not make Back a way of
+    // closing them one at a time.
+    setParams(updated, { replace: true })
+  }
 
   return (
     <>

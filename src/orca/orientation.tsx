@@ -6,7 +6,7 @@
  * interface you can hold in your head and one you have to re-read.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigationType } from 'react-router-dom'
 import { navFor } from './system'
 import type { Role } from '../data/types'
 
@@ -43,9 +43,32 @@ export function useTitle(screen: string | null) {
  * render, because stealing focus on arrival is its own rudeness.
  */
 export function useFocusOnNavigate() {
-  const { pathname } = useLocation()
-  const target = useRef<HTMLElement | null>(null)
+  const { pathname, key } = useLocation()
+  const kind = useNavigationType()
   const first = useRef(true)
+  /**
+   * Where each visited screen was left.
+   *
+   * Keyed by the history entry rather than the path, so the Record you scrolled
+   * halfway down and the Record you opened fresh a minute later are two
+   * different places, which is what the browser's own Back means by them.
+   */
+  const positions = useRef(new Map<string, number>())
+  const leaving = useRef<{ key: string; y: number } | null>(null)
+
+  // The scroll position is read on the way out, in a cleanup, because by the
+  // time the next screen's effect runs the window has already been moved.
+  useEffect(() => {
+    leaving.current = { key, y: 0 }
+    const note = () => {
+      leaving.current = { key, y: window.scrollY }
+    }
+    window.addEventListener('scroll', note, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', note)
+      if (leaving.current) positions.current.set(leaving.current.key, leaving.current.y)
+    }
+  }, [key])
 
   useEffect(() => {
     if (first.current) {
@@ -53,13 +76,24 @@ export function useFocusOnNavigate() {
       return
     }
     const heading = document.querySelector<HTMLElement>('[data-focus-target]')
-    if (!heading) return
-    target.current = heading
-    heading.focus({ preventScroll: true })
-    // The heading is at the top of the column; scrolling there separately keeps
-    // focus and viewport agreeing rather than leaving the page mid-screen.
-    window.scrollTo({ top: 0, behavior: 'auto' })
-  }, [pathname])
+    if (heading) heading.focus({ preventScroll: true })
+
+    /**
+     * Back returns you to where you were, not to the top.
+     *
+     * Scrolling to the top is right for a screen you asked for and wrong for a
+     * screen you are coming back to — somebody who opened one entry from
+     * halfway down a year of their record and pressed Back was returned to
+     * January and had to find their place again. A POP is the browser's own
+     * word for going back, so it is the one case that restores.
+     *
+     * `auto`, never smooth. Watching a page travel past a year of your own
+     * medical history to put you where you already were is the definition of
+     * movement that communicates nothing.
+     */
+    const back = kind === 'POP' ? positions.current.get(key) : undefined
+    window.scrollTo({ top: back ?? 0, behavior: 'auto' })
+  }, [pathname, key, kind])
 }
 
 /**
