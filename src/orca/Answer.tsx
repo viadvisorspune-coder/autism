@@ -28,6 +28,7 @@ import { useSubject } from './subject'
 import {
   Back,
   Card,
+  Disclosure,
   Gate,
   NotShown,
   Nothing,
@@ -37,6 +38,7 @@ import {
   longDate,
 } from './parts'
 import { boundaryFor, pathMeaning, pathName } from './system'
+import { ActionButton, useAction } from './action'
 
 export default function Answer() {
   const { askId = '' } = useParams()
@@ -62,7 +64,9 @@ export default function Answer() {
 
   return (
     <>
-      <Back to="/ask">Back to Ask</Back>
+      <Back to="/ask" state={{ question: item.question }}>
+        Back to Ask
+      </Back>
       <h1 className="o-h2 o-measure mb-3" tabIndex={-1} data-focus-target>
         {item.question}
       </h1>
@@ -106,12 +110,31 @@ export default function Answer() {
 
       {item.shape === 'waiting' ? <Waiting at={item.at} status={item.status} /> : null}
 
+      {/*
+        The answer arrives whole.
+
+        No typing animation and nothing revealed a line at a time. An answer
+        about somebody's own health is not a performance, and text that is still
+        assembling cannot be read, skimmed, or copied — it can only be watched.
+        The whole block is there on the first frame it exists.
+
+        `data-arrive` is the only movement: one 220ms settle, once, so the
+        change from "Working on this" to an answer reads as this card replacing
+        that one rather than as the page having been different all along. The
+        answer is fully legible throughout it and the CSS drops it entirely
+        under reduced motion.
+
+        Keyed by shape so it plays when the shape changes and not on the
+        four-second poll that re-renders this screen with the same answer in it.
+      */}
       {item.shape === 'answer' && item.answer ? (
-        <Card tone={item.tone}>
-          <div className="o-card-body">
-            <Prose html={item.answer} />
-          </div>
-        </Card>
+        <div key={`answer-${item.id}`} data-arrive>
+          <Card tone={item.tone}>
+            <div className="o-card-body">
+              <Prose html={item.answer} />
+            </div>
+          </Card>
+        </div>
       ) : null}
 
       {/*
@@ -125,30 +148,47 @@ export default function Answer() {
       {item.shape === 'clarify' ? (
         <Card tone="decision">
           <div className="o-card-body">
-            <h2 className="o-h2 mb-6">One more detail</h2>
+            <h2 className="o-h2 mb-6">I need one more detail</h2>
             <p className="o-body o-measure">
               {item.clarifyQuestion ??
                 'Something is missing before this can be answered from the record.'}
             </p>
+
+            {/*
+              The original question, shown rather than remembered.
+
+              It is already the heading of this screen, and it is still the
+              heading of the next one — picking an option asks the same question
+              with the detail added, which is what keeps the thread continuous
+              instead of starting a new one. Saying so removes the fear that
+              answering a follow-up throws away what was typed.
+            */}
+            <h3 className="o-h3 mb-2 mt-8">What you asked</h3>
+            <p className="o-body o-measure">&ldquo;{item.question}&rdquo;</p>
+            <p className="o-meta o-measure mt-2">
+              This is kept. Choosing below asks it again with the detail added, and the answer
+              arrives on a screen that still shows this question.
+            </p>
+
             {item.clarifyOptions?.length ? (
               <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:flex-wrap">
                 {item.clarifyOptions.map((o) => (
-                  <button
+                  <ClarifyOption
                     key={o}
-                    type="button"
-                    className="o-btn"
-                    onClick={async () => {
+                    label={o}
+                    run={async () => {
                       const id = await ask(`${item.question} ${o}`)
                       navigate(`/ask/${id}`)
+                      return true
                     }}
-                  >
-                    {o}
-                  </button>
+                  />
                 ))}
               </div>
             ) : null}
+
             <p className="o-meta o-measure mt-6">
-              Nothing has been answered yet. You can also go back and ask it differently.
+              Nothing has been answered yet. You can also go back and ask it differently — your
+              question comes back with you.
             </p>
           </div>
         </Card>
@@ -166,17 +206,41 @@ export default function Answer() {
         opposite and equally damaging mistakes.
       */}
       {item.shape === 'unknown' ? (
+        /*
+         * Not animated, and not styled as a failure.
+         *
+         * This is an answer — the record was read, and what it holds does not
+         * settle the question. Giving it an arrival transition would group it
+         * with the answer card as a thing that happened, and giving it the
+         * decision tone would group it with the failures. It is neither. It
+         * appears in place, in the tone the record uses for things that are
+         * settled and quiet, and the person can read it at their own pace.
+         *
+         * Said in the first person, because it is ORCA's limit rather than the
+         * person's. "The record does not answer this" puts the shortfall on
+         * their record and, by implication, on the life it describes.
+         */
         <Card tone="past">
           <div className="o-card-body">
-            <h2 className="o-h2 mb-6">The record does not answer this</h2>
+            <h2 className="o-h2 mb-6">I can&rsquo;t determine this from the record</h2>
+
+            <h3 className="o-h3 mb-2">What the record shows</h3>
             <p className="o-body o-measure">
               {item.detail ??
-                'Your record was read and it does not contain enough to settle this question.'}
+                'Your record was read in full, within what you may see. What is in it does not settle this question either way.'}
             </p>
+
+            <h3 className="o-h3 mb-2 mt-8">What is unknown</h3>
+            <p className="o-body o-measure">
+              Whatever would answer this was never written down. Nobody recorded it, which is a
+              fact about the record and not about you.
+            </p>
+
             <h3 className="o-h3 mb-2 mt-8">What this does not mean</h3>
             <p className="o-body o-measure">
-              It does not mean nothing happened. A record shows what somebody wrote down, and
-              silence in it is silence about the writing, not about the life.
+              It does not mean nothing happened, and it does not mean anything was hidden from
+              you. A record shows what somebody wrote down, and silence in it is silence about
+              the writing, not about the life.
             </p>
           </div>
         </Card>
@@ -222,36 +286,62 @@ export default function Answer() {
       */}
       {item.shape === 'answer' && item.sources?.length ? (
         <section className="o-section">
-          <SectionHead>Where this comes from</SectionHead>
-          <p className="o-body o-measure mb-6">
-            Based on {item.sources.length}{' '}
-            {item.sources.length === 1 ? 'entry' : 'entries'} in the record.
-          </p>
-          <ul className="space-y-4">
-            {item.sources.map((s, i) => {
-              const label = [s.label ?? s.id, s.reporter, longDate(s.date) || s.date]
-                .filter(Boolean)
-                .join(' · ')
-              return (
-                <li key={i}>
+          {/*
+            Opened rather than always open, and the count stays outside it.
+
+            The list is four fields per entry and can run to a dozen entries,
+            which on a phone puts the boundary statement below it off the
+            bottom of a very long screen. What must never be behind the
+            disclosure is the fact that there are sources at all — an answer
+            resting on three entries and one resting on none have to be
+            distinguishable without pressing anything, so the count is the
+            note, not the content.
+          */}
+          <Disclosure
+            summary="Where this comes from"
+            note={
+              <p className="o-body o-measure">
+                Based on {item.sources.length}{' '}
+                {item.sources.length === 1 ? 'entry' : 'entries'} in the record.
+              </p>
+            }
+          >
+            <ul className="space-y-6">
+              {item.sources.map((s, i) => (
+                <li key={i} className="border border-black p-5">
+                  {/*
+                    Four separate lines, not one joined string.
+
+                    They were being concatenated with middots, which reads as a
+                    single label and gives the identifier, the person and the
+                    date equal weight. A clinician checking provenance is
+                    reading three different things, and the record id is the
+                    one they will quote.
+                  */}
+                  {s.id ? <p className="o-meta font-mono">{s.id}</p> : null}
+                  <p className="o-body mt-1">{s.label ?? 'Entry in the record'}</p>
+                  <p className="o-meta mt-2">
+                    {[s.reporter, longDate(s.date) || s.date].filter(Boolean).join(' · ') ||
+                      'No reporter or date was given.'}
+                  </p>
                   {s.id ? (
                     <Link
                       to={`/record/${s.id}`}
                       state={{ from: `/ask/${item.id}`, label: 'the answer' }}
-                      className="o-body underline"
+                      className="o-body mt-3 inline-block underline"
                     >
-                      {label}
+                      Open this entry
                     </Link>
                   ) : (
-                    <span className="o-body">{label}</span>
+                    <p className="o-meta mt-3">
+                      This entry did not come back with an identifier, so it cannot be opened.
+                    </p>
                   )}
                 </li>
-              )
-            })}
-          </ul>
-          <p className="o-meta o-measure mt-6">
-            No other entries were used to write this.
-          </p>
+              ))}
+            </ul>
+            <p className="o-meta o-measure mt-6">No other entries were used to write this.</p>
+          </Disclosure>
         </section>
       ) : null}
 
@@ -431,6 +521,30 @@ function Routing({ item }: { item: Ask }) {
  * workflow sends one. Continuing to promise it would make this screen the most
  * confidently wrong thing in the product.
  */
+/**
+ * One of the answers to "one more detail".
+ *
+ * A component rather than a button in the map, so each option can report on
+ * itself — and so pressing one cannot be pressed twice. Two presses here start
+ * two runs against the same question, and the person then has two answer
+ * screens for one thing they asked once.
+ *
+ * The working label is the same sentence the Ask button uses, because it is the
+ * same act: this is the question being asked again with the detail filled in.
+ */
+function ClarifyOption({ label, run }: { label: string; run: () => Promise<boolean> }) {
+  const action = useAction(run)
+  return (
+    <ActionButton
+      action={action}
+      idle={label}
+      working="Checking your record…"
+      done="Asked"
+      failed="Did not send"
+    />
+  )
+}
+
 const SLOW_AFTER_MS = 3 * 60 * 1000
 const SILENT_AFTER_MS = 10 * 60 * 1000
 

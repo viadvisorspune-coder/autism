@@ -11,8 +11,8 @@
  * suggestions but history, and which exist because asking the same question
  * again should be a tap rather than a retype.
  */
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '../state/session'
 import { ACCEPTED_FILES, type Attached, attachFile } from '../lib/attach'
 import { type Ask, useAsks } from './asks'
@@ -27,9 +27,56 @@ export default function Ask() {
   const { ask, recent } = useAsks()
   const navigate = useNavigate()
 
-  const [question, setQuestion] = useState('')
+  /**
+   * Coming back from an answer arrives with the question still in hand.
+   *
+   * Pressing "Back to Ask" used to land on an empty box, which asks somebody to
+   * retype a sentence that was on the screen they just left — and for anyone
+   * who found writing it expensive the first time, that is the whole task
+   * again. The answer screen sends the question along with the navigation and
+   * this picks it up.
+   *
+   * Read once, into the initial state. Reading it on every render would fight
+   * the person's editing, and re-seeding it after they cleared the box would
+   * put back something they deliberately removed.
+   */
+  const { state } = useLocation()
+  const returned = (state as { question?: string } | null)?.question
+  const [question, setQuestion] = useState(returned ?? '')
   const [file, setFile] = useState<Attached | null>(null)
   const [fileProblem, setFileProblem] = useState<string | null>(null)
+  const box = useRef<HTMLTextAreaElement | null>(null)
+
+  /**
+   * And the cursor is in the box, at the end of what is already there.
+   *
+   * Returning to edit a question and then having to click into the field first
+   * is the small, constant tax that makes an interface feel like a form rather
+   * than a conversation. Only on a return — an unprompted focus on a first
+   * visit would scroll the page and start a screen reader mid-sentence.
+   */
+  useEffect(() => {
+    if (!returned) return
+    /**
+     * Deferred by one frame, to win an argument it would otherwise lose.
+     *
+     * The shell focuses the page heading after every navigation, which is the
+     * right default and is what orients somebody arriving at a screen. React
+     * runs a child's effects before its parent's, so this would put the cursor
+     * in the box and the shell would immediately take it back out again. One
+     * frame later, both have run and this is the last word.
+     *
+     * Only on a return. Focusing a text field unprompted on a first visit
+     * scrolls the page and starts a screen reader in the middle of a form.
+     */
+    const id = requestAnimationFrame(() => {
+      const el = box.current
+      if (!el) return
+      el.focus({ preventScroll: true })
+      el.setSelectionRange(el.value.length, el.value.length)
+    })
+    return () => cancelAnimationFrame(id)
+  }, [returned])
 
   const mine = role === 'patient'
   /**
@@ -113,11 +160,18 @@ export default function Ask() {
         </label>
         <textarea
           id="orca-ask"
+          ref={box}
           className="o-input"
           rows={3}
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
         />
+
+        {returned && question === returned ? (
+          <p className="o-meta o-measure mt-3">
+            This is the question you just asked. Change it, or ask it again as it is.
+          </p>
+        ) : null}
 
         {file ? (
           <div className="mt-4 border border-black p-4">
@@ -147,11 +201,24 @@ export default function Ask() {
         ) : null}
 
         <div className="mt-6 flex flex-wrap gap-4">
+          {/*
+            The words the wait is actually about.
+
+            "Sending" describes the network; "Checking your record" describes
+            what is happening to the person's own life, which is the thing they
+            are waiting on. It is the same sentence the answer screen continues
+            with, so the two screens read as one action rather than two.
+
+            The button is as wide as this label from the first paint — see the
+            label stack in action.tsx. That is deliberate: a control that grows
+            when pressed moves everything beside it at the moment somebody's
+            pointer is over it.
+          */}
           <ActionButton
             action={asking}
             idle="Ask"
-            working="Sending"
-            done="Sent"
+            working="Checking your record…"
+            done="Asked"
             failed="Did not send"
             primary
             disabled={busy || !question.trim()}

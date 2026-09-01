@@ -67,9 +67,24 @@ export function SectionHead({ children }: { children: ReactNode }) {
   )
 }
 
-export function Back({ to, children }: { to: string; children: ReactNode }) {
+export function Back({
+  to,
+  state,
+  children,
+}: {
+  to: string
+  /**
+   * What the screen being returned to should pick up.
+   *
+   * Going back from an answer used to arrive at an empty Ask box, which asks
+   * somebody to retype a question that is on the screen they just left. The
+   * state travels with the navigation so the destination can restore it.
+   */
+  state?: unknown
+  children: ReactNode
+}) {
   return (
-    <Link to={to} className="o-body mb-8 inline-block font-semibold underline">
+    <Link to={to} state={state} className="o-body mb-8 inline-block font-semibold underline">
       ← {children}
     </Link>
   )
@@ -394,6 +409,67 @@ export function Nothing({ children }: { children: ReactNode }) {
         <p className="o-body o-measure">{children}</p>
       </div>
     </div>
+  )
+}
+
+/* ------------------------------------------------------ expand and collapse */
+
+/**
+ * A section that opens.
+ *
+ * ONE COMPONENT, SO EVERY DISCLOSURE IN ORCA BEHAVES IDENTICALLY. The chevron
+ * points down when there is more and up when it is showing, the heading is the
+ * control rather than a separate affordance beside it, and the state is on the
+ * button as `aria-expanded` rather than implied by the arrow — an arrow is a
+ * picture of a state, not a statement of one.
+ *
+ * `note` sits outside the collapsed region on purpose. On the answer screen it
+ * is the number of entries the answer rests on, and that is not a detail to be
+ * opened for: an answer that cites three entries and one that cites none must
+ * be distinguishable without a click.
+ *
+ * The content stays mounted and is made `inert` while closed, so a collapsed
+ * section cannot be tabbed into and nothing inside it is announced. Rendering
+ * it only when open would work too, and would throw away the height transition
+ * along with any scroll position inside it.
+ */
+export function Disclosure({
+  summary,
+  note,
+  defaultOpen = false,
+  children,
+}: {
+  summary: string
+  note?: ReactNode
+  defaultOpen?: boolean
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="o-h3 flex w-full items-center justify-between gap-4 text-left"
+      >
+        <span>{summary}</span>
+        {/*
+          Hidden from the accessibility tree. `aria-expanded` above already
+          says which way this is, and a screen reader reading "up pointing
+          triangle" after it is the same fact twice in a worse language.
+        */}
+        <span aria-hidden className="shrink-0">
+          {open ? '▴' : '▾'}
+        </span>
+      </button>
+      {note ? <div className="mt-3">{note}</div> : null}
+      <div className="o-reveal" data-open={open ? 'yes' : 'no'}>
+        <div inert={!open}>
+          <div className="pt-6">{children}</div>
+        </div>
+      </div>
+    </>
   )
 }
 

@@ -996,6 +996,53 @@ html[data-experience='patient'] .frost-tint {
     animation-duration: var(--t-section);
   }
 
+  /*
+   * A block that arrives in place of another.
+   *
+   * The answer replacing "Working on this" is the one moment in ORCA where
+   * something appears on a screen the person is already looking at without
+   * their having pressed anything. One settle, once, and the text is fully
+   * legible for every frame of it — this is opacity and four pixels, not a
+   * reveal. Nothing is withheld until the animation finishes.
+   */
+  html[data-ia='orca'] [data-arrive] {
+    animation: o-disclose var(--t-section) var(--ease) both;
+  }
+
+  /* --------------------------------------------------- expand and collapse */
+
+  /*
+   * Height, without measuring it.
+   *
+   * `grid-template-rows: 0fr → 1fr` animates a real height from a real content
+   * size, so nothing has to be measured in JavaScript and nothing jumps when
+   * the content turns out to be a different length than last time. The child
+   * carries `overflow: hidden` and `min-height: 0`, which is what makes the
+   * fractional row actually clip rather than refuse to shrink.
+   *
+   * The region opens downward and pushes what follows, which is what somebody
+   * expects from a disclosure. What it must never do is push something they
+   * are already reading, so it is only ever used where the content below is
+   * the end of a section.
+   */
+  html[data-ia='orca'] .o-reveal {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows var(--t-section) var(--ease);
+  }
+  html[data-ia='orca'] .o-reveal[data-open='yes'] {
+    grid-template-rows: 1fr;
+  }
+  html[data-ia='orca'] .o-reveal > * {
+    overflow: hidden;
+    min-height: 0;
+    opacity: 0;
+    transition: opacity var(--t-state) var(--ease);
+  }
+  html[data-ia='orca'] .o-reveal[data-open='yes'] > * {
+    opacity: 1;
+  }
+
   /* ---------------------------------------------- what a control is doing */
 
   /*
