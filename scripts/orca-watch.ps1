@@ -1,4 +1,4 @@
-# orca-watch.ps1 — what has actually reached Supabase.
+﻿# orca-watch.ps1 - what has actually reached Supabase.
 #
 #   .\orca-watch.ps1              one look
 #   .\orca-watch.ps1 -Watch       re-check every 15 seconds until Ctrl+C
@@ -14,7 +14,7 @@ $ref = 'zievqdkhxenenpyxqese'
 $envFile = Join-Path $PSScriptRoot '.env.local'
 if (-not (Test-Path $envFile)) { $envFile = '.\.env.local' }
 if (-not (Test-Path $envFile)) {
-  Write-Host "Can't find .env.local — run this from your repo folder." -ForegroundColor Red
+  Write-Host "Can't find .env.local - run this from your repo folder." -ForegroundColor Red
   return
 }
 $key = (Select-String -Path $envFile -Pattern 'VITE_SUPABASE_PUBLISHABLE_KEY=(.+)').Matches[0].Groups[1].Value.Trim()
@@ -30,7 +30,7 @@ function Read-Resource($resource) {
 
 function Show-Once {
   Clear-Host
-  Write-Host "ORCA — $(Get-Date -Format 'HH:mm:ss')`n" -ForegroundColor Cyan
+  Write-Host "ORCA - $(Get-Date -Format 'HH:mm:ss')`n" -ForegroundColor Cyan
 
   $runs = (Read-Resource 'workflow_runs').runs
   if (-not $runs) { return }
@@ -58,11 +58,11 @@ function Show-Once {
     $plain = $latest.answer_html -replace '<[^>]+>', ' ' -replace '\s+', ' '
     Write-Host ("  " + $plain.Trim().Substring(0, [Math]::Min(260, $plain.Trim().Length)))
     if ($latest.result.sources) {
-      # if/else rather than ??, which needs PowerShell 7 — this runs on 5.1 too.
+      # if/else rather than ??, which needs PowerShell 7 - this runs on 5.1 too.
       $ids = $latest.result.sources | ForEach-Object { if ($_.id) { $_.id } else { $_.item_id } }
       Write-Host "  cites: $($ids -join ', ')" -ForegroundColor DarkCyan
     } else {
-      Write-Host "  cites: nothing — sources did not come through" -ForegroundColor DarkYellow
+      Write-Host "  cites: nothing - sources did not come through" -ForegroundColor DarkYellow
     }
   }
 
@@ -88,7 +88,7 @@ function Show-Once {
 }
 
 if ($Watch) {
-  Write-Host "watching every $Every s — Ctrl+C to stop" -ForegroundColor DarkGray
+  Write-Host "watching every $Every s - Ctrl+C to stop" -ForegroundColor DarkGray
   while ($true) { Show-Once; Start-Sleep -Seconds $Every }
 } else {
   Show-Once
