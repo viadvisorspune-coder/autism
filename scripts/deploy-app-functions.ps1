@@ -1,7 +1,12 @@
-﻿# Deploy ORCA's own read and write paths.
+﻿# Deploy ORCA's own application-facing Edge Functions.
 #
-# Both functions import from supabase/functions/_shared, and the CLI bundles
-# that directory automatically -- there is nothing to deploy separately for it.
+# Three of them: app-read, app-write and orca-chat. orca-chat is on this list
+# because routing, the two demonstration answers and the PDF generator all live
+# in supabase/functions/_shared, and _shared is not a deployable unit -- the CLI
+# bundles it into whichever function imports it. Deploying app-read and
+# app-write alone leaves a changed router sitting in git while the live chat
+# keeps running the old one, which stays invisible until somebody asks a
+# question and gets the wrong path back.
 #
 # verify_jwt is already false for both in supabase/config.toml, so no flag is
 # needed here. Passing one on the command line would override the file and is
@@ -14,7 +19,13 @@
 $ErrorActionPreference = 'Stop'
 
 $ref = 'zievqdkhxenenpyxqese'
-$branch = 'claude/create-ui-lrq2tx'
+$branch = 'main'
+
+# The functions this script owns. The connector functions Yoxa calls
+# (identity-access, knowledge-evidence, workflow-state and the rest) are
+# deliberately not here: they change on a different cadence, and redeploying
+# them for a frontend change is how a working connector gets broken.
+$functions = @('app-read', 'app-write', 'orca-chat')
 
 # Installed, or borrowed for the length of this script.
 #
@@ -46,16 +57,16 @@ if ($LASTEXITCODE -ne 0) {
   if ($LASTEXITCODE -ne 0) { throw 'Sign-in did not complete. Nothing was deployed.' }
 }
 
-# The code is on the feature branch. Deploying from main would ship the old
-# functions and the new screens would keep failing in a way that looks like the
-# frontend is broken.
+# Deploy what is on main, which is where the merged work is. Deploying from a
+# stale checkout ships old functions while the new screens call them, and that
+# looks like the frontend is broken rather than the backend being behind.
 Write-Host ''
 Write-Host "Fetching $branch" -ForegroundColor Cyan
 git fetch origin $branch
 git checkout $branch
 git pull origin $branch
 
-foreach ($fn in @('app-read', 'app-write')) {
+foreach ($fn in $functions) {
   Write-Host ''
   Write-Host "Deploying $fn" -ForegroundColor Cyan
   & $cli @pre functions deploy $fn --project-ref $ref
@@ -65,8 +76,12 @@ foreach ($fn in @('app-read', 'app-write')) {
 }
 
 Write-Host ''
-Write-Host 'Both deployed.' -ForegroundColor Green
-Write-Host 'New reads:   tasks, and context on the timeline read.'
-Write-Host 'New actions: add_task, update_task, update_entry, prepare_appointment,'
-Write-Host '             decide_request, ask_about_request, add_strategy,'
-Write-Host '             record_outcome, end_strategy, set_review_date.'
+Write-Host 'All three deployed.' -ForegroundColor Green
+Write-Host ''
+Write-Host 'Two things this script does not do:'
+Write-Host '  1. Apply pending migrations. Run:'
+Write-Host '       npx supabase@latest db push --project-ref zievqdkhxenenpyxqese'
+Write-Host '     20260901000001 turns on row-level security for the twelve'
+Write-Host '     stage-1 tables, which were readable by anyone holding the'
+Write-Host '     public key. Nothing reads them, so nothing breaks.'
+Write-Host '  2. Rebuild and redeploy the frontend, for the interface changes.'

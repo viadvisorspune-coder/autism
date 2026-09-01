@@ -38,6 +38,31 @@ import { type Block, simplePdf } from './pdf.ts'
 const SUBJECT = 'pt-ananya'
 
 /**
+ * What a fixture writes into `current_step`, and the marker routing excludes.
+ *
+ * Exported because two files depend on the exact string and a copy in each is
+ * a silent divergence waiting to happen: change it here and `orca-chat` stops
+ * recognising fixtures, which does not fail — it quietly starts drafting real
+ * documents from canned answers again.
+ */
+export const CANNED_STEP = 'Fixed demonstration answer'
+
+/**
+ * What a fixture's run is called in the run list.
+ *
+ * The same labels `start.ts` uses, so a fixture is filed under the lane it
+ * reports rather than under a second vocabulary. Naming the PDF fixture
+ * "Produce" while its `workflow_name` said `fifteen` put one run under two
+ * different names depending on which column a screen read.
+ */
+const TYPE_LABEL: Record<string, string> = {
+  understand: 'Understand',
+  produce: 'Produce',
+  chat: 'Chat',
+  fifteen: 'End-to-end support coordination',
+}
+
+/**
  * Punctuation and spacing removed before matching.
  *
  * A person typing the demonstration question will not reproduce the curly
@@ -264,10 +289,10 @@ export async function serveCanned(
     .insert({
       patient_id: patientId,
       actor_id: actor.id,
-      type: fixture.document ? 'Produce' : 'Understand',
+      type: TYPE_LABEL[fixture.lane] ?? fixture.lane,
       workflow_name: fixture.lane,
       stakeholder: actor.name,
-      current_step: 'Fixed demonstration answer',
+      current_step: CANNED_STEP,
       status: 'Completed',
       idempotency_key: crypto.randomUUID(),
       path: fixture.path,

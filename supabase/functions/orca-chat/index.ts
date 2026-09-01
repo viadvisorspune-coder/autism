@@ -25,7 +25,7 @@ import { admin, cors, json, str } from '../_shared/yoxa.ts'
 import { actorFromRequest, mayActOnPatient, forbidden, unauthorised } from '../_shared/app.ts'
 import { type WorkflowName, isConfigured } from '../_shared/compose.ts'
 import { type Lane, type Plan, SAME_QUESTION, planFor, similarity } from '../_shared/route.ts'
-import { cannedFor, serveCanned } from '../_shared/canned.ts'
+import { CANNED_STEP, cannedFor, serveCanned } from '../_shared/canned.ts'
 import { launch, launchError } from '../_shared/start.ts'
 import { resolveRecipient } from '../_shared/recipient.ts'
 
@@ -67,7 +67,7 @@ async function routingFacts(
    */
   const query = admin
     .from('workflow_runs')
-    .select('id, workflow_name, trigger_text, answer_html, started_at')
+    .select('id, workflow_name, trigger_text, answer_html, started_at, current_step')
     .eq('actor_id', actorId)
     .not('answer_html', 'is', null)
     .order('started_at', { ascending: false })
@@ -75,7 +75,28 @@ async function routingFacts(
 
   const scoped = rehearsing ? query : query.eq('dry_run', false)
   const { data } = patientId ? await scoped.eq('patient_id', patientId) : await scoped
-  const rows = data ?? []
+
+  /**
+   * A demonstration fixture is never routing evidence.
+   *
+   * The two fixed answers in `canned.ts` are recorded as completed runs with
+   * `answer_html` set, because that is what makes every screen downstream work
+   * without knowing they are fixtures. It also made them look exactly like
+   * material to routing: the text fixture is a completed `understand` run, so
+   * for an hour after somebody demonstrates it, a real document request found
+   * it as "recent evidence" and drafted from a canned answer instead of the
+   * record. Caught by rehearsing a cold document request and getting
+   * `produce_only` back.
+   *
+   * This is the same argument the `dry_run` column exists for — a stand-in
+   * answer must not steer a real request — arriving through a different door.
+   * The flag itself cannot be reused: a fixture marked `dry_run` would tell
+   * the interface it was a rehearsal, which is the one thing it is not.
+   *
+   * Filtered here rather than in the query so both lookups below get it, and
+   * so the marker is read from the same rows everything else is judged on.
+   */
+  const rows = (data ?? []).filter((r) => String(r.current_step ?? '') !== CANNED_STEP)
 
   const fresh = rows.filter(
     (r) => Date.now() - Date.parse(String(r.started_at)) < EVIDENCE_FRESH_MS,
