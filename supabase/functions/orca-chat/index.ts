@@ -208,7 +208,29 @@ Deno.serve(async (req) => {
     message,
     recipient: recipientIn,
     artifactType: str(body.artifact_type),
-    chainedFrom: str(body.chain_from),
+    /**
+     * A replay is handed the answer it is replaying.
+     *
+     * Routing found a prior answer to this same question, from this actor,
+     * about this record — that is the entire basis on which the chat lane was
+     * chosen over UNDERSTAND. But the run was then started with no reference
+     * to it, so the workflow received the question and nothing else and had to
+     * re-derive an answer from the record. That is not a replay; it is a
+     * second, slower UNDERSTAND wearing the chatbot's name, and it can
+     * silently disagree with what the person was told the first time.
+     *
+     * `chainedFrom` is the existing road for this: `launch` reads the prior
+     * run from the database rather than trusting anything passed in, and
+     * composes the earlier answer, its sources and its withheld list into the
+     * trigger under a heading that says plainly it is prior ORCA output rather
+     * than record content.
+     *
+     * An explicit chain_from in the request still wins, so nothing that
+     * already sets it changes behaviour.
+     */
+    chainedFrom:
+      str(body.chain_from) ??
+      (plan.path === 'chatbot_replay' ? facts.alreadyAnsweredRunId : null),
     path: plan.path,
     reason: plan.reason,
     then: (plan.then as WorkflowName | null) ?? null,
