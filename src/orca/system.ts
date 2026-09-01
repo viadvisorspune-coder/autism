@@ -156,6 +156,28 @@ export function navFor(role: Role | null): Destination[] {
   if (role === 'trusted') return [ask, record, notes, adjust]
 
   /**
+   * Priya coordinates, and Tasks is her home rather than Ask.
+   *
+   * She had no interface at all — she is in the stakeholder roster and she is
+   * the requester in the fifteen-step trigger, and there was no screen she
+   * could sign into. Her job is chasing and connecting, so the list of what is
+   * open comes first and the record comes second. She has no Notes: she does
+   * not assess anybody, and a coordinator writing clinical observations is a
+   * role boundary this product should not blur.
+   */
+  if (role === 'clinic') {
+    return [
+      caseload,
+      { label: 'Tasks', to: '/tasks' },
+      ask,
+      record,
+      documents,
+      decisions,
+      adjust,
+    ]
+  }
+
+  /**
    * The professionals get Notes, and it is the largest gap this closes.
    *
    * A clinician's primary daily action is recording a session. There was no way
@@ -163,7 +185,7 @@ export function navFor(role: Role | null): Destination[] {
    * add a line to it.
    */
   if (hasCaseload(role)) {
-    return [caseload, ask, record, notes, documents, decisions, adjust]
+    return [caseload, ask, record, notes, { label: 'Tasks', to: '/tasks' }, documents, decisions, adjust]
   }
 
   return [ask, record, decisions, documents, adjust]
@@ -184,6 +206,8 @@ export function hasCaseload(role: Role | null): boolean {
 /** Where signing in lands you. */
 export function homeFor(role: Role | null): string {
   if (role === 'admin') return '/runs'
+  // A coordinator's first question is what is open, not who is on the list.
+  if (role === 'clinic') return '/tasks'
   if (hasCaseload(role)) return '/caseload'
   return '/ask'
 }
@@ -371,4 +395,26 @@ export const domainName: Record<Domain, string> = {
   education: 'Course and university information',
   personal: 'Personal information',
   support: 'Support and strategies',
+}
+
+/**
+ * A role, in the words people actually use for it.
+ *
+ * The enum values are database identifiers — `ot`, `gp`, `clinic` — and putting
+ * them on a screen asks somebody to expand an abbreviation before they can read
+ * a sentence. "Clinic" in particular is not what Priya's job is called; she
+ * coordinates, and the label says so.
+ */
+export const ROLE_LABEL: Record<string, string> = {
+  patient: 'The person themselves',
+  psychologist: 'Psychologist',
+  psychiatrist: 'Psychiatrist',
+  therapist: 'Therapist',
+  ot: 'Occupational therapist',
+  gp: 'GP',
+  clinic: 'Care coordinator',
+  employer: 'Employer',
+  university: 'University',
+  trusted: 'Trusted person',
+  admin: 'Administrator',
 }

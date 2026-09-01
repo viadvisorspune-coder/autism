@@ -32,16 +32,17 @@ type Resource =
   | 'calendar'
   | 'caseload'
   | 'consent'
+  | 'tasks'
 
 /** What each role may ever receive, before per-patient consent narrows it. */
 const ROLE_MAY_READ: Record<string, Resource[]> = {
   patient: ['bundle', 'run', 'inbox', 'conversation', 'privacy', 'timeline', 'requests', 'profile', 'strategies', 'audit', 'approvals', 'workflow_runs', 'calendar', 'consent'],
-  psychologist: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'strategies', 'requests', 'approvals', 'consent'],
-  psychiatrist: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'requests', 'consent'],
-  therapist: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies', 'consent'],
-  ot: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies', 'consent'],
-  gp: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'consent'],
-  clinic: ['caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'requests', 'workflow_runs', 'consent'],
+  psychologist: ['tasks', 'caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'strategies', 'requests', 'approvals', 'consent'],
+  psychiatrist: ['tasks', 'caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'requests', 'consent'],
+  therapist: ['tasks', 'caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies', 'consent'],
+  ot: ['tasks', 'caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'profile', 'strategies', 'consent'],
+  gp: ['tasks', 'caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'timeline', 'profile', 'consent'],
+  clinic: ['tasks', 'caseload', 'calendar', 'bundle', 'run', 'inbox', 'conversation', 'requests', 'workflow_runs', 'consent'],
   employer: ['caseload', 'bundle', 'run', 'inbox', 'conversation', 'requests', 'consent'],
   university: ['caseload', 'bundle', 'run', 'inbox', 'conversation', 'requests', 'consent'],
   trusted: ['bundle', 'run', 'inbox', 'conversation', 'profile', 'consent'],
@@ -751,6 +752,37 @@ async function read(
         requests: requests.data ?? [],
         clarifications: (clarifications.data ?? []).filter((c) => ids.has(String(c.request_id))),
       }
+    }
+
+    /**
+     * Open items, for the people whose job is chasing them.
+     *
+     * Scoped by role rather than by owner. A task is addressed to whoever holds
+     * that role on this record — "the occupational therapist needs to set a
+     * review date" survives that occupational therapist going on leave, where a
+     * task addressed to a person by id does not. `for_roles` is the column that
+     * has always said so and nothing has ever read it.
+     *
+     * Unscoped by patient for a coordinator, who works across records and whose
+     * whole question is "what is open anywhere". Scoped when a record is named,
+     * which is every other caller.
+     */
+    case 'tasks': {
+      const query = admin
+        .from('tasks')
+        .select('id, patient_id, title, detail, due_on, for_roles, status, created_at')
+        .order('due_on', { ascending: true, nullsFirst: false })
+        .limit(200)
+      const { data, error } = patientId ? await query.eq('patient_id', patientId) : await query
+      if (error) return { tasks: [], error: error.message }
+      // A task nobody in this role is meant to see is not this person's to
+      // chase. The patient is never given a task list: an open item about
+      // somebody is a professional's work, and showing it to them as a to-do
+      // would hand them responsibility for a system's backlog.
+      const mine = (data ?? []).filter(
+        (t) => role !== 'patient' && (t.for_roles as string[] | null)?.includes(String(role)),
+      )
+      return { tasks: mine }
     }
 
     case 'profile': {

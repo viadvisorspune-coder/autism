@@ -54,10 +54,13 @@ export default function NextSteps({
   role,
   ask,
   onSave,
+  onFlag,
 }: {
   item: Ask
   role: Role | null
   ask: (question: string) => Promise<string>
+  /** Raises an open item on Tasks, for the roles that chase them. */
+  onFlag?: (title: string) => Promise<boolean>
   /**
    * Puts the answer into the record, for the one person entitled to do that.
    *
@@ -129,6 +132,29 @@ export default function NextSteps({
         return true
       },
     })
+
+    /**
+     * The thought that had nowhere to go.
+     *
+     * Reading an answer and deciding somebody should follow it up is the most
+     * common thing that happens on this screen and the only one that used to
+     * end in a notebook. It becomes an open item on Tasks addressed to this
+     * person's own role — never to a colleague, because nobody should be able
+     * to put work on somebody else's list from a screen they are only reading.
+     *
+     * The question is the title, so the item says what it is about without
+     * quoting an answer. An answer copied into a task is a clinical claim
+     * detached from its sources, which is the shape this product refuses.
+     */
+    if (onFlag) {
+      steps.push({
+        label: 'Flag for follow-up',
+        working: 'Saving…',
+        done: 'On your list ✓',
+        failed: 'Not saved',
+        run: () => onFlag(item.question),
+      })
+    }
   }
 
   if (role === 'trusted') {

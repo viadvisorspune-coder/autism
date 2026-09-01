@@ -319,6 +319,23 @@ export default function Ask() {
         </p>
       </div>
 
+      {/*
+        The operational question, which is not about anybody in particular.
+
+        "Which of my patients has had no contact in six weeks" is the question
+        that decides a clinician's week, and it is not a clinical question about
+        one person — it is arithmetic across a list. Typed into the box above it
+        would be routed against whichever record happened to be open and
+        answered about one person, confidently and wrongly.
+
+        It is scoped to the caseload rather than to the record, which is why it
+        is a separate control and says so. Nothing here reads a record: the
+        answer is about contact and dates, and anything more would be six
+        people's clinical information on one screen because somebody asked an
+        operational question.
+      */}
+      {choosable ? <AcrossCaseload ask={ask} /> : null}
+
       <Boundary />
 
       {/*
@@ -410,6 +427,67 @@ function Boundary() {
         is read from the record to tell you.
       </p>
     </section>
+  )
+}
+
+/**
+ * A question about the caseload rather than about a person.
+ *
+ * Three phrasings offered rather than a free box, and that is the design. The
+ * value of this control is that the question is unambiguous — a typed
+ * "who haven't I seen" has to be parsed into a period and a criterion, and a
+ * parser guessing "recently" as six weeks rather than three months produces a
+ * confident answer to a question nobody asked. These are the three that come up,
+ * and the person can still type anything else into the box above.
+ */
+function AcrossCaseload({ ask }: { ask: (q: string) => Promise<string> }) {
+  const navigate = useNavigate()
+  const { caseload } = useSubject()
+
+  const questions = [
+    'Which of the people on my caseload have had no recorded contact in the last six weeks? List them with the date of the last entry.',
+    'Which of the people on my caseload have something waiting on a decision? List them with what it is waiting on.',
+    'Which of the people on my caseload have a review date that has passed? List them with the date.',
+  ]
+  const labels = ['No contact in six weeks', 'Waiting on a decision', 'Review date passed']
+
+  if (!caseload.length) return null
+
+  return (
+    <section className="o-section">
+      <SectionHead>Ask across your caseload</SectionHead>
+      <p className="o-body o-measure">
+        These are about your list rather than about anybody on it. Nobody&rsquo;s record is read
+        to answer them — the answer is dates and status, and six people&rsquo;s clinical
+        information on one screen is not what an operational question should produce.
+      </p>
+      <div className="mt-6 flex flex-wrap gap-4">
+        {questions.map((q, i) => (
+          <CaseloadQuestion
+            key={q}
+            label={labels[i]}
+            run={async () => {
+              const id = await ask(q)
+              navigate(`/ask/${id}`)
+              return true
+            }}
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function CaseloadQuestion({ label, run }: { label: string; run: () => Promise<boolean> }) {
+  const action = useAction(run)
+  return (
+    <ActionButton
+      action={action}
+      idle={label}
+      working="Checking your caseload…"
+      done="Asked"
+      failed="Did not send"
+    />
   )
 }
 

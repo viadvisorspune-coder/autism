@@ -11,7 +11,7 @@
  * says so, dated, with the current version one tap away.
  */
 import { useMemo, useState } from 'react'
-import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useSession } from '../state/session'
 import { useRecordStatus } from '../data/RecordProvider'
 import { eventsFor, personName } from '../data/db'
@@ -20,6 +20,8 @@ import { useSubject } from './subject'
 import { Back, Card, Loading, Nothing, PageTitle, SectionHead, longDate, shortDate } from './parts'
 import { ActionButton, useAction } from './action'
 import { actOnRecord } from '../lib/live'
+import Compare from './Compare'
+import { useAsks } from './asks'
 import type { Tone } from './system'
 import { boundaryFor } from './system'
 import { NotShown } from './parts'
@@ -45,6 +47,7 @@ function visible(events: TimelineEvent[], role: Role | null): TimelineEvent[] {
 
 export default function Record() {
   const { role } = useSession()
+  const { ask } = useAsks()
   // Re-read when the live record lands: hydrate() refills the record arrays in
   // place, so the status change is the only signal React gets that the rows
   // under these screens are no longer the seeded ones.
@@ -345,11 +348,92 @@ export default function Record() {
         ))}
       </div>
 
+      {/*
+        For the people who read a record to find out what has changed.
+
+        Ananya reads her record; a clinician interrogates it, and the
+        interrogation is nearly always the same one. Not offered to her, not
+        because she could not use it but because "compare two periods" is the
+        vocabulary of a review meeting rather than of a life, and putting it on
+        her screen would be the interface telling her how to think about her own
+        year.
+      */}
+      {!mine && role !== 'trusted' && events.length ? (
+        <>
+          <Compare events={events} subjectName={subjectName ?? ''} ask={ask} />
+
+          {/*
+            A pack for a multidisciplinary meeting.
+
+            It is a document request rather than a download, and that is the
+            whole governance argument in one control: a pack assembled in the
+            browser would leave here as a file with nobody's name on it and no
+            decision behind it, which is precisely the disclosure this product
+            exists to stop being routine. Asked as a question, it becomes a
+            draft that Ananya decides on before it reaches a room of people.
+          */}
+          <MdtPack subjectName={subjectName ?? ''} ask={ask} />
+        </>
+      ) : null}
+
       <section className="o-section">
         <hr className="o-rule mb-8" />
         <NotShown boundary={boundaryFor(role)} />
       </section>
     </>
+  )
+}
+
+/**
+ * The multidisciplinary meeting pack.
+ *
+ * The one thing every clinician on a shared case asks for and the one this
+ * platform would be most tempted to generate silently. It does not: it composes
+ * a document request, which routes through the same approval gate as everything
+ * else that leaves this record.
+ *
+ * That is slower than a download and it is the correct speed. A pack read aloud
+ * in a room of eight professionals is the largest single disclosure in
+ * somebody's care, and it should be a thing she agreed to rather than a button
+ * a colleague pressed.
+ */
+function MdtPack({
+  subjectName,
+  ask,
+}: {
+  subjectName: string
+  ask: (q: string) => Promise<string>
+}) {
+  const navigate = useNavigate()
+  const action = useAction(async () => {
+    const id = await ask(
+      `Prepare a multidisciplinary meeting pack about ${subjectName || 'this person'}: what is ` +
+        `current, what has changed, what is outstanding, and what each professional involved ` +
+        `needs to know. Name the entries every statement rests on, and say what is not included.`,
+    )
+    navigate(`/ask/${id}`)
+    return true
+  })
+
+  return (
+    <section className="o-section">
+      <h2 className="o-h3 mb-3">Export for a multidisciplinary meeting</h2>
+      <p className="o-body o-measure">
+        This drafts a pack and sends it to {subjectName ? subjectName.split(' ')[0] : 'them'} for a
+        decision. It does not produce a file here — a pack read aloud in a room of eight people is
+        the largest single disclosure in somebody&rsquo;s care, and it should be something they
+        agreed to rather than something a colleague downloaded.
+      </p>
+      <div className="mt-6">
+        <ActionButton
+          action={action}
+          idle="Draft a meeting pack"
+          working="Creating your document…"
+          done="Document ready"
+          failed="Not created"
+        />
+      </div>
+    </section>
   )
 }
 

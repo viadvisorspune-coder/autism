@@ -45,11 +45,29 @@ import { actOnRecord } from '../lib/live'
 export default function Answer() {
   const { askId = '' } = useParams()
   const { role, option, patientId } = useSession()
-  const { subjectName } = useSubject()
+  const { subjectId, subjectName } = useSubject()
   const { find, ask, requestAccess } = useAsks()
   const navigate = useNavigate()
   const item = find(askId)
   const mine = role === 'patient'
+
+  /**
+   * An open item raised from an answer, addressed to this person's own role.
+   *
+   * Never to a colleague. Being able to put work on somebody else's list from a
+   * screen you are only reading is how a backlog gets handed over without
+   * anybody agreeing to it — `add_task` defaults to the raiser's role for
+   * exactly that reason, and nothing here overrides it.
+   */
+  async function flag(title: string): Promise<boolean> {
+    const record = subjectId ?? patientId
+    if (!record || !option?.personId) return false
+    const result = await actOnRecord('add_task', record, option.personId, {
+      title: `Follow up: ${title}`,
+      detail: 'Raised from an answer. Open the record to see what it was about.',
+    })
+    return result.ok
+  }
 
   /**
    * An answer, written into the record as the person's own entry.
@@ -445,7 +463,13 @@ export default function Answer() {
         alone.
       */}
       {item.shape === 'answer' && item.answer ? (
-        <NextSteps item={item} role={role} ask={ask} onSave={mine ? save : undefined} />
+        <NextSteps
+          item={item}
+          role={role}
+          ask={ask}
+          onSave={mine ? save : undefined}
+          onFlag={mine ? undefined : flag}
+        />
       ) : null}
 
       {item.shape === 'answer' ? (

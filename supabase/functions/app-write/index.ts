@@ -33,6 +33,30 @@ type Action =
   | 'request_access'
   | 'decide_access'
   | 'set_sharing'
+  | 'add_task'
+  | 'update_task'
+
+/**
+ * Every role the record knows about.
+ *
+ * Mirrors the `orca_role` enum in the schema. A value outside it makes Postgres
+ * reject the whole insert with a type error, which arrives at the browser as a
+ * 400 saying nothing useful — so it is checked here, where the answer can name
+ * what was wrong.
+ */
+const ROLES = new Set([
+  'patient',
+  'psychologist',
+  'psychiatrist',
+  'therapist',
+  'ot',
+  'gp',
+  'clinic',
+  'employer',
+  'university',
+  'trusted',
+  'admin',
+])
 
 /** Only these roles may be asked to decide something clinical. */
 const DECIDING_ROLES = new Set([
@@ -841,6 +865,88 @@ Deno.serve(async (req) => {
         )
       if (error) return json({ error: error.message }, 400)
       return json({ seen: true })
+    }
+
+    /* ----------------------------------------------------------- tasks
+     *
+     * Open items, which is the thing every professional here was doing in a
+     * notebook. A clinician reads an answer and thinks "someone should chase
+     * that"; a coordinator's entire job is the list of those. The table has
+     * existed since the first migration and nothing has ever written to it.
+     *
+     * ADDRESSED TO A ROLE, NEVER TO A PERSON. "The occupational therapist needs
+     * to set a review date" survives that occupational therapist going on
+     * leave; the same task addressed by id becomes invisible the moment
+     * somebody changes job, which is exactly when it matters most that it did
+     * not. `for_roles` is the column that has always said so.
+     *
+     * NOT CLINICAL CONTENT. A task is a note about work, and it is deliberately
+     * not written into the timeline: an open item is not a fact about somebody's
+     * life and does not belong in the record of one.
+     */
+    case 'add_task': {
+      const title = str(body.title)
+      if (!title) return json({ error: 'title is required' }, 400)
+
+      const asked = Array.isArray(body.for_roles) ? (body.for_roles as unknown[]).map(String) : []
+      const forRoles = asked.filter((r) => ROLES.has(r))
+      // Falls back to the person raising it rather than to a default role.
+      // A task assigned to nobody is a task nobody sees; a task assigned to a
+      // role chosen by this function is one somebody else is now expected to do
+      // because of a line of code.
+      if (!forRoles.length && actor.role) forRoles.push(String(actor.role))
+      if (!forRoles.length) return json({ error: 'for_roles is required' }, 400)
+
+      const { data, error } = await admin
+        .from('tasks')
+        .insert({
+          patient_id: patientId,
+          title,
+          detail: str(body.detail) ?? null,
+          due_on: str(body.due_on) ?? null,
+          for_roles: forRoles,
+          status: 'Active',
+        })
+        .select('id')
+        .single()
+
+      if (error) return json({ error: error.message }, 400)
+      return json({
+        task_id: data?.id ?? null,
+        note: `Open for ${forRoles.join(', ')}. This is not part of the clinical record.`,
+      })
+    }
+
+    /**
+     * Closing one, or handing it to a different role.
+     *
+     * `Completed` and `Cancelled` are both endings and the record keeps which:
+     * "this was done" and "this stopped mattering" are different facts about a
+     * piece of work, and collapsing them loses the only interesting half.
+     */
+    case 'update_task': {
+      const id = str(body.task_id)
+      if (!id) return json({ error: 'task_id is required' }, 400)
+
+      const patch: Record<string, unknown> = {}
+      const status = str(body.status)
+      if (status) {
+        if (!['Active', 'Completed', 'Cancelled'].includes(status)) {
+          return json({ error: 'status must be Active, Completed or Cancelled' }, 400)
+        }
+        patch.status = status
+      }
+      if (Array.isArray(body.for_roles)) {
+        const forRoles = (body.for_roles as unknown[]).map(String).filter((r) => ROLES.has(r))
+        if (!forRoles.length) return json({ error: 'for_roles must name a real role' }, 400)
+        patch.for_roles = forRoles
+      }
+      if (str(body.due_on)) patch.due_on = str(body.due_on)
+      if (!Object.keys(patch).length) return json({ error: 'nothing to change' }, 400)
+
+      const { error } = await admin.from('tasks').update(patch).eq('id', id)
+      if (error) return json({ error: error.message }, 400)
+      return json({ updated: true })
     }
 
     /* --------------------------------------------------------- consent
