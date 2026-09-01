@@ -100,6 +100,16 @@ export default function Record() {
   const events = useMemo(() => {
     if (!subjectId) return []
     return visible(eventsFor(subjectId), role).slice().sort((a, b) => b.date.localeCompare(a.date))
+    /**
+     * `status` is load-bearing, not a stray dependency.
+     *
+     * `hydrate()` refills the record arrays with `splice(0, length, ...next)`,
+     * so the array identity never changes and React has no way to know the
+     * contents did. The status flipping from loading to live is the only
+     * signal there is. Remove it and every screen shows the seeded example
+     * record for the rest of the session.
+     */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subjectId, role, status])
 
   const categories = useMemo(() => {
@@ -461,6 +471,12 @@ export function Entry() {
 
   const all = useMemo(
     () => (subjectId ? visible(eventsFor(subjectId), role) : []),
+    /**
+     * `status` is load-bearing, not a stray dependency. See Record.tsx: the
+     * record arrays are refilled in place, so their identity never changes and
+     * this is the only signal React gets that the contents did.
+     */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [subjectId, role, status],
   )
   const event = all.find((e) => e.id === entryId)

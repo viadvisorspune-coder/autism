@@ -45,7 +45,7 @@ export interface NextStep {
  * appended, so the thread stays legible as one thing they wanted rather than
  * two things they asked.
  */
-export function again(question: string, addition: string): string {
+function again(question: string, addition: string): string {
   return `${question.trim().replace(/[?.]$/, '')}. ${addition}`
 }
 

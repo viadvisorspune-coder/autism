@@ -48,11 +48,21 @@ export default function Compare({
   const [bFrom, setBFrom] = useState(() => monthsAgo(6))
   const [bTo, setBTo] = useState(() => monthsAgo(0))
 
-  const inWindow = (from: string, to: string) =>
-    events.filter((e) => e.date >= from && e.date <= to).length
-
-  const first = useMemo(() => inWindow(aFrom, aTo), [events, aFrom, aTo])
-  const second = useMemo(() => inWindow(bFrom, bTo), [events, bFrom, bTo])
+  /**
+   * Counted inline rather than through a helper closed over `events`.
+   *
+   * A function defined in the body is a new function every render, so a memo
+   * that calls it either lists it as a dependency and never memoizes, or omits
+   * it and captures a stale one. Neither is worth a two-line helper used twice.
+   */
+  const first = useMemo(
+    () => events.filter((e) => e.date >= aFrom && e.date <= aTo).length,
+    [events, aFrom, aTo],
+  )
+  const second = useMemo(
+    () => events.filter((e) => e.date >= bFrom && e.date <= bTo).length,
+    [events, bFrom, bTo],
+  )
 
   /**
    * The one thing this refuses to send.

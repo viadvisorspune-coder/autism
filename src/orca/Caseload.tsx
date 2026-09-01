@@ -94,6 +94,16 @@ export default function Caseload() {
       if (order === 'new') return b.since - a.since || a.name.localeCompare(b.name)
       return a.name.localeCompare(b.name)
     })
+    /**
+     * `status` is load-bearing, not a stray dependency.
+     *
+     * `hydrate()` refills the record arrays with `splice(0, length, ...next)`,
+     * so the array identity never changes and React has no way to know the
+     * contents did. The status flipping from loading to live is the only
+     * signal there is. Remove it and every screen shows the seeded example
+     * record for the rest of the session.
+     */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caseload, option?.personId, status, order, query])
 
   const total = caseload.length

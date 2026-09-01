@@ -80,19 +80,41 @@ export default function Appointments() {
   }>('calendar', record)
 
   const rows = data?.appointments ?? []
+
+  /**
+   * One instant, taken once, and the split keyed on the read.
+   *
+   * Two problems in one place before this. `Date.now()` in the memo body made
+   * the same render impure -- upcoming and past could be computed against
+   * different instants and an appointment an hour old could land in both lists
+   * or neither. And `data?.appointments ?? []` is a new array every render, so
+   * memos keyed on it recomputed on every four-second poll and memoized
+   * nothing.
+   *
+   * A day's grace either side of now, so something that finished this morning
+   * is still the thing you are looking at rather than history.
+   *
+   * Taken once at mount and held in state. A memo is not a place to keep a
+   * clock -- it recomputes on whatever its dependencies happen to do, which is
+   * a different instant for no reason anybody chose. This list is not a
+   * countdown; if it ever needs to move it should move on a deliberate
+   * interval, the way the waiting card on the answer screen does.
+   */
+  const [cutoff] = useState(() => Date.now() - 86_400_000)
+
   const upcoming = useMemo(
     () =>
-      rows
-        .filter((a) => a.status !== 'Cancelled' && Date.parse(a.scheduled_for) >= Date.now() - 86_400_000)
+      (data?.appointments ?? [])
+        .filter((a) => a.status !== 'Cancelled' && Date.parse(a.scheduled_for) >= cutoff)
         .sort((a, b) => a.scheduled_for.localeCompare(b.scheduled_for)),
-    [rows],
+    [data, cutoff],
   )
   const past = useMemo(
     () =>
-      rows
-        .filter((a) => Date.parse(a.scheduled_for) < Date.now() - 86_400_000)
+      (data?.appointments ?? [])
+        .filter((a) => Date.parse(a.scheduled_for) < cutoff)
         .sort((a, b) => b.scheduled_for.localeCompare(a.scheduled_for)),
-    [rows],
+    [data, cutoff],
   )
 
   async function prepare(id: string, questions: string[]): Promise<boolean> {

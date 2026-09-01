@@ -81,10 +81,17 @@ export default function Requests() {
   }>('requests', record)
 
   const university = role === 'university'
-  const all = data?.requests ?? []
-  // Only what was sent to this person's role. A request addressed to the
-  // university appearing on an employer's screen is a disclosure by accident.
-  const mine = useMemo(() => all.filter((r) => r.destination_role === role), [all, role])
+  /**
+   * Only what was sent to this person's role. A request addressed to the
+   * university appearing on an employer's screen is a disclosure by accident.
+   *
+   * Keyed on the read rather than on `all`, which is a new array every render
+   * and so memoized nothing.
+   */
+  const mine = useMemo(
+    () => (data?.requests ?? []).filter((r) => r.destination_role === role),
+    [data, role],
+  )
   const open = useMemo(() => mine.filter((r) => OPEN.has(r.status ?? '')), [mine])
   const settled = useMemo(() => mine.filter((r) => !OPEN.has(r.status ?? '')), [mine])
 

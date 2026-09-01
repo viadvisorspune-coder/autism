@@ -69,13 +69,23 @@ export function Runs() {
   const [workflow, setWorkflow] = useState('Everything')
   const [today, setToday] = useState(false)
 
+  /**
+   * Keyed on the read, not on `runs`.
+   *
+   * `data?.runs ?? []` is a new array on every render, so these recomputed on
+   * every one of the four-second polls and memoized nothing -- two set builds a
+   * second over a hundred rows to produce the same two filter lists.
+   */
   const statuses = useMemo(
-    () => ['Everything', ...new Set(runs.map((r) => r.status ?? 'Unknown'))],
-    [runs],
+    () => ['Everything', ...new Set((data?.runs ?? []).map((r) => r.status ?? 'Unknown'))],
+    [data],
   )
   const workflows = useMemo(
-    () => ['Everything', ...new Set(runs.map((r) => r.workflow_name ?? r.type ?? 'Unknown'))],
-    [runs],
+    () => [
+      'Everything',
+      ...new Set((data?.runs ?? []).map((r) => r.workflow_name ?? r.type ?? 'Unknown')),
+    ],
+    [data],
   )
 
   const shown = runs.filter((r) => {

@@ -94,9 +94,10 @@ export default function Tasks() {
 
   const [showDone, setShowDone] = useState(false)
 
-  const tasks = data?.tasks ?? []
-  const open = useMemo(() => tasks.filter((t) => isOpen(t.status)), [tasks])
-  const closed = useMemo(() => tasks.filter((t) => !isOpen(t.status)), [tasks])
+  // Keyed on the read, not on `tasks`: that is a new array every render, so a
+  // memo on it recomputes on every poll and memoizes nothing.
+  const open = useMemo(() => (data?.tasks ?? []).filter((t) => isOpen(t.status)), [data])
+  const closed = useMemo(() => (data?.tasks ?? []).filter((t) => !isOpen(t.status)), [data])
   const overdue = useMemo(() => open.filter((t) => t.due_on && t.due_on < today()), [open])
 
   async function change(id: string, patch: Record<string, unknown>): Promise<boolean> {

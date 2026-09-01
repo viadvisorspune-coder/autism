@@ -608,11 +608,21 @@ function Waiting({ at, status }: { at: string; status?: string }) {
    * open all afternoon is a wake-up every fifteen seconds to redraw text that
    * cannot change.
    */
-  const [, tick] = useState(0)
-  const settled = Date.now() - Date.parse(at) > SILENT_AFTER_MS
+  /**
+   * The clock is state, not a call during render.
+   *
+   * This read `Date.now()` in the body and re-rendered on a bare tick counter
+   * to make it re-evaluate. That works and is impure: the same render produces
+   * a different answer depending on when it happens, so under a concurrent
+   * render React can compute one branch against one instant and another
+   * against a later one. Holding the instant in state means every render is a
+   * pure function of it, and the interval moves it deliberately.
+   */
+  const [now, setNow] = useState(() => Date.now())
+  const settled = now - Date.parse(at) > SILENT_AFTER_MS
   useEffect(() => {
     if (settled) return
-    const id = window.setInterval(() => tick((n) => n + 1), 15_000)
+    const id = window.setInterval(() => setNow(Date.now()), 15_000)
     return () => window.clearInterval(id)
   }, [settled])
 
@@ -633,7 +643,7 @@ function Waiting({ at, status }: { at: string; status?: string }) {
     )
   }
 
-  const waited = Date.now() - Date.parse(at)
+  const waited = now - Date.parse(at)
 
   /**
    * Nothing has come back, and by now that means something.

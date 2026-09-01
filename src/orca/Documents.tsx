@@ -95,6 +95,12 @@ export default function Documents() {
       .filter((d) => (role === 'patient' ? true : d.access.includes(role)))
       .slice()
       .sort((a, b) => b.date.localeCompare(a.date))
+    /**
+     * `status` is load-bearing, not a stray dependency. See Record.tsx: the
+     * record arrays are refilled in place, so their identity never changes and
+     * this is the only signal React gets that the contents did.
+     */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subjectId, role, status])
 
   const produced: Attachment[] = data?.attachments ?? []

@@ -66,6 +66,17 @@ export function useFocusOnNavigate() {
     window.addEventListener('scroll', note, { passive: true })
     return () => {
       window.removeEventListener('scroll', note)
+      /**
+       * Reading `.current` at cleanup is the whole point, not an oversight.
+       *
+       * The rule warns about DOM refs that have detached by the time cleanup
+       * runs. This is a plain object this effect writes on every scroll, and
+       * the value wanted is the last one -- where the person actually was when
+       * they left. Copying it to a local inside the effect, which is what the
+       * rule suggests, would capture the position at mount and save zero for
+       * every screen.
+       */
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       if (leaving.current) positions.current.set(leaving.current.key, leaving.current.y)
     }
   }, [key])
