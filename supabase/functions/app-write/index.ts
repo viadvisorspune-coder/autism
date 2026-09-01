@@ -35,6 +35,10 @@ type Action =
   | 'set_sharing'
   | 'add_task'
   | 'update_task'
+  | 'add_strategy'
+  | 'record_outcome'
+  | 'end_strategy'
+  | 'set_review_date'
 
 /**
  * Every role the record knows about.
@@ -947,6 +951,186 @@ Deno.serve(async (req) => {
       const { error } = await admin.from('tasks').update(patch).eq('id', id)
       if (error) return json({ error: error.message }, 400)
       return json({ updated: true })
+    }
+
+    /* ------------------------------------------------------ strategies
+     *
+     * An occupational therapist's job is a loop: propose something, wait, find
+     * out whether it worked, adapt or stop. The tables for it have been there
+     * since the first migration and the loop had no interface — it existed only
+     * as rows somebody else had seeded.
+     *
+     * THE OUTCOME IS THE POINT, AND IT IS THE HALF THAT GOES MISSING. Anybody
+     * can record a plan. What makes a strategy worth anything later is whether
+     * it helped, said in the same three words every time so a year of them can
+     * be read as a line rather than as forty paragraphs.
+     *
+     * A REVIEW DATE IS A DATE, NOT A REMINDER. Nothing chases it and nobody is
+     * notified when it passes; the screen shows what is overdue and a person
+     * decides. Saying so is the difference between a tool somebody trusts and
+     * one they assume is watching for them.
+     */
+    case 'add_strategy': {
+      const title = str(body.title)
+      const goal = str(body.goal)
+      if (!title || !goal) return json({ error: 'title and goal are required' }, 400)
+
+      const { data, error } = await admin
+        .from('strategies')
+        .insert({
+          id: `st-${crypto.randomUUID().slice(0, 8)}`,
+          patient_id: patientId,
+          title,
+          goal,
+          rationale: str(body.rationale) ?? null,
+          conditions: str(body.conditions) ?? null,
+          success_criteria: str(body.success_criteria) ?? null,
+          starts_on: str(body.starts_on) ?? null,
+          duration_weeks: typeof body.duration_weeks === 'number' ? body.duration_weeks : null,
+          review_date: str(body.review_date) ?? null,
+          environment: str(body.environment) ?? null,
+          owner_id: actor.id,
+          status: 'Active',
+          phase: 'Trial',
+        })
+        .select('id')
+        .single()
+
+      if (error) return json({ error: error.message }, 400)
+
+      await recordAudit({
+        actorId: actor.id,
+        actorLabel: actor.name,
+        actorRole: actor.role,
+        patientId,
+        action: `Started a strategy: ${title}`,
+        record: `Strategy ${data?.id}`,
+        accessType: 'Write',
+        why: goal,
+        result: 'Allowed',
+      })
+
+      return json({
+        strategy_id: data?.id ?? null,
+        note: str(body.review_date)
+          ? `Review date set. Nothing chases it — it appears here as overdue when it passes.`
+          : 'No review date set. Without one this stays open until somebody ends it.',
+      })
+    }
+
+    /**
+     * What happened when it was tried.
+     *
+     * Three words and a sentence. The three words are constrained by the table
+     * and deliberately: an outcome written freehand every time cannot be read
+     * across a year, and "worked quite well I think" and "helped" are the same
+     * finding recorded two ways.
+     */
+    case 'record_outcome': {
+      const strategyId = str(body.strategy_id)
+      const note = str(body.note)
+      const helpfulness = str(body.helpfulness)
+      if (!strategyId || !note || !helpfulness) {
+        return json({ error: 'strategy_id, note and helpfulness are required' }, 400)
+      }
+      if (!['Helped', 'Partly helped', 'Did not help'].includes(helpfulness)) {
+        return json({ error: 'helpfulness must be Helped, Partly helped or Did not help' }, 400)
+      }
+
+      // The strategy has to belong to this record. Without the check, a
+      // strategy id from another person's record would take an outcome written
+      // about somebody else entirely.
+      const { data: strategy } = await admin
+        .from('strategies')
+        .select('id, patient_id, title')
+        .eq('id', strategyId)
+        .maybeSingle()
+      if (!strategy) return json({ error: 'strategy_not_found' }, 404)
+      if (strategy.patient_id !== patientId) {
+        return json({ error: 'strategy_belongs_to_another_patient' }, 400)
+      }
+
+      const { error } = await admin.from('strategy_checkins').insert({
+        strategy_id: strategyId,
+        recorded_on: str(body.recorded_on) ?? new Date().toISOString().slice(0, 10),
+        note,
+        helpfulness,
+        reported_by: actor.id,
+      })
+      if (error) return json({ error: error.message }, 400)
+
+      return json({ recorded: true, note: `Recorded against ${strategy.title}.` })
+    }
+
+    /**
+     * Ending one, with the reason kept.
+     *
+     * "Stopped because it worked and is now just how she does it" and "stopped
+     * because it made mornings worse" are opposite findings, and a status alone
+     * records neither. The reason goes in as a final outcome so it sits at the
+     * end of the same line as everything else that was ever observed about it.
+     */
+    case 'end_strategy': {
+      const strategyId = str(body.strategy_id)
+      const reason = str(body.reason)
+      if (!strategyId || !reason) return json({ error: 'strategy_id and reason are required' }, 400)
+
+      const { data: strategy } = await admin
+        .from('strategies')
+        .select('id, patient_id, title')
+        .eq('id', strategyId)
+        .maybeSingle()
+      if (!strategy) return json({ error: 'strategy_not_found' }, 404)
+      if (strategy.patient_id !== patientId) {
+        return json({ error: 'strategy_belongs_to_another_patient' }, 400)
+      }
+
+      const helpfulness = str(body.helpfulness)
+      if (helpfulness && ['Helped', 'Partly helped', 'Did not help'].includes(helpfulness)) {
+        await admin.from('strategy_checkins').insert({
+          strategy_id: strategyId,
+          recorded_on: new Date().toISOString().slice(0, 10),
+          note: `Ended: ${reason}`,
+          helpfulness,
+          reported_by: actor.id,
+        })
+      }
+
+      const { error } = await admin
+        .from('strategies')
+        .update({ status: 'Completed', phase: 'Ended' })
+        .eq('id', strategyId)
+      if (error) return json({ error: error.message }, 400)
+
+      await recordAudit({
+        actorId: actor.id,
+        actorLabel: actor.name,
+        actorRole: actor.role,
+        patientId,
+        action: `Ended a strategy: ${strategy.title}`,
+        record: `Strategy ${strategyId}`,
+        accessType: 'Write',
+        why: reason,
+        result: 'Allowed',
+      })
+
+      return json({ ended: true })
+    }
+
+    /** Moving the review date, which is the most common edit and the only one. */
+    case 'set_review_date': {
+      const strategyId = str(body.strategy_id)
+      const reviewDate = str(body.review_date)
+      if (!strategyId || !reviewDate) {
+        return json({ error: 'strategy_id and review_date are required' }, 400)
+      }
+      const { error } = await admin
+        .from('strategies')
+        .update({ review_date: reviewDate })
+        .eq('id', strategyId)
+        .eq('patient_id', patientId)
+      if (error) return json({ error: error.message }, 400)
+      return json({ updated: true, note: 'Nothing chases this date. It shows here when it passes.' })
     }
 
     /* --------------------------------------------------------- consent

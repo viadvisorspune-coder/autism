@@ -178,6 +178,28 @@ export function navFor(role: Role | null): Destination[] {
   }
 
   /**
+   * Meera and Sana get Strategies, and it is the biggest thing missing from
+   * their day.
+   *
+   * An occupational therapist's job is propose, wait, find out, adapt. That
+   * loop existed only as rows in a table nobody could write to — they could
+   * read what had been tried and could try nothing. It sits before Notes
+   * because it is the work, and a note is the record of it.
+   */
+  if (role === 'ot' || role === 'therapist') {
+    return [
+      caseload,
+      ask,
+      record,
+      { label: 'Strategies', to: '/strategies' },
+      notes,
+      { label: 'Tasks', to: '/tasks' },
+      documents,
+      adjust,
+    ]
+  }
+
+  /**
    * The professionals get Notes, and it is the largest gap this closes.
    *
    * A clinician's primary daily action is recording a session. There was no way
