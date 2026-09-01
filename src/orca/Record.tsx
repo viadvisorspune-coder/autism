@@ -10,14 +10,16 @@
  * have been replaced. History is the product — an entry that was superseded
  * says so, dated, with the current version one tap away.
  */
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useSession } from '../state/session'
 import { useRecordStatus } from '../data/RecordProvider'
 import { eventsFor, personName } from '../data/db'
 import type { EventCategory, Role, TimelineEvent } from '../data/types'
 import { useSubject } from './subject'
-import { Back, Card, Loading, Nothing, PageTitle, longDate, shortDate } from './parts'
+import { Back, Card, Loading, Nothing, PageTitle, SectionHead, longDate, shortDate } from './parts'
+import { ActionButton, useAction } from './action'
+import { actOnRecord } from '../lib/live'
 import type { Tone } from './system'
 import { boundaryFor } from './system'
 import { NotShown } from './parts'
@@ -130,6 +132,28 @@ export default function Record() {
   return (
     <>
       <PageTitle>{mine ? 'Your record' : `${subjectName}’s record`}</PageTitle>
+
+      {/*
+        Her own account, in her own record.
+
+        Ananya could read every word written about her and add none of her own,
+        which makes the record something done to her rather than something she
+        is in. Her account of her own mornings is the most authoritative source
+        it has, and it was the one source with no way in.
+
+        A link rather than a form. The writing happens on Notes, which is the
+        same screen and the same act for everybody who writes into a record, and
+        two forms doing one job drift apart.
+      */}
+      {mine ? (
+        <p className="o-body o-measure mb-10">
+          <Link to="/notes" className="underline">
+            Add my own note
+          </Link>{' '}
+          — what you write is filed as written by you and appears here with
+          everything else.
+        </p>
+      ) : null}
 
       {categories.length > 1 ? (
         <div className="mb-12 flex flex-wrap gap-3">
@@ -351,9 +375,30 @@ export function Entry() {
   const back = state?.from ?? '/record'
   const backLabel = state?.label ?? 'Record'
 
-  const event = subjectId
-    ? visible(eventsFor(subjectId), role).find((e) => e.id === entryId)
-    : undefined
+  const all = useMemo(
+    () => (subjectId ? visible(eventsFor(subjectId), role) : []),
+    [subjectId, role, status],
+  )
+  const event = all.find((e) => e.id === entryId)
+
+  /**
+   * Entries that name this one and came after it.
+   *
+   * `relatedIds` is the only link the record has between a superseded entry and
+   * the one that replaced it, and it points forward from the newer entry. The
+   * date check is what keeps this from listing an earlier entry that merely
+   * referred to the same thing: related is not replaced.
+   */
+  const replacements = useMemo(
+    () =>
+      event
+        ? all
+            .filter((e) => e.relatedIds?.includes(event.id) && e.date >= event.date && e.id !== event.id)
+            .slice()
+            .sort((a, b) => a.date.localeCompare(b.date))
+        : [],
+    [all, event],
+  )
 
   if (!event) {
     return (
@@ -372,12 +417,67 @@ export function Entry() {
       <p className="o-meta mb-3">{longDate(event.date)}</p>
       <h1 className="o-h2 o-measure mb-8">{event.title}</h1>
 
-      <Card tone={toneOf(event, subjectId ?? '')}>
+      <Card tone={toneOf(event, subjectId ?? '')} raised>
         <div className="o-card-body">
           <p className="o-answer o-measure">{event.summary}</p>
           {event.context ? <p className="o-body o-measure mt-6">{event.context}</p> : null}
         </div>
       </Card>
+
+      {/*
+        What replaced it, when something did.
+
+        An entry marked "Requires adaptation" says it has been superseded and
+        then leaves the person to find the thing that superseded it, which on a
+        record of forty entries is a search. History is the product here — the
+        old entry stays because it happened — but an old entry with no route to
+        the current one is a half-told story, and the half missing is the half
+        that is true now.
+      */}
+      {replacements.length ? (
+        <section className="o-section">
+          <SectionHead>What replaced this</SectionHead>
+          <ul className="space-y-5">
+            {replacements.map((r) => (
+              <li key={r.id}>
+                <Link to={`/record/${r.id}`} state={{ from: `/record/${event.id}`, label: 'this entry' }} className="block no-underline">
+                  <Card tone={toneOf(r, subjectId ?? '')}>
+                    <div className="p-6">
+                      <p className="o-meta">{longDate(r.date)}</p>
+                      <p className="o-h3 mt-1">{r.title}</p>
+                      <p className="o-body o-measure mt-3">{r.summary}</p>
+                    </div>
+                  </Card>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : event.status === 'Requires adaptation' || event.status === 'Cancelled' ? (
+        <section className="o-section">
+          <SectionHead>What replaced this</SectionHead>
+          <p className="o-body o-measure">
+            {event.status === 'Cancelled'
+              ? 'This was withdrawn and nothing was written in its place.'
+              : 'This is marked as superseded, but nothing in the record says what replaced it. That is a gap in the record rather than something being kept from you.'}
+          </p>
+        </section>
+      ) : null}
+
+      {/*
+        Saying it is wrong, without touching what is written.
+
+        Nothing here edits or deletes the entry, and that is not a limitation —
+        a record you can quietly correct is a record nobody can rely on, and the
+        first thing that would go is somebody's ability to prove what was said
+        about them and when. What this does is add a second entry, in her words,
+        with her name on it, permanently attached to the first.
+
+        Ananya's alone. A professional who thinks a colleague's note is wrong
+        writes their own note saying so, which is what Notes is for; a
+        correction is the specific right of the person the record is about.
+      */}
+      {mine ? <Dispute event={event} /> : null}
 
       <section className="o-section">
         <hr className="o-rule mb-8" />
@@ -400,6 +500,129 @@ export function Entry() {
         </dl>
       </section>
     </>
+  )
+}
+
+/**
+ * "Say this is wrong" — a correction that adds rather than edits.
+ *
+ * The disclosure is on the button before it is pressed, not in a confirmation
+ * afterwards: nothing here changes the entry, and somebody expecting a delete
+ * needs to know that before they write two paragraphs on that assumption.
+ *
+ * The objection goes in as an ordinary entry with the disputed entry's
+ * reference in it, so it is findable from either end and cannot be separated
+ * from what it disputes. Filed as reported by her, which is the correct weight
+ * and also the honest one.
+ */
+function Dispute({ event }: { event: TimelineEvent }) {
+  const { option, patientId } = useSession()
+  const [open, setOpen] = useState(false)
+  const [why, setWhy] = useState('')
+  const [problem, setProblem] = useState<string | null>(null)
+  const [done, setDone] = useState(false)
+
+  const send = useAction(async () => {
+    setProblem(null)
+    const body = why.trim()
+    if (!body || !patientId || !option?.personId) return false
+    const result = await actOnRecord('add_entry', patientId, option.personId, {
+      kind: 'correction',
+      kind_label: 'Correction',
+      occurred_on: new Date().toISOString().slice(0, 10),
+      fields: {
+        about: `${event.id} — ${event.title}`,
+        what: body,
+      },
+    })
+    if (!result.ok) {
+      setProblem(result.error ?? 'That could not be added to the record.')
+      return false
+    }
+    setWhy('')
+    setDone(true)
+    return true
+  })
+
+  if (done) {
+    return (
+      <section className="o-section">
+        <SectionHead>You said this is wrong</SectionHead>
+        <div role="status" className="o-panel o-measure p-5">
+          <p className="o-body font-semibold">Added to the record ✓</p>
+          <p className="o-body mt-3">
+            What you wrote is now part of the record, attached to this entry, with your name on
+            it. The entry above is unchanged — it stays because it was written, and your account
+            of it stays beside it for the same reason.
+          </p>
+          <p className="o-body mt-3">
+            Nobody was notified. If you want somebody to act on it, ask about it or send it from
+            Documents.
+          </p>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="o-section">
+      <SectionHead>Is something here wrong?</SectionHead>
+      <p className="o-body o-measure">
+        You can say so, in your own words, and it becomes part of the record attached to this
+        entry. Nothing above is edited or removed: a record that can be quietly corrected is a
+        record nobody can rely on, and the first thing lost would be your ability to show what
+        was said about you and when.
+      </p>
+
+      {!open ? (
+        <button type="button" className="o-btn mt-6" aria-expanded={false} onClick={() => setOpen(true)}>
+          Say this is wrong
+        </button>
+      ) : null}
+
+      <div className="o-reveal" data-open={open ? 'yes' : 'no'}>
+        <div inert={!open}>
+          <label htmlFor="dispute" className="o-h3 mb-3 mt-6 block">
+            What is wrong, and what is actually the case
+          </label>
+          <textarea
+            id="dispute"
+            className="o-input"
+            rows={5}
+            value={why}
+            onChange={(e) => setWhy(e.target.value)}
+            aria-invalid={problem ? true : undefined}
+            aria-describedby={problem ? 'dispute-problem' : undefined}
+          />
+
+          {problem ? (
+            <div id="dispute-problem" role="alert" className="o-body o-measure mt-4 o-panel p-5">
+              <p className="font-semibold">This was not added to the record.</p>
+              <p className="mt-3">{problem}</p>
+              <p className="mt-3">
+                What you typed is still in the box. Nothing was written and nothing is being
+                retried on its own.
+              </p>
+            </div>
+          ) : null}
+
+          <div className="mt-6 flex flex-wrap gap-4">
+            <ActionButton
+              action={send}
+              idle="Add this to the record"
+              working="Saving…"
+              done="Saved ✓"
+              failed="Not saved"
+              primary
+              disabled={!why.trim()}
+            />
+            <button type="button" className="o-btn" onClick={() => setOpen(false)}>
+              Not now
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
   )
 }
 

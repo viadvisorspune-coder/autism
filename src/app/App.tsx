@@ -14,6 +14,8 @@ import OrcaDecisions from '../orca/Decisions'
 import OrcaDocuments from '../orca/Documents'
 import OrcaSharing from '../orca/Sharing'
 import OrcaCaseload from '../orca/Caseload'
+import OrcaAdjust from '../orca/Adjust'
+import OrcaNotes from '../orca/Notes'
 import { Access, Health, Runs } from '../orca/Admin'
 import { hasCaseload, homeFor } from '../orca/system'
 
@@ -223,6 +225,8 @@ export default function App() {
             </Only>
           }
         />
+        <Route path="/adjust" element={<OrcaAdjust />} />
+        <Route path="/notes" element={<Only when={notAdmin}><OrcaNotes /></Only>} />
         <Route path="/runs" element={<Only when={role === 'admin'}><Runs /></Only>} />
         <Route path="/access" element={<Only when={role === 'admin'}><Access /></Only>} />
         <Route path="/health" element={<Only when={role === 'admin'}><Health /></Only>} />

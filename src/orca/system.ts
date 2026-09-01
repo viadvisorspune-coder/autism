@@ -111,24 +111,62 @@ export interface Destination {
  * at more than one life.
  */
 export function navFor(role: Role | null): Destination[] {
+  /**
+   * Adjust is on every list, last.
+   *
+   * It was two controls in a dropdown behind somebody's own name, which is
+   * where a setting goes when nobody expects it to be used — and the settings
+   * here are text size and colour intensity, which for a good number of the
+   * people using this are the difference between a readable screen and an
+   * unusable one. Last in the row because it is not a place you work; present
+   * in the row because it is a place you go.
+   */
+  const adjust: Destination = { label: 'Adjust', to: '/adjust' }
+
   if (role === 'admin') {
     return [
       { label: 'Runs', to: '/runs' },
       { label: 'Access', to: '/access' },
+      { label: 'Incidents', to: '/incidents' },
       { label: 'Health', to: '/health' },
+      adjust,
     ]
   }
 
-  const core: Destination[] = [
-    { label: 'Ask', to: '/ask' },
-    { label: 'Record', to: '/record' },
-    { label: 'Decisions', to: '/decisions' },
-    { label: 'Documents', to: '/documents' },
-  ]
+  const ask: Destination = { label: 'Ask', to: '/ask' }
+  const record: Destination = { label: 'Record', to: '/record' }
+  const decisions: Destination = { label: 'Decisions', to: '/decisions' }
+  const documents: Destination = { label: 'Documents', to: '/documents' }
+  const notes: Destination = { label: 'Notes', to: '/notes' }
+  const caseload: Destination = { label: 'Caseload', to: '/caseload' }
 
-  if (role === 'patient') return [...core, { label: 'Sharing', to: '/sharing' }]
-  if (hasCaseload(role)) return [{ label: 'Caseload', to: '/caseload' }, ...core]
-  return core
+  if (role === 'patient') {
+    return [ask, record, decisions, documents, { label: 'Sharing', to: '/sharing' }, adjust]
+  }
+
+  /**
+   * Divya has no Decisions and no Documents, and both absences are the point.
+   *
+   * She approves nothing — a decisions screen for somebody with no decisions is
+   * a screen that teaches them to expect one — and she produces nothing. What
+   * she has that nobody gave her before is Notes: she sees more of an ordinary
+   * week than anyone with a clinic appointment does, and until now the only
+   * thing she could do with that was ask a question about it.
+   */
+  if (role === 'trusted') return [ask, record, notes, adjust]
+
+  /**
+   * The professionals get Notes, and it is the largest gap this closes.
+   *
+   * A clinician's primary daily action is recording a session. There was no way
+   * to do it: ORCA could read a record from six angles and not one person could
+   * add a line to it.
+   */
+  if (hasCaseload(role)) {
+    return [caseload, ask, record, notes, documents, decisions, adjust]
+  }
+
+  return [ask, record, decisions, documents, adjust]
 }
 
 /** Whether this person looks after more than one record. */

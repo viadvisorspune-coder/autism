@@ -19,7 +19,8 @@ import { useRecordStatus } from '../data/RecordProvider'
 import { connections, people } from '../data/db'
 import type { Connection, Role } from '../data/types'
 import { useAsks } from './asks'
-import { Card, Loading, Nothing, PageTitle, longDate } from './parts'
+import { Card, Disclosure, Loading, Nothing, PageTitle, longDate } from './parts'
+import { useLive } from '../lib/live'
 import { ActionButton, useAction } from './action'
 import { type Domain, domainName, outcomeFor } from './system'
 
@@ -255,6 +256,21 @@ export default function Sharing() {
                       <p className="o-meta">Since {longDate(c.consentGiven)}</p>
                       <p className="o-meta mt-1">For {c.purpose.toLowerCase()}</p>
 
+                      {/*
+                        What they have actually looked at.
+
+                        "Can see" is a permission; this is a history, and they
+                        are different facts. Somebody may hold access for two
+                        years and open the record twice, or hold it for a week
+                        and read everything — and only the second one is worth
+                        knowing about. It is also hers by right rather than by
+                        favour, which is why it is a standing part of the card
+                        and not something to request.
+                      */}
+                      <div className="mt-6">
+                        <Viewed full={person.name} name={firstName(person.name)} />
+                      </div>
+
                       <button
                         type="button"
                         className="o-btn mt-6"
@@ -272,6 +288,83 @@ export default function Sharing() {
       </ul>
     </>
   )
+}
+
+/**
+ * The access log for one person, on their card.
+ *
+ * Read from the audit table, which records every read of the record with who
+ * did it and why. Filtered here rather than server-side because the audit
+ * resource is already fetched whole for this record and a second scoped
+ * endpoint would be a second thing to keep correct.
+ *
+ * WHAT IT REFUSES TO DO IS GUESS. An empty list means the log holds nothing for
+ * this person, which is not the same as "they have looked at nothing" — a read
+ * that happened before the log existed, or through a route that does not write
+ * to it, is invisible here. Saying "nothing recorded" rather than "they have
+ * not looked" is the difference between a fact and a reassurance.
+ */
+function Viewed({ full, name }: { full: string; name: string }) {
+  const { patientId } = useSession()
+  const { data, loading } = useLive<{ entries: AuditRow[] }>('audit', patientId, 30000)
+  /**
+   * Matched on the full name, not the first.
+   *
+   * The audit table records who acted as a label rather than an id, so this is
+   * the only join available. On a first name it would be a coincidence waiting
+   * to happen — two Meeras on a care team and Ananya reads one person's log as
+   * the other's. On a shared record that is a disclosure, so it matches the
+   * whole name and accepts missing a row over inventing one.
+   */
+  const rows = (data?.entries ?? []).filter((e) => e.actor_label?.includes(full))
+
+  return (
+    <Disclosure
+      summary={`What ${name} has looked at`}
+      note={
+        <p className="o-meta">
+          {loading && !data
+            ? 'Reading the access log…'
+            : rows.length
+              ? `${rows.length} ${rows.length === 1 ? 'time' : 'times'} in the log.`
+              : 'Nothing recorded in the access log.'}
+        </p>
+      }
+    >
+      {rows.length ? (
+        <ul className="space-y-4">
+          {rows.slice(0, 20).map((e) => (
+            <li key={e.id} className="o-panel p-4">
+              <p className="o-body">{e.action}</p>
+              <p className="o-meta mt-1">
+                {longDate(e.occurred_at)}
+                {e.record ? ` · ${e.record}` : ''}
+              </p>
+              {e.why ? <p className="o-body o-measure mt-2">{e.why}</p> : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="o-body o-measure">
+          The access log holds nothing for {name}. That means no read by them has been recorded —
+          not that none happened. A read from before this log existed, or through a route that
+          does not write to it, would not appear here.
+        </p>
+      )}
+      <p className="o-meta o-measure mt-5">
+        This log is kept whether or not anybody looks at it, and you do not have to ask for it.
+      </p>
+    </Disclosure>
+  )
+}
+
+interface AuditRow {
+  id: string
+  occurred_at: string
+  actor_label?: string
+  action: string
+  record?: string
+  why?: string
 }
 
 /**

@@ -39,14 +39,41 @@ import {
 } from './parts'
 import { boundaryFor, pathMeaning, pathName } from './system'
 import { ActionButton, useAction } from './action'
+import NextSteps from './next'
+import { actOnRecord } from '../lib/live'
 
 export default function Answer() {
   const { askId = '' } = useParams()
-  const { role } = useSession()
+  const { role, option, patientId } = useSession()
   const { subjectName } = useSubject()
   const { find, ask, requestAccess } = useAsks()
   const navigate = useNavigate()
   const item = find(askId)
+  const mine = role === 'patient'
+
+  /**
+   * An answer, written into the record as the person's own entry.
+   *
+   * Ananya's alone, and deliberately. Letting a clinician commit a generated
+   * summary into somebody's medical record with one press is the exact failure
+   * this product exists to make impossible — a professional drafts a document
+   * instead, and it goes to her for a decision. She can write into her own
+   * record because it is hers.
+   *
+   * It is filed as reported by her, not as professionally documented, which is
+   * what `add_entry` does with an entry from the patient. An answer she chose
+   * to keep is worth exactly what she says it is worth.
+   */
+  async function save(title: string, body: string): Promise<boolean> {
+    if (!patientId || !option?.personId || !body.trim()) return false
+    const result = await actOnRecord('add_entry', patientId, option.personId, {
+      kind: 'note',
+      kind_label: 'Answer I kept',
+      occurred_on: new Date().toISOString().slice(0, 10),
+      fields: { title, what: body },
+    })
+    return result.ok
+  }
 
   if (!item) {
     return (
@@ -407,6 +434,20 @@ export default function Answer() {
         Making it exceptional would mean most people never discover it exists;
         standing, it stops reading as a rebuke on the occasions when it matters.
       */}
+      {/*
+        The next step, on the screen instead of in the person's head.
+
+        An answer used to end the page: you read it, went back to Ask, and
+        retyped. Everybody who gets here is in the middle of a job — deciding
+        whether to send something, whether it belongs in a handover, whether
+        they have enough to act on — and the row is what that job actually is
+        for their role. See next.tsx for why saving to the record is Ananya's
+        alone.
+      */}
+      {item.shape === 'answer' && item.answer ? (
+        <NextSteps item={item} role={role} ask={ask} onSave={mine ? save : undefined} />
+      ) : null}
+
       {item.shape === 'answer' ? (
         <section className="o-section">
           <hr className="o-rule mb-8" />

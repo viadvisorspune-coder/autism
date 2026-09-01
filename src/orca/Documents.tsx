@@ -25,6 +25,7 @@ import { useSubject } from './subject'
 import {
   Card,
   CouldNotLoad,
+  Disclosure,
   Loading,
   Nothing,
   PageTitle,
@@ -280,6 +281,44 @@ export default function Documents() {
                       send it is part of the record.
                     </p>
                   ) : null}
+
+                  {/*
+                    Everyone who has it, not just the last one.
+
+                    The card said "Sent to Anil on 3 March" and stopped there,
+                    which on a document sent to four people over two years names
+                    one of them and silently drops three. Who holds a document
+                    about you is not a footnote — it is the question the whole
+                    Sharing screen exists to answer, and it should be answerable
+                    from the document as well as from the person.
+                  */}
+                  {d.sharingHistory.length ? (
+                    <div className="mt-5">
+                      <Disclosure
+                        summary="Who has received this"
+                        note={
+                          <p className="o-meta">
+                            {d.sharingHistory.length}{' '}
+                            {d.sharingHistory.length === 1 ? 'recipient' : 'recipients'}.
+                          </p>
+                        }
+                      >
+                        <ul className="space-y-4">
+                          {d.sharingHistory.map((s, i) => (
+                            <li key={i} className="o-panel p-4">
+                              <p className="o-body font-semibold">{s.recipient}</p>
+                              <p className="o-meta mt-1">Sent {longDate(s.date)}</p>
+                              <p className="o-body o-measure mt-2">{s.purpose}</p>
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="o-meta o-measure mt-5">
+                          Sending cannot be undone — a copy somebody already holds is theirs.
+                          Stopping future access to the record is on Sharing.
+                        </p>
+                      </Disclosure>
+                    </div>
+                  ) : null}
                 </div>
               </Card>
             </li>
@@ -300,14 +339,32 @@ export default function Documents() {
                       {f.file_type} · prepared {f.recorded_on}
                     </p>
                     {f.url ? (
-                      <a
-                        href={f.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="o-btn o-btn-small mt-4 no-underline"
-                      >
-                        Open it
-                      </a>
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <a
+                          href={f.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="o-btn o-btn-small no-underline"
+                        >
+                          Open it
+                        </a>
+                        {/*
+                          Opening and keeping are different things.
+
+                          A signed URL opened in a tab is a document you are
+                          looking at on somebody else's server for the next half
+                          hour. `?download=` sets the disposition header at
+                          source, so this is the copy somebody takes to an
+                          appointment — which for a document about your own
+                          health is the one that matters.
+                        */}
+                        <a
+                          href={`${f.url}${f.url.includes('?') ? '&' : '?'}download=${encodeURIComponent(f.title)}`}
+                          className="o-btn o-btn-small no-underline"
+                        >
+                          Download a copy
+                        </a>
+                      </div>
                     ) : (
                       <p className="o-meta mt-3">Still being prepared.</p>
                     )}

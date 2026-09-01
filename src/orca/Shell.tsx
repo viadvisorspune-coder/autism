@@ -15,7 +15,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useSession } from '../state/session'
-import { useUI } from '../state/ui'
 import { useRecordStatus } from '../data/RecordProvider'
 import { AsksProvider, useAsks } from './asks'
 import { SubjectProvider, useSubject } from './subject'
@@ -300,45 +299,20 @@ function NotLive() {
 }
 
 /**
- * A setting, expressed as the choice it is.
+ * The account panel: who you are, and the way out.
  *
- * Declared here rather than inside Account: a component defined during render
- * is a new component type on every render, so React remounts it and anything
- * it holds. These hold nothing today, which is exactly the kind of true-for-now
- * that stops being true quietly.
- */
-function Choice({
-  on,
-  onSelect,
-  children,
-}: {
-  on: boolean
-  onSelect: () => void
-  children: string
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={on}
-      onClick={onSelect}
-      className={`o-btn o-btn-small ${on ? 'o-btn-primary' : ''}`}
-    >
-      {children}
-    </button>
-  )
-}
-
-/**
- * The account panel: who you are, and the two settings that change how hard
- * this screen pushes.
+ * The two settings that lived here have moved to Adjust, which is a
+ * destination in the navigation rather than something behind your own name in
+ * a dropdown. Text size and colour intensity are, for a fair number of the
+ * people using this, the difference between a readable screen and an unusable
+ * one; hiding them one press deeper than everything else was a statement about
+ * how often we expected them to be needed, and it was the wrong one.
  *
- * Colour intensity and movement are separate discomforts, kept on separate
- * axes on purpose. Somebody who finds motion unbearable should not have to
- * accept a washed-out palette to stop it.
+ * What is left is what a panel behind somebody's name should hold: who they
+ * are signed in as, where the settings went, and how to leave.
  */
 function Account({ onSignOut }: { onSignOut: () => void }) {
   const { option, organisation } = useSession()
-  const { textSize, setTextSize, reducedMotion, setReducedMotion } = useUI()
 
   return (
     <div className="border-t border-black bg-[var(--paper)]">
@@ -349,31 +323,12 @@ function Account({ onSignOut }: { onSignOut: () => void }) {
           {organisation ? ` · ${organisation}` : ''}
         </p>
 
-        <h3 className="o-h3 mb-3 mt-8">Text size</h3>
-        <div className="flex flex-wrap gap-3">
-          <Choice on={textSize === 'default'} onSelect={() => setTextSize('default')}>
-            Standard
-          </Choice>
-          <Choice on={textSize === 'large'} onSelect={() => setTextSize('large')}>
-            Large
-          </Choice>
-          <Choice on={textSize === 'xlarge'} onSelect={() => setTextSize('xlarge')}>
-            Larger
-          </Choice>
-        </div>
-
-        <h3 className="o-h3 mb-3 mt-8">Movement</h3>
-        <div className="flex flex-wrap gap-3">
-          <Choice on={!reducedMotion} onSelect={() => setReducedMotion(false)}>
-            Standard
-          </Choice>
-          <Choice on={reducedMotion} onSelect={() => setReducedMotion(true)}>
-            Reduced
-          </Choice>
-        </div>
-        <p className="o-meta o-measure mt-4">
-          Both are remembered on this device. Neither changes your record or what anyone else
-          can see.
+        <p className="o-body o-measure mt-6">
+          Text size, colour, movement and what this device keeps are on{' '}
+          <Link to="/adjust" className="underline">
+            Adjust
+          </Link>
+          .
         </p>
 
         <hr className="o-rule my-8" />
