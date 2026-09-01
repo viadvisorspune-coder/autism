@@ -115,7 +115,7 @@ paths:
                     the retrieval returned anything.
                   items:
                     type: object
-                    additionalProperties: false
+                    additionalProperties: true
                     properties:
                       id:
                         type: string
@@ -123,21 +123,24 @@ paths:
                           The entry's id, copied exactly from the retrieval
                           step. For example ev-8. This is what makes the
                           citation openable, so it is the field worth getting
-                          right.
+                          right. Also accepted as item_id.
                       reporter:
                         type: string
                         description: >-
                           Who recorded it, as a name. For example Sana
                           Kulkarni, or You when the person recorded it
-                          themselves.
+                          themselves. Also accepted as source or
+                          reporter_role.
                       date:
                         type: string
-                        description: The entry's date, as YYYY-MM-DD.
+                        description: >-
+                          The entry's date, as YYYY-MM-DD. Also accepted as
+                          recorded_on or occurred_at.
                       label:
                         type: string
                         description: >-
                           A short description, used only when there is no id to
-                          link to.
+                          link to. Also accepted as title or claim.
                 withheld:
                   type: array
                   maxItems: 25

@@ -63,12 +63,23 @@ function readCited(input: unknown): { id?: string; reporter?: string; date?: str
     .map((entry) => {
       if (typeof entry === 'string') return entry.trim() ? { label: entry.trim() } : null
       if (!entry || typeof entry !== 'object') return null
+      /**
+       * Every name a workflow has plausibly given each of these.
+       *
+       * ORCA Understand's Responder emits `item_id`, `reporter_role`,
+       * `occurred_at` and `claim`; the chatbot emits `id`, `reporter`, `date`.
+       * Both are reasonable and neither is going to change to suit the other,
+       * so the endpoint accepts both rather than asking a model to re-key its
+       * own output on the way out — a step it would occasionally get wrong,
+       * silently, and the failure would look like an answer that cites
+       * nothing.
+       */
       const r = entry as Record<string, unknown>
       const row = {
-        id: str(r.id) ?? undefined,
-        reporter: str(r.reporter) ?? str(r.source) ?? undefined,
-        date: str(r.date) ?? str(r.recorded_on) ?? undefined,
-        label: str(r.label) ?? str(r.title) ?? undefined,
+        id: str(r.id) ?? str(r.item_id) ?? undefined,
+        reporter: str(r.reporter) ?? str(r.source) ?? str(r.reporter_role) ?? undefined,
+        date: str(r.date) ?? str(r.recorded_on) ?? str(r.occurred_at) ?? undefined,
+        label: str(r.label) ?? str(r.title) ?? str(r.claim) ?? undefined,
       }
       return row.id || row.reporter || row.date || row.label ? row : null
     })
