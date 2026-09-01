@@ -230,10 +230,35 @@ async function read(
        * document about somebody's autism assessment must not become a link
        * that works for anyone who ever sees it.
        */
+      /**
+       * Every run this person has in this record, not only the ones that spoke.
+       *
+       * Attachments used to be looked up from the run ids on MESSAGES, which
+       * quietly required a run to have said something before anything it
+       * produced could be seen. A PRODUCE run does not necessarily speak: it
+       * writes a document and parks for approval, and the approval carries a
+       * description rather than a message. So the file existed, sat correctly
+       * on the record, and appeared nowhere the person was looking.
+       *
+       * That is the worst shape this can fail in — not a missing document, but
+       * a document that is present, private, and invisible to the one person
+       * entitled to it.
+       */
+      const { data: ownRuns } = await admin
+        .from('workflow_runs')
+        .select('id')
+        .eq('patient_id', patientId)
+        .eq('actor_id', actorId)
+        .order('started_at', { ascending: false })
+        .limit(100)
+
       const runIds = [
-        ...new Set(
-          (messages ?? []).map((m) => m.workflow_run_id).filter((id): id is string => Boolean(id)),
-        ),
+        ...new Set([
+          ...(messages ?? [])
+            .map((m) => m.workflow_run_id)
+            .filter((id): id is string => Boolean(id)),
+          ...(ownRuns ?? []).map((r) => String(r.id)),
+        ]),
       ]
 
       const attachments: Record<string, unknown>[] = []
