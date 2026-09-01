@@ -56,8 +56,19 @@ export async function inferFromRecentRun(): Promise<Inferred | null> {
   // the same three lines the agents are told to read. Parsing them back is
   // exact rather than inferred, and it keeps one source of truth: change the
   // block in workflow-trigger and this follows.
+  /**
+   * Case-insensitive, because the block is written in lower case.
+   *
+   * This matched `^ACTOR_ID:` in capitals while `identifierBlock` has always
+   * written `actor_id:`. So the recovery ran, found the run, and then returned
+   * an empty actor every single time — a fallback that looked present and was
+   * inert, which is worse than not having one.
+   */
   const text = String(run.trigger_text ?? '')
-  const actorId = text.match(/^ACTOR_ID:\s*(\S+)/m)?.[1] ?? ''
+  const actorId = text.match(/^\s*actor_id:\s*(\S+)/im)?.[1] ?? ''
+  // The run's own column is authoritative for the patient; the trigger line is
+  // only consulted when the column is somehow empty.
+  const fromText = text.match(/^\s*patient_id:\s*(\S+)/im)?.[1] ?? ''
 
-  return { patientId, actorId, runId: String(run.id ?? '') }
+  return { patientId: patientId || fromText, actorId, runId: String(run.id ?? '') }
 }

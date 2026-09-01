@@ -35,6 +35,29 @@ import { inferFromRecentRun } from '../_shared/whoami.ts'
 import { deliver, findRun } from '../_shared/deliver.ts'
 import { admin, guard, json, recordAudit, str } from '../_shared/yoxa.ts'
 
+/**
+ * Words a workflow reaches for when it has lost the real value.
+ *
+ * Not an exhaustive list and it does not need to be — anything not caught
+ * here is checked against the database instead. These are the ones seen in
+ * the wild, plus the role names, because a step that has lost `actor_id`
+ * frequently substitutes the role it does still know.
+ */
+const PLACEHOLDERS = new Set([
+  'unknown', 'null', 'none', 'nil', 'n/a', 'na', 'undefined', 'string', 'todo',
+  'current-run', 'current_run', 'currentrun', 'run', 'me', 'self', 'user',
+  'actor', 'subject', 'recipient', 'example', 'test',
+  'patient', 'psychologist', 'psychiatrist', 'therapist', 'ot', 'gp',
+  'clinic', 'employer', 'university', 'trusted', 'admin',
+])
+
+/** The value if it could name something, otherwise null. */
+function meaningful(value: string | null): string | null {
+  const clean = (value ?? '').trim()
+  if (!clean) return null
+  return PLACEHOLDERS.has(clean.toLowerCase()) ? null : clean
+}
+
 /** Long enough for a real answer, short enough not to be a document. */
 const MAX_LENGTH = 4000
 
@@ -114,9 +137,47 @@ Deno.serve(
     // person is waiting for, fall back to the run that is almost certainly
     // theirs — see _shared/whoami.ts for why that is bounded and when it
     // refuses.
-    let resolvedPatient = patientId
-    let resolvedActor = actorId
-    let resolvedRun = workflowRunId
+    /**
+     * An identifier that names nothing is the same as no identifier.
+     *
+     * A workflow that lost the ids on the way down its own steps does not send
+     * an empty string — it sends what it has, which is a placeholder. One run
+     * arrived as `{"actor_id":"patient","patient_id":"unknown",
+     * "workflow_run_id":"unknown"}`: three fields present, none of them a
+     * reference to anything. The recovery below only fired on absence, so it
+     * stood aside and the request 404'd on a patient called "unknown".
+     *
+     * Two tests, in order. A word from the placeholder list is discarded on
+     * sight. Anything else is checked against the record it claims to name —
+     * because "patient" is a role and pt-ananya is a record, and the only
+     * reliable way to tell an id from a noun is to look it up.
+     *
+     * Discarding rather than refusing is deliberate. The person is waiting for
+     * an answer the workflow has already written; recovering the addressee
+     * from a run started moments earlier is better for them than a 404, and
+     * `inferFromRecentRun` refuses on its own terms when it cannot be sure.
+     */
+    let resolvedPatient = meaningful(patientId)
+    let resolvedActor = meaningful(actorId)
+    let resolvedRun = meaningful(workflowRunId)
+
+    if (resolvedPatient) {
+      const { data } = await admin
+        .from('patients')
+        .select('id')
+        .eq('id', resolvedPatient)
+        .maybeSingle()
+      if (!data) resolvedPatient = null
+    }
+    if (resolvedActor) {
+      const { data } = await admin
+        .from('app_users')
+        .select('id')
+        .eq('id', resolvedActor)
+        .maybeSingle()
+      if (!data) resolvedActor = null
+    }
+
     if (!resolvedPatient || !resolvedActor || !resolvedRun) {
       const guess = await inferFromRecentRun()
       if (guess) {
