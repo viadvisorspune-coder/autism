@@ -34,7 +34,8 @@ import {
   longDate,
 } from './parts'
 import { type DocumentDraft, ago, clearDraft, hasContent, readDraft, writeDraft } from './draft'
-import type { Tone } from './system'
+import { type Tone, toneClass } from './system'
+import { IconDocuments } from './icons'
 import { ActionButton, useAction } from './action'
 
 type State = 'Draft' | 'Waiting for a decision' | 'Sent' | 'Not sent'
@@ -68,11 +69,32 @@ const stateTone: Record<State, Tone> = {
   'Not sent': 'past',
 }
 
+/**
+ * The pill's ground, from the state and nothing else.
+ *
+ * Three grounds for four states, because two of them mean the same thing to
+ * the person reading the list: a draft and a document waiting on them are both
+ * "not finished with", and only one of those is waiting on somebody else. Sent
+ * is the only settled one, and Not sent takes the neutral ground because a
+ * decision not to send is not a failure to send.
+ */
+const PILL: Record<State, string> = {
+  Draft: '',
+  'Waiting for a decision': 'o-pill-waiting',
+  Sent: 'o-pill-done',
+  'Not sent': '',
+}
+
+/** The chip row, in the order somebody works through them. */
+const VIEWS = ['All', 'Draft', 'Waiting for a decision', 'Sent', 'Not sent'] as const
+type View = (typeof VIEWS)[number]
+
 export default function Documents() {
   const { role, option } = useSession()
   const { status } = useRecordStatus()
   const { subjectId, subjectName, choosable } = useSubject()
   const [composing, setComposing] = useState(false)
+  const [view, setView] = useState<View>('All')
   const personId = option?.personId ?? ''
   // Re-read whenever the form closes, so finishing or discarding one is
   // reflected here without a reload.
@@ -104,6 +126,8 @@ export default function Documents() {
   }, [subjectId, role, status])
 
   const produced: Attachment[] = data?.attachments ?? []
+
+  const inView = view === 'All' ? held : held.filter((d) => stateOf(d) === view)
 
   if (choosable && !subjectId) {
     return (
@@ -277,25 +301,58 @@ export default function Documents() {
         </Nothing>
       ) : null}
 
-      <ul className="space-y-8">
-        {held.map((d) => {
+      {/*
+        The four states, as a filter.
+
+        They are the states the product already has — the chip row does not
+        invent a taxonomy, it exposes the one `stateOf` computes. "Not sent" is
+        a chip for the same reason it is a state: a document deliberately not
+        sent is a decision on the record, and a filter that quietly folded it
+        into "Drafts" would lose the difference between not finished and not
+        sending.
+      */}
+      {held.length > 1 ? (
+        <div className="o-chips mb-8">
+          {VIEWS.map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={view === v}
+              onClick={() => setView(v)}
+              className="o-chip"
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <ul className="o-rows">
+        {inView.map((d) => {
           const state = stateOf(d)
           const last = d.sharingHistory[d.sharingHistory.length - 1]
           return (
-            <li key={d.id}>
-              <Card tone={stateTone[state]}>
-                <div className="p-6">
-                  <p className="o-h3">{d.title}</p>
-                  <p className="o-meta mt-2">
+            <li key={d.id} className={toneClass[stateTone[state]]}>
+              <div className="o-row">
+                <span className="o-row-mark">
+                  <IconDocuments size={17} />
+                </span>
+                <span className="o-row-main">
+                  <span className="o-row-title block">{d.title}</span>
+                  <span className="o-row-meta block">
                     {[d.fileType, d.category, longDate(d.date)].filter(Boolean).join(' · ')}
-                  </p>
-                  <p className="o-body mt-4 font-semibold">{state}</p>
+                  </span>
+                </span>
+                <span className={`o-pill ${PILL[state]}`}>{state}</span>
+              </div>
+
+              <div className="pl-1">
                   {last ? (
-                    <p className="o-meta mt-1">
+                    <p className="o-meta mt-2">
                       Sent to {last.recipient} on {longDate(last.date)} — {last.purpose}
                     </p>
                   ) : state === 'Not sent' ? (
-                    <p className="o-meta mt-1">
+                    <p className="o-meta mt-2">
                       This was written and not sent. It stays here because the decision not to
                       send it is part of the record.
                     </p>
@@ -312,9 +369,10 @@ export default function Documents() {
                     from the document as well as from the person.
                   */}
                   {d.sharingHistory.length ? (
-                    <div className="mt-5">
+                    <div className="mt-3">
                       <Disclosure
                         summary="Who has received this"
+                        quiet
                         note={
                           <p className="o-meta">
                             {d.sharingHistory.length}{' '}
@@ -338,12 +396,25 @@ export default function Documents() {
                       </Disclosure>
                     </div>
                   ) : null}
-                </div>
-              </Card>
+              </div>
             </li>
           )
         })}
       </ul>
+
+      {/*
+        A filter that hides everything says so, in the filter's own words.
+
+        An empty list under a pressed chip is otherwise indistinguishable from
+        an empty shelf, and somebody would conclude their drafts had gone.
+      */}
+      {held.length && !inView.length ? (
+        <p className="o-body o-measure o-panel p-5">
+          <span className="font-semibold">Nothing is {view.toLowerCase()}.</span> The other{' '}
+          {held.length} {held.length === 1 ? 'document is' : 'documents are'} still here — press
+          All to see them.
+        </p>
+      ) : null}
 
       {produced.length ? (
         <section className="o-section">

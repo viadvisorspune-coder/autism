@@ -482,11 +482,24 @@ export function Disclosure({
   summary,
   note,
   defaultOpen = false,
+  /**
+   * A smaller summary, for a disclosure hanging off a list row.
+   *
+   * The default size is right when the disclosure IS the section — "What was
+   * left out", "Who can see this" — and wrong when it is a detail under one row
+   * of a list, where a 20px heading outweighs the row it belongs to and the
+   * list stops reading as a list.
+   *
+   * The control is identical in every other respect: same element, same
+   * `aria-expanded`, same reveal. Only the type size changes.
+   */
+  quiet = false,
   children,
 }: {
   summary: string
   note?: ReactNode
   defaultOpen?: boolean
+  quiet?: boolean
   children: ReactNode
 }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -496,7 +509,7 @@ export function Disclosure({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="o-h3 flex w-full items-center justify-between gap-4 text-left"
+        className={`${quiet ? 'o-label' : 'o-h3'} flex w-full items-center justify-between gap-4 text-left`}
       >
         <span>{summary}</span>
         {/*

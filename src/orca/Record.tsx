@@ -22,6 +22,8 @@ import { ActionButton, useAction } from './action'
 import { actOnRecord } from '../lib/live'
 import Compare from './Compare'
 import { useAsks } from './asks'
+import { toneClass } from './system'
+import { IconChevron, IconRecord } from './icons'
 import type { Tone } from './system'
 import { boundaryFor } from './system'
 import { NotShown } from './parts'
@@ -169,14 +171,23 @@ export default function Record() {
       ) : null}
 
       {categories.length > 1 ? (
-        <div className="mb-12 flex flex-wrap gap-3">
+        /*
+          Chips, not buttons.
+
+          A filter is a choice among peers rather than an action, and the
+          distinction is visible: `.o-chip` cannot be mistaken for the primary
+          control, which is Part 6's second check — a nine-item filter row
+          borrowing the primary style puts nine filled rectangles on a screen
+          that has one real action on it.
+        */
+        <div className="o-chips mb-12">
           {(['Everything', ...categories] as (EventCategory | 'Everything')[]).map((c) => (
             <button
               key={c}
               type="button"
               aria-pressed={filter === c}
               onClick={() => setFilter(c)}
-              className={`o-btn o-btn-small ${filter === c ? 'o-btn-on' : ''}`}
+              className="o-chip"
             >
               {c}
             </button>
@@ -281,34 +292,61 @@ export default function Record() {
           <section key={group.label}>
             <hr className="o-rule mb-5" />
             <h2 className="o-h2 mb-6">{group.label}</h2>
-            <ul className="space-y-6">
+            <ul className="space-y-3">
               {group.items.map((e) => (
-                <li key={e.id}>
-                  <Link to={`/record/${e.id}`} className="block no-underline">
-                    <Card tone={toneOf(e, subjectId ?? '')}>
-                      <div className="p-6">
-                        <p className="o-meta">{shortDate(e.date)}</p>
-                        <p className="o-h3 mt-1">{e.title}</p>
-                        <p className="o-meta mt-2">
-                          {e.sourceId === (subjectId ?? '').replace(/^pt-/, 'u-')
-                            ? mine
-                              ? 'You wrote this'
-                              : `${subjectName} wrote this`
-                            : `${personName(e.sourceId)} wrote this`}
-                        </p>
-                        {e.status === 'Cancelled' || e.status === 'Requires adaptation' ? (
-                          <>
-                            <hr className="o-rule my-4" />
-                            <p className="o-meta">
-                              {e.status === 'Cancelled'
-                                ? 'This was withdrawn. It is kept because it happened.'
-                                : 'This has been replaced by a later entry.'}
-                            </p>
-                          </>
-                        ) : null}
-                      </div>
-                    </Card>
+                /*
+                  The rail is the month, drawn.
+
+                  A dot per entry on a single line, in the entry's own
+                  governance tone, so the colour down the left is the same
+                  vocabulary the rest of the product uses rather than a second
+                  one invented for a list. The tone is set as a custom property
+                  on the item and read by the dot, which keeps the colour rule
+                  in one place.
+                */
+                <li key={e.id} className={`o-time ${toneClass[toneOf(e, subjectId ?? '')]}`}>
+                  <span aria-hidden className="o-time-dot" />
+                  <Link to={`/record/${e.id}`} className="o-row no-underline">
+                    <span className="o-row-mark">
+                      <IconRecord size={17} />
+                    </span>
+                    <span className="o-row-main">
+                      <span className="o-row-title block">{e.title}</span>
+                      <span className="o-row-meta block">
+                        {e.sourceId === (subjectId ?? '').replace(/^pt-/, 'u-')
+                          ? mine
+                            ? 'You'
+                            : subjectName
+                          : personName(e.sourceId)}
+                        {' · '}
+                        {shortDate(e.date)}
+                      </span>
+                    </span>
+                    {e.status === 'Cancelled' || e.status === 'Requires adaptation' ? (
+                      <span className="o-pill">
+                        {e.status === 'Cancelled' ? 'Withdrawn' : 'Replaced'}
+                      </span>
+                    ) : (
+                      <span className="o-pill">{e.category}</span>
+                    )}
+                    <IconChevron size={16} />
                   </Link>
+
+                  {/*
+                    Why an entry is not what it looks like, still said in words.
+
+                    The pill above says "Withdrawn" or "Replaced", which is a
+                    label and not an explanation, and a record that quietly
+                    labels an entry withdrawn without saying it is kept is a
+                    record somebody will assume has deleted something.
+                  */}
+                  {e.status === 'Cancelled' || e.status === 'Requires adaptation' ? (
+                    <p className="o-meta mt-2">
+                      {e.status === 'Cancelled'
+                        ? 'This was withdrawn. It is kept because it happened.'
+                        : 'This has been replaced by a later entry.'}
+                    </p>
+                  ) : null}
 
                   {/*
                     Reading what an entry says, without leaving the list.

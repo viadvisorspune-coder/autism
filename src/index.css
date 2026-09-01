@@ -1121,6 +1121,24 @@ html[data-experience='patient'] .frost-tint {
    * nobody has trouble reading. Even reduced, this is well above the 30-32px
    * a conventional dashboard would set, and Adjust still scales all of it.
    */
+  /*
+   * The one filled control on her screens is the accent, not the ink.
+   *
+   * Same rule as everywhere else — one filled control per screen — with a
+   * different fill. On the palettes that have no accent the filled control
+   * stays black, because black is what "this is the action" looks like when
+   * there is no colour to say it with. Ananya has a colour, and spending it on
+   * the single thing the screen wants her to press is what an accent is for.
+   */
+  html[data-ia='orca'][data-look='full'] .o-btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+  }
+  html[data-ia='orca'][data-look='full'] .o-btn-primary:hover:not(:disabled) {
+    background: #6b4ae0;
+  }
+
   html[data-ia='orca'][data-look='full'] .o-title {
     font-size: 36px;
   }

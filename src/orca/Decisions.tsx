@@ -28,7 +28,8 @@ import {
   Updated,
   longDate,
 } from './parts'
-import { domainName } from './system'
+import { domainName, toneClass } from './system'
+import { IconChevron, IconDecisions } from './icons'
 import { ActionButton, useAction } from './action'
 
 export default function Decisions() {
@@ -163,7 +164,7 @@ export default function Decisions() {
         </Nothing>
       ) : null}
 
-      <div className="space-y-10">
+      <div className="space-y-4">
         {mine.map((r) => {
           const open = active === r.id
           return (
@@ -411,6 +412,47 @@ function Approval({
       inFlight.current = false
       setSending(false)
     }
+  }
+
+  /**
+   * Closed, this is a row in a list. Open, it is the whole decision.
+   *
+   * A waiting decision needs two things from the closed state: which one it is,
+   * and enough to choose between several. That is a title, who it is for and
+   * when it was raised — a row. The full-height card was spending most of its
+   * area on white space around three lines, and three of them filled a screen
+   * with a list nobody could scan.
+   *
+   * NOTHING ABOUT THE DECISION ITSELF IS COMPRESSED. Opening still shows the
+   * entire document that would be sent, in full, above any control that would
+   * send it, and still names what is not in it. The row is the index; the card
+   * is the decision.
+   *
+   * It swaps rather than growing. The reveal animation elsewhere is for a
+   * paragraph or two appearing under a control; this is several hundred words
+   * arriving, which is a new context rather than a disclosure, and animating
+   * its height would be a long movement on a screen somebody is about to have
+   * to read carefully.
+   */
+  if (!open) {
+    return (
+      <div className={toneClass.decision}>
+        <button type="button" className="o-row" aria-expanded={false} onClick={onOpen}>
+          <span className="o-row-mark">
+            <IconDecisions size={17} />
+          </span>
+          <span className="o-row-main">
+            <span className="o-row-title block">{approval.title}</span>
+            <span className="o-row-meta block">
+              {approval.recipient ? `To ${approval.recipient} · ` : ''}
+              Raised {longDate(approval.created_at)}
+            </span>
+          </span>
+          <span className="o-pill o-pill-waiting">Waiting for you</span>
+          <IconChevron size={16} />
+        </button>
+      </div>
+    )
   }
 
   return (
