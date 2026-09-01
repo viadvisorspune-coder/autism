@@ -24,6 +24,25 @@ paths:
         Attach the workflow's generated output files to this connector under
         Attach output files. The endpoint also accepts a plain JSON request
         with no files, which is what the connection check sends.
+
+
+        ACCEPTED FILE TYPES. application/pdf, text/html, text/plain,
+        image/png, image/jpeg. Anything else is refused with 415 and the
+        document is not recorded, so a run that produced a file in another
+        format has produced nothing.
+
+
+        THIS DOES NOT CLOSE THE RUN. It records a document and returns. The
+        run is completed by whatever comes after — the approval gate, or the
+        reply that tells the person the draft exists. A workflow whose only
+        output is this call leaves its run open with a file nobody was told
+        about.
+
+
+        WHO CAN OPEN IT. Access defaults to the patient alone. A handover
+        drafted for an occupational therapist is invisible to that therapist
+        unless their role is named in access. Name only the roles that need
+        it; this is a disclosure, not a filing decision.
       requestBody:
         required: true
         content:
@@ -51,7 +70,11 @@ paths:
                   description: One-line description, shown to the patient before they accept it.
                 access:
                   type: array
-                  description: Roles permitted to open it. Defaults to the patient alone.
+                  description: >-
+                    Roles permitted to open it, as role names — for example ot,
+                    psychologist, employer. Defaults to the patient alone, so a
+                    document drafted for somebody else is invisible to them
+                    until their role is listed here.
                   items:
                     type: string
                 section:
@@ -64,6 +87,14 @@ paths:
                     are numbered instead, which is worse to read.
                 workflow_run_id:
                   type: string
+                  description: >-
+                    The run this document came from, copied verbatim from the
+                    trigger's workflow_run_id line. Two things depend on it:
+                    the document is attached to the conversation that asked for
+                    it, so the person sees it beside their request rather than
+                    only in the library; and calls sharing this id build ONE
+                    document rather than several. Omit it and you get a loose
+                    file nobody asked for.
       responses:
         '200':
           description: Artefact recorded.
