@@ -115,7 +115,7 @@ paths:
                     the retrieval returned anything.
                   items:
                     type: object
-                    additionalProperties: true
+                    additionalProperties: false
                     properties:
                       id:
                         type: string
@@ -123,24 +123,51 @@ paths:
                           The entry's id, copied exactly from the retrieval
                           step. For example ev-8. This is what makes the
                           citation openable, so it is the field worth getting
-                          right. Also accepted as item_id.
+                          right.
+                      item_id:
+                        type: string
+                        description: Alternative name for id. Send one or the other.
                       reporter:
                         type: string
                         description: >-
                           Who recorded it, as a name. For example Sana
                           Kulkarni, or You when the person recorded it
-                          themselves. Also accepted as source or
-                          reporter_role.
-                      date:
+                          themselves.
+                      reporter_role:
                         type: string
                         description: >-
-                          The entry's date, as YYYY-MM-DD. Also accepted as
-                          recorded_on or occurred_at.
+                          Alternative to reporter, as a role rather than a
+                          name. For example ot, or psychologist.
+                      source:
+                        type: string
+                        description: Alternative name for reporter.
+                      date:
+                        type: string
+                        description: The entry's date, as YYYY-MM-DD.
+                      occurred_at:
+                        type: string
+                        description: Alternative name for date.
+                      recorded_on:
+                        type: string
+                        description: Alternative name for date.
                       label:
                         type: string
                         description: >-
-                          A short description, used only when there is no id to
-                          link to. Also accepted as title or claim.
+                          A short description, shown as the citation's wording.
+                          Falls back to the id when absent.
+                      claim:
+                        type: string
+                        description: >-
+                          Alternative name for label — the specific statement
+                          this entry supports.
+                      title:
+                        type: string
+                        description: Alternative name for label.
+                      validation_status:
+                        type: string
+                        description: >-
+                          How the entry was validated, when the retrieval step
+                          reported it. Recorded but not displayed.
                 withheld:
                   type: array
                   maxItems: 25
