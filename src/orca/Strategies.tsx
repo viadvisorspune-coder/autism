@@ -72,6 +72,15 @@ function today(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+/**
+ * The two endings. Everything else is a strategy still being tried.
+ *
+ * Defined by exclusion for the same reason the task list is: the column is a
+ * workflow_status with fourteen values, and matching on the ones this code
+ * happens to write hides any row seeded or written with another.
+ */
+const ENDED = new Set(['Completed', 'Cancelled'])
+
 export default function Strategies() {
   const { option, patientId } = useSession()
   const { subjectId, subjectName, choosable } = useSubject()
@@ -81,16 +90,25 @@ export default function Strategies() {
     checkins: CheckinRow[]
   }>('strategies', record)
 
+  /**
+   * Split off `data`, not off a derived array.
+   *
+   * `data?.strategies ?? []` is a new array on every render, so a memo keyed on
+   * it recomputed every time and memoized nothing -- the four-second poll made
+   * that three list walks a second to produce the same three lists. Keyed on
+   * the read itself, it recomputes when the read actually returns something
+   * new, which is what a memo is for.
+   */
   const strategies = data?.strategies ?? []
   const checkins = data?.checkins ?? []
 
   const active = useMemo(
-    () => strategies.filter((s) => s.status !== 'Completed' && s.status !== 'Cancelled'),
-    [strategies],
+    () => (data?.strategies ?? []).filter((s) => !ENDED.has(s.status ?? '')),
+    [data],
   )
   const ended = useMemo(
-    () => strategies.filter((s) => s.status === 'Completed' || s.status === 'Cancelled'),
-    [strategies],
+    () => (data?.strategies ?? []).filter((s) => ENDED.has(s.status ?? '')),
+    [data],
   )
   const due = useMemo(
     () => active.filter((s) => s.review_date && s.review_date <= today()),
@@ -222,7 +240,7 @@ function Strategy({
   act: (action: string, fields: Record<string, unknown>) => Promise<boolean>
 }) {
   const over = Boolean(strategy.review_date && strategy.review_date <= today())
-  const finished = strategy.status === 'Completed' || strategy.status === 'Cancelled'
+  const finished = ENDED.has(strategy.status ?? '')
   const latest = checkins[checkins.length - 1]
 
   return (
