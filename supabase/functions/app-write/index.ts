@@ -35,6 +35,8 @@ type Action =
   | 'set_sharing'
   | 'add_task'
   | 'update_task'
+  | 'decide_request'
+  | 'ask_about_request'
   | 'add_strategy'
   | 'record_outcome'
   | 'end_strategy'
@@ -951,6 +953,176 @@ Deno.serve(async (req) => {
       const { error } = await admin.from('tasks').update(patch).eq('id', id)
       if (error) return json({ error: error.message }, 400)
       return json({ updated: true })
+    }
+
+    /* -------------------------------------------------- accommodations
+     *
+     * An employer's actual job, which the interface gave him no way to do.
+     * Anil received a chat box and nothing to do with what it told him — but
+     * his job is receiving a request, deciding on it, putting it in place and
+     * reviewing it, and only the first of those existed.
+     *
+     * APPROVE IN PART IS NOT A COURTESY. Real accommodation decisions are
+     * rarely yes or no: three days at home is refusable where two is not, and a
+     * binary forces the whole request to fail on the half that could not be
+     * met. Forcing that binary produces worse outcomes for the person than a
+     * partial yes with a reason, so the partial is a first-class answer here
+     * rather than a decline with an apology attached.
+     *
+     * EVERY DECISION ENTERS HER RECORD, WITH HIS NAME ON IT. An accommodation
+     * decision is a fact about somebody's working life and belongs in the
+     * record of it — filed as employer-reported, which is the honest weight,
+     * and readable next to what the clinical side says. That pairing is the
+     * whole contradiction-detection case, working rather than described.
+     */
+    case 'decide_request': {
+      const requestId = str(body.request_id)
+      const decision = str(body.decision)
+      const reason = str(body.reason)
+      if (!requestId || !decision) return json({ error: 'request_id and decision are required' }, 400)
+      if (!['Approved', 'Approved in part', 'Declined'].includes(decision)) {
+        return json({ error: 'decision must be Approved, Approved in part or Declined' }, 400)
+      }
+      // A partial or a refusal without a reason is a decision the person cannot
+      // respond to, appeal, or plan around. Approval needs no justification;
+      // the other two do.
+      if (decision !== 'Approved' && !reason) {
+        return json(
+          {
+            error: 'reason is required',
+            fix: 'A partial or declined decision without a reason cannot be responded to or appealed. Say what could not be met and why.',
+          },
+          400,
+        )
+      }
+
+      const { data: request } = await admin
+        .from('requests')
+        .select('id, patient_id, title, requested_adjustment, destination_role, status')
+        .eq('id', requestId)
+        .maybeSingle()
+      if (!request) return json({ error: 'request_not_found' }, 404)
+      if (request.patient_id !== patientId) {
+        return json({ error: 'request_belongs_to_another_patient' }, 400)
+      }
+      // Addressed to a role. Somebody deciding a request that was sent to
+      // somebody else is not the decision that was asked for.
+      if (String(request.destination_role) !== actor.role) {
+        await recordAudit({
+          actorId: actor.id,
+          actorLabel: actor.name,
+          actorRole: actor.role,
+          patientId,
+          action: `Attempted to decide a request addressed to ${request.destination_role}`,
+          record: `Request ${requestId}`,
+          accessType: 'Approve',
+          why: 'Not the addressee',
+          result: 'Denied',
+        })
+        return forbidden(
+          `This was sent to the ${request.destination_role}, not to you. It is still waiting for them.`,
+        )
+      }
+
+      const { error } = await admin
+        .from('requests')
+        .update({
+          status: decision === 'Declined' ? 'Cancelled' : 'Completed',
+          implementation: str(body.implementation) ?? null,
+          review_date: str(body.review_date) ?? null,
+          steps: [
+            ...((request as Record<string, unknown>).steps as unknown[] ?? []),
+            {
+              at: new Date().toISOString(),
+              by: actor.name,
+              role: actor.role,
+              decision,
+              reason: reason ?? null,
+            },
+          ],
+        })
+        .eq('id', requestId)
+      if (error) return json({ error: error.message }, 400)
+
+      // Into her record, with his name on it.
+      await admin.from('timeline_events').insert({
+        id: `ev-${crypto.randomUUID().slice(0, 8)}`,
+        patient_id: patientId,
+        occurred_on: new Date().toISOString().slice(0, 10),
+        title: `${decision}: ${request.title}`,
+        category: actor.role === 'university' ? 'University' : 'Work',
+        source_id: actor.id,
+        source_label: `${actor.name}${actor.role ? `, ${actor.role}` : ''}`,
+        summary: [
+          request.requested_adjustment ? `Requested: ${request.requested_adjustment}` : null,
+          `Decision: ${decision}`,
+          reason ? `Reason: ${reason}` : null,
+          str(body.implementation) ? `In place: ${str(body.implementation)}` : null,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        evidence: 'Reported',
+        status: 'Recorded',
+        visible_to: ['patient', actor.role],
+      })
+
+      await recordAudit({
+        actorId: actor.id,
+        actorLabel: actor.name,
+        actorRole: actor.role,
+        patientId,
+        action: `${decision}: ${request.title}`,
+        record: `Request ${requestId}`,
+        accessType: 'Approve',
+        why: reason ?? 'Approved as asked',
+        result: 'Allowed',
+      })
+
+      return json({
+        decided: true,
+        note: 'This is now in their record, with your name on it. They can see what you decided and why.',
+      })
+    }
+
+    /**
+     * Asking a question about a request instead of deciding it.
+     *
+     * The fourth answer, and the one that keeps a bad decision from being
+     * forced. An employer who cannot tell whether "a quieter space" means a
+     * room or a corner should be able to ask rather than guess — and the
+     * question goes to the person, not to their clinician, because what is
+     * being asked about is what they need rather than why they need it.
+     */
+    case 'ask_about_request': {
+      const requestId = str(body.request_id)
+      const question = str(body.question)
+      if (!requestId || !question) return json({ error: 'request_id and question are required' }, 400)
+
+      const { data: request } = await admin
+        .from('requests')
+        .select('id, patient_id, title, clarifications')
+        .eq('id', requestId)
+        .maybeSingle()
+      if (!request) return json({ error: 'request_not_found' }, 404)
+      if (request.patient_id !== patientId) {
+        return json({ error: 'request_belongs_to_another_patient' }, 400)
+      }
+
+      const { error } = await admin.from('request_clarifications').insert({
+        id: `rc-${crypto.randomUUID().slice(0, 8)}`,
+        request_id: requestId,
+        asked_on: new Date().toISOString().slice(0, 10),
+        asked_by_label: `${actor.name}${actor.role ? `, ${actor.role}` : ''}`,
+        question,
+      })
+      if (error) return json({ error: error.message }, 400)
+
+      await admin.from('requests').update({ status: 'Awaiting information' }).eq('id', requestId)
+
+      return json({
+        asked: true,
+        note: 'Sent to them, not to their clinician. Nothing was decided and the request is still open.',
+      })
     }
 
     /* ------------------------------------------------------ strategies

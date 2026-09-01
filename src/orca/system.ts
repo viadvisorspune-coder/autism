@@ -169,10 +169,10 @@ export function navFor(role: Role | null): Destination[] {
     return [
       caseload,
       { label: 'Tasks', to: '/tasks' },
+      { label: 'Requests', to: '/requests' },
       ask,
       record,
       documents,
-      decisions,
       adjust,
     ]
   }
@@ -210,6 +210,33 @@ export function navFor(role: Role | null): Destination[] {
     return [caseload, ask, record, notes, { label: 'Tasks', to: '/tasks' }, documents, decisions, adjust]
   }
 
+  /**
+   * Anil and Ruth: the job, not the chat box.
+   *
+   * They were given Ask, Record, Decisions and Documents — an interface that
+   * lets somebody ask questions and do nothing with the answers. An employer's
+   * actual job is receiving a request, deciding on it, putting it in place and
+   * reviewing it, and only the asking had a screen. Requests comes first
+   * because it is the thing waiting on them.
+   *
+   * No Decisions: they approve nothing about the record itself. What they
+   * decide is what they will do at work or at university, which is Requests.
+   */
+  if (role === 'employer' || role === 'university') {
+    return [
+      { label: 'Requests', to: '/requests' },
+      {
+        // The sector's own word, so nobody has to learn the other one.
+        label: role === 'university' ? 'Accommodations' : 'Adjustments',
+        to: '/register',
+      },
+      ask,
+      record,
+      documents,
+      adjust,
+    ]
+  }
+
   return [ask, record, decisions, documents, adjust]
 }
 
@@ -230,6 +257,9 @@ export function homeFor(role: Role | null): string {
   if (role === 'admin') return '/runs'
   // A coordinator's first question is what is open, not who is on the list.
   if (role === 'clinic') return '/tasks'
+  // An employer's and an adviser's is what is waiting on them. Landing them on
+  // a chat box was the whole shape of the mistake this fixes.
+  if (role === 'employer' || role === 'university') return '/requests'
   if (hasCaseload(role)) return '/caseload'
   return '/ask'
 }
