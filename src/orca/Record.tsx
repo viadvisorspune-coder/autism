@@ -166,7 +166,7 @@ export default function Record() {
               type="button"
               aria-pressed={filter === c}
               onClick={() => setFilter(c)}
-              className={`o-btn o-btn-small ${filter === c ? 'o-btn-primary' : ''}`}
+              className={`o-btn o-btn-small ${filter === c ? 'o-btn-on' : ''}`}
             >
               {c}
             </button>

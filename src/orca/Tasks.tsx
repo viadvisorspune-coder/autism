@@ -377,7 +377,7 @@ function NewTask({
                     current.includes(r) ? current.filter((x) => x !== r) : [...current, r],
                   )
                 }
-                className={`o-btn o-btn-small ${forRoles.includes(r) ? 'o-btn-primary' : ''}`}
+                className={`o-btn o-btn-small ${forRoles.includes(r) ? 'o-btn-on' : ''}`}
               >
                 {ROLE_LABEL[r] ?? r}
               </button>

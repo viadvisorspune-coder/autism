@@ -187,6 +187,19 @@ export default function NextSteps({
           <Step key={s.label} step={s} />
         ))}
       </div>
+      {/*
+        Said once, under the row, because it is the thing people assume wrongly.
+
+        A document is written first and shown to the person whose record it is
+        before it goes anywhere. Nothing on this row sends anything to anybody —
+        which is exactly what somebody hesitating over "draft a document about
+        my colleague's health" needs to know before they press it, not after.
+      */}
+      <p className="o-meta o-measure mt-5">
+        Nothing here sends anything to anyone. A document is written first and shown to{' '}
+        {mine ? 'you' : 'the person whose record it is'} for a decision — it appears in
+        Decisions, and it goes nowhere until that decision is made.
+      </p>
     </section>
   )
 }

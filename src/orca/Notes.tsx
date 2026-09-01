@@ -180,7 +180,7 @@ export default function Notes() {
                 type="button"
                 aria-pressed={kind === k.key}
                 onClick={() => setKind(k.key)}
-                className={`o-btn o-btn-small ${kind === k.key ? 'o-btn-primary' : ''}`}
+                className={`o-btn o-btn-small ${kind === k.key ? 'o-btn-on' : ''}`}
               >
                 {k.label}
               </button>

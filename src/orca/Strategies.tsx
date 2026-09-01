@@ -394,7 +394,7 @@ function Outcome({
       <div className="mt-6 flex flex-wrap gap-4">
         <button
           type="button"
-          className={`o-btn ${open === 'outcome' ? 'o-btn-primary' : ''}`}
+          className={`o-btn ${open === 'outcome' ? 'o-btn-on' : ''}`}
           aria-expanded={open === 'outcome'}
           onClick={() => setOpen(open === 'outcome' ? null : 'outcome')}
         >
@@ -459,7 +459,7 @@ function Outcome({
                     type="button"
                     aria-pressed={how === h}
                     onClick={() => setHow(h)}
-                    className={`o-btn o-btn-small ${how === h ? 'o-btn-primary' : ''}`}
+                    className={`o-btn o-btn-small ${how === h ? 'o-btn-on' : ''}`}
                   >
                     {h}
                   </button>

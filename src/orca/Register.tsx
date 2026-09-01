@@ -219,7 +219,7 @@ function Arrangement({
         <div className="mt-6 flex flex-wrap gap-4">
           <button
             type="button"
-            className={`o-btn o-btn-small ${open === 'confirm' ? 'o-btn-primary' : ''}`}
+            className={`o-btn o-btn-small ${open === 'confirm' ? 'o-btn-on' : ''}`}
             aria-expanded={open === 'confirm'}
             onClick={() => setOpen(open === 'confirm' ? null : 'confirm')}
           >
@@ -389,7 +389,7 @@ function Exams({
           type="button"
           aria-pressed={confirmed}
           onClick={() => setConfirmed((c) => !c)}
-          className={`o-btn o-btn-small ${confirmed ? 'o-btn-primary' : ''}`}
+          className={`o-btn o-btn-small ${confirmed ? 'o-btn-on' : ''}`}
         >
           Confirmed with the exams office
         </button>

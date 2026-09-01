@@ -130,8 +130,21 @@ export default function Documents() {
           Ananya's documents start from an answer, which is the honest route:
           she asks a question, reads what her record says, and then decides
           whether that is worth writing down for someone. */}
+      {/*
+        One filled control per screen, and which one depends on what is here.
+
+        A draft waiting to be finished, or one just discarded and recoverable,
+        is a more specific and more valuable action than starting a second
+        document — so when either is on the screen, this steps down and the card
+        below holds the emphasis. Three black rectangles competing to be the
+        obvious next press is the same as none of them being it.
+      */}
       {!mine ? (
-        <button type="button" className="o-btn o-btn-primary mb-12" onClick={() => setComposing(true)}>
+        <button
+          type="button"
+          className={`o-btn mb-12 ${resumable || discarded ? '' : 'o-btn-primary'}`}
+          onClick={() => setComposing(true)}
+        >
           New document
         </button>
       ) : null}
@@ -171,7 +184,7 @@ export default function Documents() {
               <div className="mt-6 flex flex-wrap gap-4">
                 <button
                   type="button"
-                  className="o-btn o-btn-primary"
+                  className={`o-btn ${discarded ? '' : 'o-btn-primary'}`}
                   onClick={() => setComposing(true)}
                 >
                   Continue
@@ -588,7 +601,7 @@ function NewDocument({
                 type="button"
                 aria-pressed={type === t}
                 onClick={() => setType(t)}
-                className={`o-btn o-btn-small ${type === t ? 'o-btn-primary' : ''}`}
+                className={`o-btn o-btn-small ${type === t ? 'o-btn-on' : ''}`}
               >
                 {t}
               </button>
@@ -643,13 +656,21 @@ function NewDocument({
         </div>
 
         <div className="flex flex-col gap-4 sm:flex-row">
+          {/*
+            Steps down while the recovery block is up.
+
+            The failure below offers Try again, which is this same action. Two
+            filled controls doing one thing, one of them under a heading saying
+            it did not work, is a screen asking somebody to choose between two
+            identical answers.
+          */}
           <ActionButton
             action={writing}
             idle="Write the draft"
             working="Creating your document…"
             done="Document ready"
             failed="Not created"
-            primary
+            primary={!couldNotStart}
             disabled={!recipient}
             className="flex-1"
           />

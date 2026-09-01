@@ -337,7 +337,7 @@ function Request({
               type="button"
               aria-pressed={choice === d}
               onClick={() => setChoice(choice === d ? null : d)}
-              className={`o-btn o-btn-small ${choice === d ? 'o-btn-primary' : ''}`}
+              className={`o-btn o-btn-small ${choice === d ? 'o-btn-on' : ''}`}
             >
               {d}
             </button>
@@ -346,7 +346,7 @@ function Request({
             type="button"
             aria-pressed={choice === 'ask'}
             onClick={() => setChoice(choice === 'ask' ? null : 'ask')}
-            className={`o-btn o-btn-small ${choice === 'ask' ? 'o-btn-primary' : ''}`}
+            className={`o-btn o-btn-small ${choice === 'ask' ? 'o-btn-on' : ''}`}
           >
             Ask a question instead
           </button>

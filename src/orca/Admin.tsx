@@ -103,7 +103,7 @@ export function Runs() {
           <button
             type="button"
             aria-pressed={today}
-            className={`o-btn o-btn-small ${today ? 'o-btn-primary' : ''}`}
+            className={`o-btn o-btn-small ${today ? 'o-btn-on' : ''}`}
             onClick={() => setToday((t) => !t)}
           >
             Today only
@@ -184,7 +184,7 @@ function Filter({
             type="button"
             aria-pressed={value === o}
             onClick={() => onChange(o)}
-            className={`o-btn o-btn-small ${value === o ? 'o-btn-primary' : ''}`}
+            className={`o-btn o-btn-small ${value === o ? 'o-btn-on' : ''}`}
           >
             {o}
           </button>

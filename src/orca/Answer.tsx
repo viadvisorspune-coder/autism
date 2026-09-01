@@ -489,32 +489,6 @@ export default function Answer() {
         </section>
       ) : null}
 
-      {item.shape === 'answer' && item.answer ? (
-        <section className="o-section">
-          <SectionHead>What you can do next</SectionHead>
-          <div className="flex flex-col gap-4 sm:flex-row">
-            <Link to="/ask" className="o-btn flex-1 no-underline">
-              Ask something else
-            </Link>
-            <button
-              type="button"
-              className="o-btn o-btn-primary flex-1"
-              onClick={async () => {
-                const id = await ask(
-                  `Make this into a document I can share: ${item.question}`,
-                )
-                navigate(`/ask/${id}`)
-              }}
-            >
-              Make this into a document
-            </button>
-          </div>
-          <p className="o-meta o-measure mt-5">
-            A document is written first and shown to {role === 'patient' ? 'you' : 'Ananya'}{' '}
-            before it goes anywhere. It appears in Decisions.
-          </p>
-        </section>
-      ) : null}
     </>
   )
 }

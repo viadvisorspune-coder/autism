@@ -49,7 +49,7 @@ function Choice({
       type="button"
       aria-pressed={on}
       onClick={onSelect}
-      className={`o-btn o-btn-small ${on ? 'o-btn-primary' : ''}`}
+      className={`o-btn o-btn-small ${on ? 'o-btn-on' : ''}`}
     >
       {children}
     </button>
