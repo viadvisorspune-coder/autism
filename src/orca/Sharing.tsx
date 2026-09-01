@@ -127,7 +127,9 @@ export default function Sharing() {
         <div role="status" className="o-body o-measure mb-10 border border-black p-5">
           {lastSave.ok ? (
             <>
-              <p className="font-semibold">Saved ✓</p>
+              <p className="font-semibold">
+                {lastSave.sharing ? 'Access updated' : 'Sharing stopped'}
+              </p>
               <p className="mt-3">
                 {lastSave.sharing
                   ? `${lastSave.name} can see their part of your record again. This is what your record now says.`
@@ -249,7 +251,13 @@ export default function Sharing() {
 function Resume({ label, run }: { label: string; run: () => Promise<boolean> }) {
   const action = useAction(run)
   return (
-    <ActionButton action={action} idle={label} working="Saving…" done="Saved ✓" failed="Not saved" />
+    <ActionButton
+      action={action}
+      idle={label}
+      working="Updating access…"
+      done="Access updated"
+      failed="Not updated"
+    />
   )
 }
 
@@ -331,12 +339,17 @@ function Confirm({
           </p>
 
           <div className="mt-10 flex flex-col gap-4 sm:flex-row">
+            {/*
+              The confirmation is the screen this button is on. Everything
+              above it is what changes, what does not, who is told and when —
+              read before the press, never after it.
+            */}
             <ActionButton
               action={stopping}
               idle="Stop sharing"
-              working="Saving…"
-              done="Saved ✓"
-              failed="Not saved"
+              working="Updating access…"
+              done="Sharing stopped"
+              failed="Not updated"
               primary
               className="flex-1"
             />

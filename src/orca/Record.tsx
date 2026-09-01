@@ -69,6 +69,28 @@ export default function Record() {
     setParams(updated, { replace: true })
   }
 
+  /**
+   * Which entries are open, in the URL for the same reason the filter is.
+   *
+   * Somebody opens three entries, taps into one to read the whole thing, comes
+   * back — and in component state all three would have closed behind them. The
+   * URL survives Back, survives a reload, and can be sent to somebody else with
+   * the same three entries open.
+   *
+   * `replace`, so expanding four entries does not put four steps in the
+   * browser's history and turn Back into an undo button for reading.
+   */
+  const open = new Set((params.get('open') ?? '').split(',').filter(Boolean))
+  const toggleOpen = (id: string) => {
+    const next = new Set(open)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    const updated = new URLSearchParams(params)
+    if (next.size) updated.set('open', [...next].join(','))
+    else updated.delete('open')
+    setParams(updated, { replace: true })
+  }
+
   const mine = role === 'patient'
   const events = useMemo(() => {
     if (!subjectId) return []
@@ -157,7 +179,7 @@ export default function Record() {
             {events.length === 1 ? 'entry' : 'entries'}
           </p>
           <button type="button" className="o-btn o-btn-small" onClick={() => setFilter('Everything')}>
-            Show everything
+            Clear filters
           </button>
         </div>
       ) : null}
@@ -175,13 +197,37 @@ export default function Record() {
         <Loading what={mine ? 'your record' : subjectName ? `${subjectName}’s record` : 'this record'} />
       ) : null}
 
+      {/*
+        Nothing moves here, and the explanation is the point.
+
+        An empty state is a person having found nothing, which is the moment
+        they are least served by something arriving with a flourish. It says
+        which of the three empties this is — a filter hiding things, a record
+        with nothing in it yet, or a record whose entries are not part of this
+        person's access — and where the filter is at fault it offers the way
+        out rather than describing it.
+      */}
       {status !== 'loading' && !shown.length ? (
         <Nothing>
-          {filter !== 'Everything'
-            ? `No entries in your record are filed under ${filter}. Other entries exist — this heading is empty, not the record.`
-            : mine
-              ? 'There is nothing in your record yet. Anything you write, and anything a professional writes about you, appears here.'
-              : 'There is nothing here that is part of your access to this record.'}
+          {filter !== 'Everything' ? (
+            <>
+              No entries in your record are filed under {filter}. Other entries exist — this
+              heading is empty, not the record.
+              <span className="mt-5 block">
+                <button
+                  type="button"
+                  className="o-btn o-btn-small"
+                  onClick={() => setFilter('Everything')}
+                >
+                  Clear filters
+                </button>
+              </span>
+            </>
+          ) : mine ? (
+            'There is nothing in your record yet. Anything you write, and anything a professional writes about you, appears here.'
+          ) : (
+            'There is nothing here that is part of your access to this record.'
+          )}
         </Nothing>
       ) : null}
 
@@ -226,6 +272,48 @@ export default function Record() {
                       </div>
                     </Card>
                   </Link>
+
+                  {/*
+                    Reading what an entry says, without leaving the list.
+
+                    Beneath the card rather than inside it, and deliberately so:
+                    the whole card is a link to the full entry, and that is the
+                    behaviour people have already learned here. A button nested
+                    inside an anchor is also invalid, and browsers resolve it by
+                    guessing.
+
+                    Only the region below the card changes height. The card
+                    itself does not move, the entry above it does not move, and
+                    the entries below it are pushed down by exactly the height
+                    of what appeared — which is the one thing a disclosure is
+                    allowed to do.
+                  */}
+                  <button
+                    type="button"
+                    aria-expanded={open.has(e.id)}
+                    aria-controls={`entry-${e.id}`}
+                    onClick={() => toggleOpen(e.id)}
+                    className="o-meta mt-3 underline"
+                  >
+                    {open.has(e.id) ? 'Hide what it says ▴' : 'Show what it says ▾'}
+                  </button>
+                  <div
+                    id={`entry-${e.id}`}
+                    className="o-reveal"
+                    data-open={open.has(e.id) ? 'yes' : 'no'}
+                  >
+                    <div inert={!open.has(e.id)}>
+                      <div className="pt-4">
+                        <p className="o-body o-measure">{e.summary}</p>
+                        <Link
+                          to={`/record/${e.id}`}
+                          className="o-meta mt-3 inline-block underline"
+                        >
+                          Open the whole entry
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>

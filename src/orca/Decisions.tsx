@@ -66,6 +66,23 @@ export default function Decisions() {
     ok: boolean
   } | null>(null)
 
+  /**
+   * Which decision is being worked on.
+   *
+   * Everything used to be open at once, which on a screen holding three
+   * disclosures is three full documents stacked down the page and no way to
+   * tell which one you were reading. Each now shows who, what and when — enough
+   * to choose between them — and opening one reveals the rest of it.
+   *
+   * A single decision opens itself. Asking somebody to press Open when there is
+   * exactly one thing on the screen is a step that exists only to be consistent
+   * with a case that is not on their screen.
+   */
+  const [chosen, setChosen] = useState<string | null>(null)
+  const only = count === 1 ? (mine[0]?.id ?? waiting[0]?.request_id ?? null) : null
+  const active = chosen ?? only
+  const setActiveId = (id: string) => setChosen(id)
+
   return (
     <>
       <PageTitle>
@@ -130,39 +147,70 @@ export default function Decisions() {
       ) : null}
 
       <div className="space-y-10">
-        {mine.map((r) => (
-          <Card key={r.id} tone="decision">
-            <div className="o-card-body">
-              <h2 className="o-h2 mb-6">
-                {r.fromName} is asking to see part of your record
-              </h2>
-              <Row label="Who" value={`${r.fromName} · ${r.fromRole}`} />
-              <Row label="What" value={domainName[r.domain]} />
-              <Row label="Asked" value={longDate(r.at)} />
+        {mine.map((r) => {
+          const open = active === r.id
+          return (
+            <Card key={r.id} tone="decision" active={open}>
+              <div className="o-card-body">
+                <h2 className="o-h2 mb-6">
+                  {r.fromName} is asking to see part of your record
+                </h2>
+                {/*
+                  Who, what and when are always out. They are what somebody
+                  reads to decide which of three things waiting for them to look
+                  at first, and a summary that has to be opened to be read is
+                  not a summary.
+                */}
+                <Row label="Who" value={`${r.fromName} · ${r.fromRole}`} />
+                <Row label="What" value={domainName[r.domain]} />
+                <Row label="Asked" value={longDate(r.at)} />
 
-              <hr className="o-rule my-8" />
-              <h3 className="o-h3 mb-3">What they were trying to find out</h3>
-              <p className="o-body o-measure">&ldquo;{r.question}&rdquo;</p>
+                {!open ? (
+                  <button
+                    type="button"
+                    className="o-btn mt-8"
+                    aria-expanded={false}
+                    onClick={() => setActiveId(r.id)}
+                  >
+                    Open this decision
+                  </button>
+                ) : null}
 
-              <hr className="o-rule my-8" />
-              <h3 className="o-h3 mb-3">What happens if you say yes</h3>
-              <p className="o-body o-measure">
-                {r.fromName} can ask about {domainName[r.domain].toLowerCase()} in your record from
-                then on. You can stop it at any time in Sharing.
-              </p>
+                <div className="o-reveal" data-open={open ? 'yes' : 'no'}>
+                  <div inert={!open}>
+                    <hr className="o-rule my-8" />
+                    <h3 className="o-h3 mb-3">What they were trying to find out</h3>
+                    <p className="o-body o-measure">&ldquo;{r.question}&rdquo;</p>
 
-              <AccessChoice
-                id={r.id}
-                who={r.fromName}
-                answer={answerRequest}
-                onSaved={setLastAccess}
-              />
-            </div>
-          </Card>
-        ))}
+                    <hr className="o-rule my-8" />
+                    <h3 className="o-h3 mb-3">What happens if you say yes</h3>
+                    <p className="o-body o-measure">
+                      {r.fromName} can ask about {domainName[r.domain].toLowerCase()} in your
+                      record from then on. You can stop it at any time in Sharing.
+                    </p>
+
+                    <AccessChoice
+                      id={r.id}
+                      who={r.fromName}
+                      answer={answerRequest}
+                      onSaved={setLastAccess}
+                    />
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )
+        })}
 
         {waiting.map((a) => (
-          <Approval key={a.request_id} approval={a} actorId={option?.personId ?? null} onDecided={refresh} />
+          <Approval
+            key={a.request_id}
+            approval={a}
+            actorId={option?.personId ?? null}
+            open={active === a.request_id}
+            onOpen={() => setActiveId(a.request_id)}
+            onDecided={refresh}
+          />
         ))}
       </div>
 
@@ -224,19 +272,24 @@ function AccessChoice({
       <ActionButton
         action={giving}
         idle="Give them access"
-        working="Saving…"
-        done="Saved ✓"
-        failed="Not saved"
+        working="Approving…"
+        done="Approved ✓"
+        failed="Not approved"
         primary
         disabled={busy}
         className="flex-1"
       />
+      {/*
+        No tick on Declined. A tick beside it would read as approval of the
+        decline, and neither answer here is the right one — that is the whole
+        point of it being a decision.
+      */}
       <ActionButton
         action={refusing}
         idle="Don’t"
-        working="Saving…"
-        done="Saved ✓"
-        failed="Not saved"
+        working="Declining…"
+        done="Declined"
+        failed="Not declined"
         disabled={busy}
         className="flex-1"
       />
@@ -269,10 +322,14 @@ function Row({ label, value }: { label: string; value: string }) {
 function Approval({
   approval,
   actorId,
+  open,
+  onOpen,
   onDecided,
 }: {
   approval: PendingApproval
   actorId: string | null
+  open: boolean
+  onOpen: () => void
   onDecided: () => void
 }) {
   const [sending, setSending] = useState(false)
@@ -289,11 +346,30 @@ function Approval({
    */
   const inFlight = useRef(false)
 
-  const choices = approval.options.length
-    ? approval.options.map((o) => ({ id: o.id as string | null, label: o.label, message: null as string | null }))
+  /**
+   * The gate's own options when it has them, ORCA's two when it does not.
+   *
+   * `kind` is what lets the button say "Approving…" rather than "Sending". It
+   * is only set on ORCA's own pair, where the meaning of each option is known
+   * here. A gate that offers "Send redacted" and "Send in full" is two
+   * approvals with different contents, and calling either of them Approving
+   * would be this code narrating a decision it does not understand.
+   */
+  const choices: {
+    id: string | null
+    label: string
+    message: string | null
+    kind: 'approve' | 'decline' | null
+  }[] = approval.options.length
+    ? approval.options.map((o) => ({
+        id: o.id as string | null,
+        label: o.label,
+        message: null,
+        kind: null,
+      }))
     : [
-        { id: null, label: 'Send it', message: 'Approved.' },
-        { id: null, label: 'Don’t send it', message: 'Declined.' },
+        { id: null, label: 'Approve', message: 'Approved.', kind: 'approve' },
+        { id: null, label: 'Decline', message: 'Declined.', kind: 'decline' },
       ]
 
   async function decide(optionId: string | null, message: string | null): Promise<boolean> {
@@ -321,13 +397,34 @@ function Approval({
   }
 
   return (
-    <Card tone="decision">
+    <Card tone="decision" active={open}>
       <div className="o-card-body">
         <h2 className="o-h2 mb-6">{approval.title}</h2>
 
         {approval.recipient ? <Row label="To" value={approval.recipient} /> : null}
         <Row label="Raised" value={longDate(approval.created_at)} />
 
+        {/*
+          Opened, rather than three documents down one page.
+
+          Who it is for and when it was raised are always out — that is what
+          somebody reads to decide which of several waiting things to look at.
+          Everything below is the disclosure itself, which is read once, by the
+          person deciding on it.
+
+          Progressive here means later, never instead. The whole document is
+          still shown in full before any button that would send it, because a
+          gate that asks "send this?" and does not show what "this" is has asked
+          nothing.
+        */}
+        {!open ? (
+          <button type="button" className="o-btn mt-8" aria-expanded={false} onClick={onOpen}>
+            Open this decision
+          </button>
+        ) : null}
+
+        <div className="o-reveal" data-open={open ? 'yes' : 'no'}>
+          <div inert={!open}>
         {/*
           The whole document, rendered exactly as it would be sent.
 
@@ -378,6 +475,7 @@ function Approval({
             <Decide
               key={`${c.id ?? c.label}-${i}`}
               label={c.label}
+              kind={c.kind}
               primary={i === 0}
               lockedOut={sending}
               run={() => decide(c.id, c.message)}
@@ -411,6 +509,8 @@ function Approval({
               : 'Nothing has been sent yet. This waits as long as you need.'}
           </p>
         )}
+          </div>
+        </div>
       </div>
     </Card>
   )
@@ -423,29 +523,46 @@ function Approval({
  * four states and hooks cannot live inside a map. `lockedOut` is the card
  * saying another option is already going; `useAction` handles this one.
  *
- * Yoxa writes the idle label, so the working and finished words are kept
- * generic on purpose. "Send redacted" becoming "Sending redacted" would read as
- * a promise about what is being sent, from a string this code has never seen.
+ * The three words follow the meaning of the option when that is known —
+ * Approve, Approving…, Approved ✓ — and stay generic when Yoxa named it.
+ * "Send redacted" becoming "Sending redacted" would read as a promise about
+ * what is being sent, from a string this code has never seen.
+ *
+ * Approved carries a tick and Declined does not. That is not a reward: a tick
+ * beside "Declined" would read as approval of the decline, and the two need to
+ * be distinguishable at a glance from across a difficult afternoon. Nothing
+ * else marks the finish — no flourish, no colour flash, nothing that treats
+ * saying yes as the better answer.
  */
+const WORDS: Record<'approve' | 'decline', { working: string; done: string; failed: string }> = {
+  approve: { working: 'Approving…', done: 'Approved ✓', failed: 'Not approved' },
+  decline: { working: 'Declining…', done: 'Declined', failed: 'Not declined' },
+}
+
 function Decide({
   label,
+  kind,
   primary,
   lockedOut,
   run,
 }: {
   label: string
+  kind: 'approve' | 'decline' | null
   primary: boolean
   lockedOut: boolean
   run: () => Promise<boolean>
 }) {
   const action = useAction(run)
+  const words = kind
+    ? WORDS[kind]
+    : { working: 'Sending…', done: 'Sent ✓', failed: 'Did not send' }
   return (
     <ActionButton
       action={action}
       idle={label}
-      working="Sending"
-      done="Sent"
-      failed="Did not send"
+      working={words.working}
+      done={words.done}
+      failed={words.failed}
       primary={primary}
       disabled={lockedOut}
       className="flex-1"

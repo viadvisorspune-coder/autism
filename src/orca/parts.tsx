@@ -22,16 +22,31 @@ import { ActionButton, useAction } from './action'
 export function Card({
   tone,
   tall,
+  active,
   children,
   className = '',
 }: {
   tone: Tone
   tall?: boolean
+  /**
+   * This is the one being worked on.
+   *
+   * Drawn as a second line inside the card's own border — the same doubled-line
+   * vocabulary a field in error and a button reporting a failure use, so a
+   * reader who has learned it once has learned it everywhere. Not a shadow and
+   * not a lift: nothing in ORCA floats, and a card that rises above its
+   * neighbours to say "this one" has said it by changing the spatial hierarchy
+   * of the screen.
+   */
+  active?: boolean
   children: ReactNode
   className?: string
 }) {
   return (
-    <div className={`o-card ${toneClass[tone]} ${className}`}>
+    <div
+      className={`o-card ${toneClass[tone]} ${className}`}
+      data-active={active ? 'yes' : undefined}
+    >
       <div className={`o-band ${tall ? 'o-band-tall' : ''}`} />
       {children}
     </div>

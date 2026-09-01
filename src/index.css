@@ -934,6 +934,19 @@ html[data-experience='patient'] .frost-tint {
     background: color-mix(in srgb, var(--ink) 4%, var(--paper));
   }
 
+  /*
+   * The card being worked on.
+   *
+   * A second line inside the card's own border, in the ink the card already
+   * uses. The same doubled-line vocabulary as a field in error and a control
+   * reporting a failure, so it is one thing to learn rather than three. It is
+   * paired with the card being the only open one on the screen, so nothing
+   * here depends on seeing the line.
+   */
+  html[data-ia='orca'] .o-card[data-active='yes'] {
+    box-shadow: inset 0 0 0 2px var(--ink);
+  }
+
   /* The colour band is the one carrier of meaning in a card, so a tone that
      changes — a question settling from waiting into answered — changes visibly
      rather than swapping between two frames. */

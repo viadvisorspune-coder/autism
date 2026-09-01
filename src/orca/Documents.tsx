@@ -279,11 +279,24 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
   const current = { type, recipient, from, to, purpose, subjectId: subjectId ?? '' }
   const dirty = hasContent(current)
 
-  // Saved as it is typed, not on some later event that might never happen.
-  // A draft that only survives if you remember to press something is not a
-  // draft, it is a quiz.
+  /**
+   * Saved as it is typed, and said so.
+   *
+   * A draft that only survives if you remember to press something is not a
+   * draft, it is a quiz — so there is no Save button and never has been. What
+   * was missing is the other half: an interface that saves silently is
+   * indistinguishable from one that is not saving, and the person cannot tell
+   * which until they lose something.
+   *
+   * "Draft saved" without a "Saving draft…" before it, because there is no
+   * interval to report. This is one synchronous write to this device; there is
+   * no moment at which it is in progress, and inventing one would be a
+   * progress indicator for something that has already finished.
+   */
+  const [savedAt, setSavedAt] = useState<string | null>(null)
   useEffect(() => {
     writeDraft(personId, current)
+    if (hasContent(current)) setSavedAt(new Date().toISOString())
     // The fields are the dependency; `current` is rebuilt each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [personId, type, recipient, from, to, purpose, subjectId])
@@ -463,9 +476,9 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
           <ActionButton
             action={writing}
             idle="Write the draft"
-            working="Writing the draft…"
-            done="Draft started"
-            failed="Could not start it"
+            working="Creating your document…"
+            done="Document ready"
+            failed="Not created"
             primary
             disabled={!recipient}
             className="flex-1"
@@ -498,7 +511,7 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
         */}
         {couldNotStart ? (
           <div role="alert" className="o-body o-measure border border-black p-5">
-            <p className="font-semibold">We couldn&rsquo;t start this document.</p>
+            <p className="font-semibold">The document couldn&rsquo;t be created.</p>
             <p className="mt-3">
               Everything you typed is still on this screen and kept on this device. Nothing was
               written and nothing was sent.
@@ -508,8 +521,15 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
               <button type="button" className="o-btn o-btn-primary" onClick={writing.fire}>
                 Try again
               </button>
+              {/*
+                "Save request" as a real second way out rather than a button
+                that pretends. The four fields are already on this device —
+                written on every keystroke, and cleared only after a request has
+                been accepted — so this closes the form without touching them
+                and Documents offers them straight back.
+              */}
               <button type="button" className="o-btn" onClick={onCancel}>
-                Leave it as a draft
+                Save request
               </button>
             </div>
           </div>
@@ -522,9 +542,10 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
         </p>
 
         {dirty ? (
-          <p className="o-meta o-measure">
-            What you have typed is kept on this device as you go. Leaving this screen does not
-            lose it, and nothing here expires.
+          <p className="o-meta o-measure" role="status">
+            <span className="font-semibold">Draft saved</span>
+            {savedAt ? ` ${ago(savedAt)}` : ''}. What you have typed is kept on this device as you
+            go. Leaving this screen does not lose it, and nothing here expires.
           </p>
         ) : null}
       </div>
