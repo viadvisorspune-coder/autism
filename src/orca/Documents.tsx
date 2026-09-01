@@ -22,7 +22,16 @@ import type { DocumentRecord, Role } from '../data/types'
 import { type Attachment, type ConversationData, useLive } from '../lib/live'
 import { useAsks } from './asks'
 import { useSubject } from './subject'
-import { Card, CouldNotLoad, Nothing, PageTitle, SectionHead, longDate } from './parts'
+import {
+  Card,
+  CouldNotLoad,
+  Loading,
+  Nothing,
+  PageTitle,
+  SectionHead,
+  Updated,
+  longDate,
+} from './parts'
 import { type DocumentDraft, ago, clearDraft, hasContent, readDraft, writeDraft } from './draft'
 import type { Tone } from './system'
 import { ActionButton, useAction } from './action'
@@ -54,7 +63,10 @@ export default function Documents() {
   useEffect(() => {
     if (!composing) setDraft(readDraft(personId))
   }, [composing, personId])
-  const { data, failed, refresh } = useLive<ConversationData>('conversation', subjectId)
+  const { data, loading, failed, updatedAt, refresh } = useLive<ConversationData>(
+    'conversation',
+    subjectId,
+  )
 
   const mine = role === 'patient'
 
@@ -148,7 +160,9 @@ export default function Documents() {
         </div>
       ) : null}
 
-      {!held.length && !produced.length && !failed ? (
+      {loading && !data ? <Loading what="documents about this record" /> : null}
+
+      {!loading && !held.length && !produced.length && !failed ? (
         <Nothing>
           {mine
             ? 'Nothing has been written yet. When you ask for something to be written up, the draft appears here and waits for your decision before it goes anywhere.'
@@ -220,6 +234,8 @@ export default function Documents() {
           </p>
         </section>
       ) : null}
+
+      <Updated at={updatedAt} />
     </>
   )
 }
@@ -280,18 +296,37 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
       .map((p) => ({ id: p.id, label: [p.name, p.title].filter(Boolean).join(', ') }))
   }, [subjectId])
 
+  /**
+   * The failure outlives the button.
+   *
+   * `useAction` returns a control to rest after a few seconds, which is right
+   * for a label — a button permanently named "Did not send" has been renamed
+   * rather than reported on. It is wrong for the explanation, which is the only
+   * place the person is told their four fields survived. A recovery notice that
+   * removes itself while somebody is reading it is the disappearing toast this
+   * interface is not allowed to use, so this is held separately and cleared
+   * only by trying again.
+   */
+  const [couldNotStart, setCouldNotStart] = useState(false)
+
   async function submit() {
     if (!recipient) return false
+    setCouldNotStart(false)
     const period = from && to ? ` covering ${longDate(from)} to ${longDate(to)}` : ''
     const why = purpose.trim() ? ` The purpose is ${purpose.trim()}` : ''
-    const id = await ask(
-      `Write a ${type.toLowerCase()} about ${subjectName || patientName(subjectId ?? '')} for ${recipient}${period}.${why}`,
-    )
-    // Finished, so it is no longer a draft. Cleared only after the request has
-    // been accepted, never before.
-    clearDraft(personId)
-    navigate(`/ask/${id}`)
-    return true
+    try {
+      const id = await ask(
+        `Write a ${type.toLowerCase()} about ${subjectName || patientName(subjectId ?? '')} for ${recipient}${period}.${why}`,
+      )
+      // Finished, so it is no longer a draft. Cleared only after the request
+      // has been accepted, never before.
+      clearDraft(personId)
+      navigate(`/ask/${id}`)
+      return true
+    } catch {
+      setCouldNotStart(true)
+      return false
+    }
   }
 
   const writing = useAction(submit)
@@ -444,6 +479,41 @@ function NewDocument({ onCancel }: { onCancel: () => void }) {
             Cancel
           </button>
         </div>
+
+        {/*
+          A failure that says what it did not cost, before it says anything else.
+
+          Somebody who has just filled in four fields about a child's support
+          needs will not read a word of a recovery instruction until they know
+          the four fields are still there. They are: the form writes itself to
+          this device on every keystroke, and `submit` clears that only after
+          the request has been accepted. So this states it, rather than leaving
+          it to be discovered by pressing something and finding out.
+
+          "Leave it as a draft" is the second way out the brief asks for, and it
+          is a real one here rather than a button that pretends to save: the
+          draft already exists, and this closes the form without touching it.
+          Nothing retries on its own — a request that produces a document
+          somebody else will read must not be sent twice by helpfulness.
+        */}
+        {couldNotStart ? (
+          <div role="alert" className="o-body o-measure border border-black p-5">
+            <p className="font-semibold">We couldn&rsquo;t start this document.</p>
+            <p className="mt-3">
+              Everything you typed is still on this screen and kept on this device. Nothing was
+              written and nothing was sent.
+            </p>
+            <p className="mt-3">Nothing is being retried on its own.</p>
+            <div className="mt-6 flex flex-col gap-4 sm:flex-row">
+              <button type="button" className="o-btn o-btn-primary" onClick={writing.fire}>
+                Try again
+              </button>
+              <button type="button" className="o-btn" onClick={onCancel}>
+                Leave it as a draft
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <p className="o-meta o-measure">
           The draft is written from {subjectName || 'this person'}&rsquo;s record, within what you

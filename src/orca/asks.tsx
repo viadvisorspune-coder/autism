@@ -161,10 +161,10 @@ interface AsksValue {
   requestAccess: (askId: string) => void
   /** Access requests raised from a gate, for Ananya's Decisions. */
   requests: AccessRequest[]
-  answerRequest: (id: string, decision: 'granted' | 'declined') => void
+  answerRequest: (id: string, decision: 'granted' | 'declined') => Promise<boolean>
   /** Who the subject has currently stopped sharing with. */
   stops: string[]
-  setSharing: (personId: string, sharing: boolean) => void
+  setSharing: (personId: string, sharing: boolean) => Promise<boolean>
 }
 
 const AsksContext = createContext<AsksValue | null>(null)
@@ -425,30 +425,54 @@ export function AsksProvider({ children }: { children: ReactNode }) {
     [asks, personId, patientId, option?.name, option?.title, role, refreshConsent],
   )
 
+  /**
+   * Says whether it worked, for the same reason `setSharing` does.
+   *
+   * Granting access is a disclosure decision written to the record and read
+   * back from it a few seconds later. Sent and forgotten, a failed write showed
+   * as decided and then undid itself on the next poll, in front of somebody who
+   * had been told it was done.
+   */
   const answerRequest = useCallback(
-    (id: string, decision: 'granted' | 'declined') => {
+    async (id: string, decision: 'granted' | 'declined'): Promise<boolean> => {
       setRequests((r) =>
         r.map((x) => (x.id === id ? { ...x, status: decision, decidedAt: new Date().toISOString() } : x)),
       )
-      if (personId && patientId) {
-        void actOnRecord('decide_access', patientId, personId, {
-          request_id: id,
-          decision,
-        }).then(refreshConsent)
-      }
+      if (!personId || !patientId) return false
+      const result = await actOnRecord('decide_access', patientId, personId, {
+        request_id: id,
+        decision,
+      })
+      await refreshConsent()
+      return result.ok
     },
     [personId, patientId, refreshConsent],
   )
 
+  /**
+   * Says whether it worked.
+   *
+   * This was fire-and-forget, and on the one control in the product that
+   * decides who can read somebody's medical record. The screen updated
+   * immediately, the write went off unwatched, and a failure was swallowed
+   * whole — the poll below reconciles `stops` from the record every few
+   * seconds, so a write that never landed showed as done and then quietly
+   * undid itself while the person was reading the confirmation.
+   *
+   * The optimistic update stays: waiting for a round trip before showing a
+   * decision the person has already made reads as the interface hesitating.
+   * What changes is that the caller now learns the outcome and can say so.
+   */
   const setSharing = useCallback(
-    (who: string, sharing: boolean) => {
+    async (who: string, sharing: boolean): Promise<boolean> => {
       setStops((s) => (sharing ? s.filter((id) => id !== who) : [...new Set([...s, who])]))
-      if (personId && patientId) {
-        void actOnRecord('set_sharing', patientId, personId, {
-          person_id: who,
-          sharing,
-        }).then(refreshConsent)
-      }
+      if (!personId || !patientId) return false
+      const result = await actOnRecord('set_sharing', patientId, personId, {
+        person_id: who,
+        sharing,
+      })
+      await refreshConsent()
+      return result.ok
     },
     [personId, patientId, refreshConsent],
   )

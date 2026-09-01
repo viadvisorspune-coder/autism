@@ -20,7 +20,7 @@ import { useRecordStatus } from '../data/RecordProvider'
 import { AsksProvider } from './asks'
 import { SubjectProvider, useSubject } from './subject'
 import { homeFor, navFor, paletteFor } from './system'
-import { SkipLink, screenName, useFocusOnNavigate, useOffline, useTitle } from './orientation'
+import { SkipLink, screenName, useConnection, useFocusOnNavigate, useTitle } from './orientation'
 
 export default function Shell() {
   const { signedIn, role } = useSession()
@@ -64,7 +64,7 @@ function Frame() {
   const { pathname } = useLocation()
   useTitle(screenName(pathname, role))
   useFocusOnNavigate()
-  const offline = useOffline()
+  const { offline, restored, clearRestored } = useConnection()
   const [menuOpen, setMenuOpen] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
 
@@ -73,7 +73,10 @@ function Frame() {
   useEffect(() => {
     setMenuOpen(false)
     setNavOpen(false)
-  }, [pathname])
+    // The reconnection notice has been read by anyone who moved on. It does not
+    // time out — see useConnection — but it does not follow you around either.
+    clearRestored()
+  }, [pathname, clearRestored])
 
   return (
     <div className="min-h-screen">
@@ -89,11 +92,38 @@ function Frame() {
       {offline ? (
         <div className="border-b border-black bg-[var(--paper)]" data-disclose="page">
           <div className="o-wrap py-4">
-            <p className="o-body o-measure">
+            <p className="o-body o-measure" role="status">
               <span className="font-semibold">You are offline.</span> What is already on screen is
-              still readable. New questions cannot be sent and nothing you do now will reach
-              anyone until the connection comes back.
+              still readable. Anything you type into a document is kept on this device and will
+              still be here when you reconnect. New questions cannot be sent and nothing you do
+              now will reach anyone until the connection comes back.
             </p>
+          </div>
+        </div>
+      ) : null}
+      {/*
+        Coming back, said as plainly as going away was.
+
+        The claim is narrow on purpose. ORCA queues nothing: a question that
+        failed while the connection was down was not held and re-sent, and
+        telling somebody "your changes are saved" when the only thing saved is
+        a local draft would be a reassurance about the wrong thing. So this says
+        exactly what survived and exactly what did not happen.
+
+        It waits to be dismissed rather than fading. A person who looked away
+        for ten seconds is precisely the person who needs to read it.
+      */}
+      {!offline && restored ? (
+        <div className="border-b border-black bg-[var(--paper)]" data-disclose="page">
+          <div className="o-wrap flex flex-wrap items-center justify-between gap-4 py-4">
+            <p className="o-body o-measure" role="status">
+              <span className="font-semibold">Connection restored.</span> Any document you were
+              writing was kept on this device and is still here. Nothing was sent while you were
+              offline, so anything you tried to send needs sending again.
+            </p>
+            <button type="button" className="o-btn o-btn-small shrink-0" onClick={clearRestored}>
+              Got it
+            </button>
           </div>
         </div>
       ) : null}

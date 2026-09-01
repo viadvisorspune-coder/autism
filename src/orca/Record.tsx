@@ -17,7 +17,7 @@ import { useRecordStatus } from '../data/RecordProvider'
 import { eventsFor, personName } from '../data/db'
 import type { EventCategory, Role, TimelineEvent } from '../data/types'
 import { useSubject } from './subject'
-import { Back, Card, Nothing, PageTitle, longDate, shortDate } from './parts'
+import { Back, Card, Loading, Nothing, PageTitle, longDate, shortDate } from './parts'
 import type { Tone } from './system'
 import { boundaryFor } from './system'
 import { NotShown } from './parts'
@@ -162,7 +162,20 @@ export default function Record() {
         </div>
       ) : null}
 
-      {!shown.length ? (
+      {/*
+        Reading, and empty, are different facts about a record.
+
+        The seeded rows are in memory from the first paint, so this screen has
+        always had something to draw — which meant a record still being fetched
+        looked exactly like a finished one, and a person could read a page of
+        entries that were about to be replaced by their own. Said in words for
+        the same reason the example-data strip in the footer exists.
+      */}
+      {status === 'loading' ? (
+        <Loading what={mine ? 'your record' : subjectName ? `${subjectName}’s record` : 'this record'} />
+      ) : null}
+
+      {status !== 'loading' && !shown.length ? (
         <Nothing>
           {filter !== 'Everything'
             ? `No entries in your record are filed under ${filter}. Other entries exist — this heading is empty, not the record.`
@@ -172,8 +185,16 @@ export default function Record() {
         </Nothing>
       ) : null}
 
+      {/*
+        The seeded entries are held back until the real ones have been fetched.
+
+        They are in memory from the first paint, which is what makes this
+        necessary rather than tidy: without it somebody opens Record, reads
+        four entries about a life that is not theirs, and watches them be
+        replaced. A second of the word "Loading" is cheaper than that.
+      */}
       <div className="space-y-16">
-        {months.map((group) => (
+        {(status === 'loading' ? [] : months).map((group) => (
           <section key={group.label}>
             <hr className="o-rule mb-5" />
             <h2 className="o-h2 mb-6">{group.label}</h2>

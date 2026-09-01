@@ -15,7 +15,7 @@ import { useMemo, useState } from 'react'
 import { useLive } from '../lib/live'
 import { connections, patients, people } from '../data/db'
 import { isSupabaseConfigured } from '../lib/supabase'
-import { CouldNotLoad, Nothing, PageTitle, SectionHead, longDate } from './parts'
+import { CouldNotLoad, Loading, Nothing, PageTitle, SectionHead, Updated, longDate } from './parts'
 
 interface AdminRun {
   id: string
@@ -62,7 +62,7 @@ function stamp(value: string | null): string {
 const FAILED = new Set(['Blocked', 'Cancelled', 'Escalated'])
 
 export function Runs() {
-  const { data, loading, failed, refresh } = useRuns()
+  const { data, loading, failed, updatedAt, refresh } = useRuns()
   const runs = data?.runs ?? []
 
   const [status, setStatus] = useState('Everything')
@@ -112,7 +112,7 @@ export function Runs() {
       </div>
 
       {failed ? <CouldNotLoad what="The run log" onRetry={refresh} /> : null}
-      {loading && !runs.length && !failed ? <Nothing>Reading the run log.</Nothing> : null}
+      {loading && !runs.length && !failed ? <Loading what="the run log" /> : null}
       {!loading && !shown.length && !failed ? (
         <Nothing>No runs match those filters.</Nothing>
       ) : null}
@@ -151,6 +151,14 @@ export function Runs() {
         Question text, answer content and subject names are not part of this view and are not
         loaded into it.
       </p>
+
+      {/*
+        Freshness matters more here than anywhere else in the product. This is
+        the screen somebody watches while a run is in flight, and a table that
+        has quietly stopped refreshing looks exactly like a run that has quietly
+        stopped moving.
+      */}
+      <Updated at={updatedAt} />
     </>
   )
 }

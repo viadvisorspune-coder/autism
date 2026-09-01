@@ -13,6 +13,8 @@ import { Link } from 'react-router-dom'
 import { type Block, htmlToBlocks, htmlToText } from '../lib/prose'
 import { people } from '../data/db'
 import { type Domain, type Tone, domainName, toneClass } from './system'
+import { ago } from './draft'
+import { ActionButton, useAction } from './action'
 
 /* ------------------------------------------------------------ structure */
 
@@ -326,25 +328,60 @@ export function shortDate(value: string | undefined): string {
  * and what to do. It keeps retrying on its own, so the honest instruction is
  * usually "wait" rather than a button that does what is already happening.
  */
-export function CouldNotLoad({ what, onRetry }: { what: string; onRetry?: () => void }) {
+export function CouldNotLoad({
+  what,
+  onRetry,
+}: {
+  what: string
+  onRetry?: () => void | boolean | Promise<boolean | void>
+}) {
   return (
-    <div className="o-card">
+    <div role="alert" className="o-card">
       <div className="o-card-body">
         <h2 className="o-h3 mb-3">{what} could not be loaded</h2>
         <p className="o-body o-measure">
           The record did not answer. This is a connection problem, not a change to what you are
           allowed to see — nothing has been hidden and nothing has been lost.
         </p>
+        {/*
+          Said out loud, because a read that retries itself is the one case
+          where automatic retrying is fine and the rule is that it must be
+          communicated rather than silent. Reading again costs nothing and
+          changes nothing; a send would be a different matter, and nothing in
+          this interface retries one of those on its own.
+        */}
         <p className="o-body o-measure mt-4">
           ORCA keeps trying every few seconds. What is on screen may be out of date until it
           succeeds.
         </p>
-        {onRetry ? (
-          <button type="button" className="o-btn mt-6" onClick={onRetry}>
-            Try now
-          </button>
-        ) : null}
+        {onRetry ? <RetryNow onRetry={onRetry} /> : null}
       </div>
+    </div>
+  )
+}
+
+/**
+ * "Try now", reporting on itself.
+ *
+ * Pressing this used to do nothing visible: the read takes a moment, the button
+ * did not change, and the screen it is on looks identical during the attempt
+ * and after a failed one. So people pressed it again, and again. Now it says
+ * what it is doing for exactly as long as it is doing it.
+ *
+ * Separate from `CouldNotLoad` only because it needs a hook, and a hook inside
+ * a conditional is not one.
+ */
+function RetryNow({ onRetry }: { onRetry: () => void | boolean | Promise<boolean | void> }) {
+  const action = useAction(() => Promise.resolve(onRetry()))
+  return (
+    <div className="mt-6">
+      <ActionButton
+        action={action}
+        idle="Try now"
+        working="Updating your record…"
+        done="Updated just now"
+        failed="Still not answering"
+      />
     </div>
   )
 }
@@ -355,6 +392,121 @@ export function Nothing({ children }: { children: ReactNode }) {
     <div className="o-card">
       <div className="o-card-body">
         <p className="o-body o-measure">{children}</p>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------ system status */
+
+/**
+ * What ORCA is doing, said in a sentence.
+ *
+ * ONE COMPONENT FOR EVERY WAIT IN THE PRODUCT. Reading, checking, saving,
+ * sending, updating, and failing to do any of those. They were previously
+ * either invisible — a screen that renders nothing while it reads looks exactly
+ * like a screen with nothing on it — or written inline in slightly different
+ * words on each screen.
+ *
+ * NO SPINNER, AND NOT BECAUSE OF TASTE. A spinner says "something is
+ * happening" and nothing else. Everyone here is waiting on something specific:
+ * their record being read, their decision being sent, a draft being written.
+ * The sentence is the indicator, and it says which. A shimmer skeleton is worse
+ * again — it animates continuously, in the shape of content that does not exist
+ * yet, on an interface built for people who find unnecessary movement
+ * expensive.
+ *
+ * `role="status"` rather than an alert: this is progress, not an interruption.
+ * A screen reader hears it at the next pause instead of over what it was
+ * already saying. `Failed` below is the one that interrupts.
+ */
+export function Status({ children }: { children: ReactNode }) {
+  return (
+    <p role="status" className="o-body o-measure border border-black p-5">
+      {children}
+    </p>
+  )
+}
+
+/**
+ * A first read, before there is anything to show.
+ *
+ * `what` names the thing, so the sentence is "Loading your record" rather than
+ * "Loading". Only shown while there is genuinely nothing on screen — a poll
+ * that refreshes a list already in front of somebody must not replace it with
+ * the word "Loading", which is a screen going backwards.
+ */
+export function Loading({ what }: { what: string }) {
+  return <Status>Loading {what}…</Status>
+}
+
+/**
+ * How current what you are looking at is.
+ *
+ * Deliberately quiet — `o-meta`, no border, no card. It is a footnote about
+ * freshness, not an event, and a polling screen that announced every four-second
+ * refresh would be an interface tapping somebody on the shoulder to say nothing
+ * happened. So it is not a live region: it is there when looked for.
+ *
+ * Says "not read yet" rather than nothing at all when no read has come back.
+ * A missing line is indistinguishable from a line that has not updated.
+ */
+export function Updated({ at }: { at: string | null }) {
+  return <p className="o-meta o-measure mt-8">{at ? `Updated ${ago(at)}.` : 'Not read yet.'}</p>
+}
+
+/**
+ * Something did not work, and here is what is still true.
+ *
+ * Four parts, in this order, because that is the order the questions arrive in:
+ * what failed, what that did **not** cost, what to do, and what else you can do
+ * instead. The second is the one usually missing and the one that matters most
+ * here — somebody who has just typed six paragraphs about their child needs to
+ * know those six paragraphs still exist before they will read anything else on
+ * the screen.
+ *
+ * `role="alert"` because this one does interrupt. A failure announced at the
+ * next convenient pause is a failure announced after the person has already
+ * pressed the button again.
+ *
+ * Nothing retries itself here. A read may — it costs nothing and the screen
+ * says so — but a send is consequential, and something that reaches another
+ * person's inbox must never be sent twice because a retry was quietly helpful.
+ */
+export function Failed({
+  what,
+  kept,
+  onRetry,
+  retryLabel = 'Try again',
+  children,
+}: {
+  /** The sentence that names the failure, e.g. "We couldn't send this document." */
+  what: string
+  /** What survived it. Omitted only when genuinely nothing was at stake. */
+  kept?: string
+  onRetry?: () => void
+  retryLabel?: string
+  /** A second way out — leaving it as a draft, going back, asking someone else. */
+  children?: ReactNode
+}) {
+  return (
+    <div role="alert" className="o-card">
+      <div className="o-card-body">
+        <p className="o-body o-measure font-semibold">{what}</p>
+        {kept ? <p className="o-body o-measure mt-3">{kept}</p> : null}
+        <p className="o-body o-measure mt-3">
+          Nothing was sent, and nothing is being retried on its own.
+        </p>
+        {onRetry || children ? (
+          <div className="mt-6 flex flex-col gap-4 sm:flex-row">
+            {onRetry ? (
+              <button type="button" className="o-btn o-btn-primary" onClick={onRetry}>
+                {retryLabel}
+              </button>
+            ) : null}
+            {children}
+          </div>
+        ) : null}
       </div>
     </div>
   )

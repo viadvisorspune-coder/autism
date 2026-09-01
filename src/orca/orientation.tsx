@@ -5,7 +5,7 @@
  * missing. None of them is a screen; all of them are the difference between an
  * interface you can hold in your head and one you have to re-read.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { navFor } from './system'
 import type { Role } from '../data/types'
@@ -95,12 +95,53 @@ export function SkipLink() {
  * everything is working.
  */
 export function useOffline(): boolean {
+  return useConnection().offline
+}
+
+export interface Connection {
+  offline: boolean
+  /**
+   * True from the moment the connection comes back until the person clears it.
+   *
+   * Coming back is worth saying, because going away was: somebody who read
+   * "you are offline, nothing can be sent" and then acted on it needs to be
+   * told when that stopped being true. Without this the strip simply vanished,
+   * which asks them to notice an absence.
+   *
+   * It does not time out. A notice that disappears on a schedule is a notice
+   * that is missed by anyone who looked away, and this one carries a fact
+   * about what did and did not happen to their work. It is dismissed by the
+   * person, or by leaving the screen.
+   */
+  restored: boolean
+  clearRestored: () => void
+}
+
+export function useConnection(): Connection {
   const [offline, setOffline] = useState(
     () => typeof navigator !== 'undefined' && navigator.onLine === false,
   )
+  const [restored, setRestored] = useState(false)
+  const wasOffline = useRef(offline)
+
   useEffect(() => {
-    const down = () => setOffline(true)
-    const up = () => setOffline(false)
+    const down = () => {
+      wasOffline.current = true
+      setOffline(true)
+      // A connection that drops again while the "restored" line is still up
+      // makes that line false. Being offline is the more recent truth.
+      setRestored(false)
+    }
+    const up = () => {
+      // Only a return from an actual outage is worth announcing. The `online`
+      // event also fires on interface changes that were never an outage, and a
+      // notice about a reconnection nobody noticed losing is noise. Tracked in
+      // a ref rather than read from state, so the check does not depend on a
+      // render having happened between the two events.
+      if (wasOffline.current) setRestored(true)
+      wasOffline.current = false
+      setOffline(false)
+    }
     window.addEventListener('offline', down)
     window.addEventListener('online', up)
     return () => {
@@ -108,7 +149,9 @@ export function useOffline(): boolean {
       window.removeEventListener('online', up)
     }
   }, [])
-  return offline
+
+  const clearRestored = useCallback(() => setRestored(false), [])
+  return { offline, restored, clearRestored }
 }
 
 /** The screen name for a path, for the tab title. */

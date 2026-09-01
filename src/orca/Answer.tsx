@@ -528,7 +528,14 @@ function Waiting({ at, status }: { at: string; status?: string }) {
 
   return (
     <Card tone="current">
-      <div className="o-card-body">
+      {/*
+        A live region, because this text changes on a clock rather than on a
+        press. It rewrites itself at three minutes to say the wait is longer
+        than usual, and somebody who is not watching the screen — which is
+        exactly what this card tells them they may do — otherwise never learns
+        that. Polite, not an alert: it is progress, not an interruption.
+      */}
+      <div className="o-card-body" role="status">
         <h2 className="o-h2 mb-6">{slow ? 'Still working on this' : 'Working on this'}</h2>
         <p className="o-body o-measure">
           {slow

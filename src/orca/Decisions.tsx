@@ -16,7 +16,17 @@ import { useLive } from '../lib/live'
 import type { PendingApproval } from '../components/ApprovalPanel'
 import { useAsks } from './asks'
 import { useSubject } from './subject'
-import { Card, CouldNotLoad, Nothing, PageTitle, Prose, SectionHead, longDate } from './parts'
+import {
+  Card,
+  CouldNotLoad,
+  Loading,
+  Nothing,
+  PageTitle,
+  Prose,
+  SectionHead,
+  Updated,
+  longDate,
+} from './parts'
 import { domainName } from './system'
 import { ActionButton, useAction } from './action'
 
@@ -24,7 +34,10 @@ export default function Decisions() {
   const { option, role } = useSession()
   const { subjectId } = useSubject()
   const { requests, answerRequest } = useAsks()
-  const { data, failed, refresh } = useLive<{ approvals: PendingApproval[] }>('approvals', subjectId)
+  const { data, loading, failed, updatedAt, refresh } = useLive<{ approvals: PendingApproval[] }>(
+    'approvals',
+    subjectId,
+  )
 
   const waiting = (data?.approvals ?? []).filter((a) => a.status === 'Awaiting approval')
   // Access requests are addressed to the person whose record it is. Everybody
@@ -33,20 +46,82 @@ export default function Decisions() {
   const raised = role === 'patient' ? [] : requests.filter((r) => r.fromId === option?.personId)
 
   const count = waiting.length + mine.length
+  // Until the first read comes back, the count is a count of nothing rather
+  // than a count of zero — and "Nothing needs your decision" is exactly the
+  // sentence somebody would act on by closing the tab.
+  const reading = loading && !data
+
+  /**
+   * What the record now says about the last access decision.
+   *
+   * On the page rather than on the card, because the card disappears the
+   * moment the decision lands — a confirmation living inside it would be
+   * removed by the very thing it is confirming. And a decision about who may
+   * read part of somebody's medical record is not something to announce with a
+   * notice that leaves on a timer.
+   */
+  const [lastAccess, setLastAccess] = useState<{
+    who: string
+    granted: boolean
+    ok: boolean
+  } | null>(null)
 
   return (
     <>
       <PageTitle>
-        {count === 0
-          ? 'Nothing needs your decision'
-          : count === 1
-            ? 'One thing needs your decision'
-            : `${count} things need your decision`}
+        {reading
+          ? 'Decisions'
+          : count === 0
+            ? 'Nothing needs your decision'
+            : count === 1
+              ? 'One thing needs your decision'
+              : `${count} things need your decision`}
       </PageTitle>
+
+      {reading ? <Loading what="what is waiting for you" /> : null}
+
+      {/*
+        The record's answer, kept on screen rather than flashed.
+
+        The card that carried the decision is gone by the time this appears —
+        that is what deciding does to it — so without this the screen simply had
+        one fewer thing on it and nothing said why. Dismissed by the person or
+        by leaving, never on a timer.
+      */}
+      {lastAccess ? (
+        <div role="status" className="o-body o-measure mb-10 border border-black p-5">
+          {lastAccess.ok ? (
+            <>
+              <p className="font-semibold">{lastAccess.granted ? 'Access given ✓' : 'Declined ✓'}</p>
+              <p className="mt-3">
+                {lastAccess.granted
+                  ? `${lastAccess.who} can ask about that part of your record from now on. You can stop it at any time in Sharing.`
+                  : `${lastAccess.who} was not given access. Nothing was read and nothing was sent.`}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold">We couldn&rsquo;t save your decision.</p>
+              <p className="mt-3">
+                Your record is unchanged and {lastAccess.who} still has no access. Nothing is being
+                retried on its own — the request will reappear here within a few seconds and you
+                can decide again.
+              </p>
+            </>
+          )}
+          <button
+            type="button"
+            className="o-btn o-btn-small mt-5"
+            onClick={() => setLastAccess(null)}
+          >
+            Got it
+          </button>
+        </div>
+      ) : null}
 
       {failed ? <CouldNotLoad what="Decisions" onRetry={refresh} /> : null}
 
-      {count === 0 && !raised.length && !failed ? (
+      {!reading && count === 0 && !raised.length && !failed ? (
         <Nothing>
           When something would be sent to another person, or when someone asks for access to a
           part of the record they cannot currently see, it waits here until you decide. Nothing
@@ -76,22 +151,12 @@ export default function Decisions() {
                 then on. You can stop it at any time in Sharing.
               </p>
 
-              <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-                <button
-                  type="button"
-                  className="o-btn o-btn-primary flex-1"
-                  onClick={() => answerRequest(r.id, 'granted')}
-                >
-                  Give them access
-                </button>
-                <button
-                  type="button"
-                  className="o-btn flex-1"
-                  onClick={() => answerRequest(r.id, 'declined')}
-                >
-                  Don&rsquo;t
-                </button>
-              </div>
+              <AccessChoice
+                id={r.id}
+                who={r.fromName}
+                answer={answerRequest}
+                onSaved={setLastAccess}
+              />
             </div>
           </Card>
         ))}
@@ -121,7 +186,61 @@ export default function Decisions() {
           </ul>
         </section>
       ) : null}
+
+      <Updated at={updatedAt} />
     </>
+  )
+}
+
+/**
+ * Yes or no to somebody asking for access.
+ *
+ * Both controls report separately, and both lock the other out while one is
+ * going: the two answers to this question are opposites, and letting them race
+ * would mean the record keeps whichever arrived second.
+ */
+function AccessChoice({
+  id,
+  who,
+  answer,
+  onSaved,
+}: {
+  id: string
+  who: string
+  answer: (id: string, decision: 'granted' | 'declined') => Promise<boolean>
+  onSaved: (outcome: { who: string; granted: boolean; ok: boolean }) => void
+}) {
+  const decide = async (granted: boolean) => {
+    const ok = await answer(id, granted ? 'granted' : 'declined')
+    onSaved({ who, granted, ok })
+    return ok
+  }
+  const giving = useAction(() => decide(true))
+  const refusing = useAction(() => decide(false))
+  const busy = giving.busy || refusing.busy
+
+  return (
+    <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+      <ActionButton
+        action={giving}
+        idle="Give them access"
+        working="Saving…"
+        done="Saved ✓"
+        failed="Not saved"
+        primary
+        disabled={busy}
+        className="flex-1"
+      />
+      <ActionButton
+        action={refusing}
+        idle="Don’t"
+        working="Saving…"
+        done="Saved ✓"
+        failed="Not saved"
+        disabled={busy}
+        className="flex-1"
+      />
+    </div>
   )
 }
 
@@ -266,13 +385,32 @@ function Approval({
           ))}
         </div>
 
-        <p className="o-body o-measure mt-5" aria-live="polite">
-          {sending
-            ? 'Sending your decision.'
-            : problem
-              ? problem
+        {/*
+          One line, three facts, and never both at once.
+
+          The failure gets `role="alert"` rather than sharing the polite region
+          with "Sending your decision" — a person who has just pressed Send it
+          and heard nothing since needs to be interrupted, not told at the next
+          convenient pause. Nothing retries itself: the two buttons above are
+          live again and pressing one is the retry, which is stated rather than
+          implied.
+        */}
+        {problem ? (
+          <div role="alert" className="o-body o-measure mt-5 border border-black p-5">
+            <p className="font-semibold">We couldn&rsquo;t send your decision.</p>
+            <p className="mt-3">{problem}</p>
+            <p className="mt-3">
+              Nothing was sent and nothing is being retried on its own. The document is unchanged
+              and this is still waiting. Choosing again above sends it.
+            </p>
+          </div>
+        ) : (
+          <p className="o-body o-measure mt-5" aria-live="polite">
+            {sending
+              ? 'Sending your decision…'
               : 'Nothing has been sent yet. This waits as long as you need.'}
-        </p>
+          </p>
+        )}
       </div>
     </Card>
   )

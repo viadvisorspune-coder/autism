@@ -19,7 +19,8 @@ import { useRecordStatus } from '../data/RecordProvider'
 import { connections, people } from '../data/db'
 import type { Connection, Role } from '../data/types'
 import { useAsks } from './asks'
-import { Card, Nothing, PageTitle, longDate } from './parts'
+import { Card, Loading, Nothing, PageTitle, longDate } from './parts'
+import { ActionButton, useAction } from './action'
 import { type Domain, domainName, outcomeFor } from './system'
 
 const DOMAINS: Domain[] = ['work', 'education', 'support', 'personal', 'health', 'clinical']
@@ -46,6 +47,19 @@ export default function Sharing() {
   // about it, and a decision that never leaves this component cannot tell them.
   const { stops, setSharing } = useAsks()
   const [confirming, setConfirming] = useState<Connection | null>(null)
+  /**
+   * The last change, and whether the record took it.
+   *
+   * Kept on the page rather than on the button that made it. The confirmation
+   * screen closes the moment somebody presses Stop sharing, so a state living
+   * on that button goes with it; and a change to who can read a medical record
+   * is exactly the kind of thing the brief means by never announcing something
+   * important with a notice that removes itself. This one stays until it is
+   * dismissed or the person leaves.
+   */
+  const [lastSave, setLastSave] = useState<{ name: string; ok: boolean; sharing: boolean } | null>(
+    null,
+  )
 
   const held = useMemo(
     () =>
@@ -55,14 +69,33 @@ export default function Sharing() {
     [patientId, status],
   )
 
+  /**
+   * Records the outcome, whichever way it goes.
+   *
+   * `setSharing` updates the screen optimistically and reconciles from the
+   * record a few seconds later, so a write that failed used to undo itself in
+   * front of somebody who had already been shown that it worked. Now the
+   * failure is stated, in the same place the success is.
+   */
+  async function save(personId: string, sharing: boolean) {
+    const name = people.find((p) => p.id === personId)?.name ?? 'them'
+    setLastSave(null)
+    const ok = await setSharing(personId, sharing)
+    setLastSave({ name, ok, sharing })
+    return ok
+  }
+
   if (confirming) {
     return (
       <Confirm
         connection={confirming}
         onCancel={() => setConfirming(null)}
-        onStop={() => {
-          setSharing(confirming.personId, false)
+        // Saved first, then closed. Closing on the press and saving behind the
+        // person's back is how a failure ends up with nowhere to be shown.
+        onStop={async () => {
+          const ok = await save(confirming.personId, false)
           setConfirming(null)
+          return ok
         }}
       />
     )
@@ -72,7 +105,55 @@ export default function Sharing() {
     <>
       <PageTitle>Who can see your record</PageTitle>
 
-      {!held.length ? (
+      {/*
+        The most consequential empty state in the product.
+
+        "Nobody can see any part of your record" is a sentence somebody will
+        believe and act on. Shown while the record is still being read, it is a
+        false reassurance about disclosure — the one thing this screen exists to
+        be exact about.
+      */}
+      {status === 'loading' ? <Loading what="who can see your record" /> : null}
+
+      {/*
+        The outcome of the last change, said where it can be read.
+
+        Not a toast. This is a change to who can read a medical record, and the
+        person who made it is owed a statement of what the record now says
+        rather than a rectangle that leaves after four seconds. It goes when
+        they dismiss it or when they leave the screen.
+      */}
+      {lastSave ? (
+        <div role="status" className="o-body o-measure mb-10 border border-black p-5">
+          {lastSave.ok ? (
+            <>
+              <p className="font-semibold">Saved ✓</p>
+              <p className="mt-3">
+                {lastSave.sharing
+                  ? `${lastSave.name} can see their part of your record again. This is what your record now says.`
+                  : `${lastSave.name} can no longer see any part of your record. This is what your record now says.`}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold">We couldn&rsquo;t save this change.</p>
+              <p className="mt-3">
+                Your record is unchanged, so {lastSave.name}{' '}
+                {lastSave.sharing
+                  ? 'still cannot see it.'
+                  : 'can still see their part of it.'}{' '}
+                Nothing is being retried on its own. The screen will show what the record actually
+                says within a few seconds.
+              </p>
+            </>
+          )}
+          <button type="button" className="o-btn o-btn-small mt-5" onClick={() => setLastSave(null)}>
+            Got it
+          </button>
+        </div>
+      ) : null}
+
+      {status !== 'loading' && !held.length ? (
         <Nothing>
           Nobody outside your own account can see any part of your record. When you share
           something with someone, they appear here with exactly what they can and cannot see.
@@ -103,13 +184,12 @@ export default function Sharing() {
                         They can see nothing in your record. Anything they were told before still
                         exists in their own notes — stopping here does not reach into those.
                       </p>
-                      <button
-                        type="button"
-                        className="o-btn mt-6"
-                        onClick={() => setSharing(c.personId, true)}
-                      >
-                        Share with {firstName(person.name)} again
-                      </button>
+                      <div className="mt-6">
+                        <Resume
+                          label={`Share with ${firstName(person.name)} again`}
+                          run={() => save(c.personId, true)}
+                        />
+                      </div>
                     </>
                   ) : (
                     <>
@@ -160,6 +240,20 @@ export default function Sharing() {
 }
 
 /**
+ * Starting again, reported the same way stopping is.
+ *
+ * A component rather than a button in the map, because it needs its own state
+ * and hooks cannot live inside one. The banner above carries what the record
+ * now says; this carries what the control is doing while it says it.
+ */
+function Resume({ label, run }: { label: string; run: () => Promise<boolean> }) {
+  const action = useAction(run)
+  return (
+    <ActionButton action={action} idle={label} working="Saving…" done="Saved ✓" failed="Not saved" />
+  )
+}
+
+/**
  * What to call somebody on a button.
  *
  * "Stop sharing with Dr" is what naively taking the first word gives you, and
@@ -197,11 +291,12 @@ function Confirm({
 }: {
   connection: Connection
   onCancel: () => void
-  onStop: () => void
+  onStop: () => Promise<boolean>
 }) {
   const person = people.find((p) => p.id === connection.personId)
   const name = person?.name ?? 'this person'
   const { can } = person ? split(person.role) : { can: [] as string[] }
+  const stopping = useAction(onStop)
 
   return (
     <>
@@ -236,10 +331,21 @@ function Confirm({
           </p>
 
           <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-            <button type="button" className="o-btn o-btn-primary flex-1" onClick={onStop}>
-              Stop sharing
-            </button>
-            <button type="button" className="o-btn flex-1" onClick={onCancel}>
+            <ActionButton
+              action={stopping}
+              idle="Stop sharing"
+              working="Saving…"
+              done="Saved ✓"
+              failed="Not saved"
+              primary
+              className="flex-1"
+            />
+            <button
+              type="button"
+              className="o-btn flex-1"
+              disabled={stopping.busy}
+              onClick={onCancel}
+            >
               Keep sharing
             </button>
           </div>

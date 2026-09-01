@@ -89,12 +89,19 @@ export function hasContent(draft: Omit<DocumentDraft, 'savedAt'>): boolean {
   )
 }
 
-/** How long ago, in words, for the card that offers it back. */
+/**
+ * How long ago, in words.
+ *
+ * Written for the card that offers a draft back, and now also for the line on
+ * every polling screen that says how current what you are reading is. No
+ * seconds and no clock time: "Updated 14:32:07" asks somebody to look at their
+ * own clock and subtract, and "just now" is the answer they were after.
+ */
 export function ago(iso: string): string {
   const ms = Date.now() - Date.parse(iso)
   if (!Number.isFinite(ms) || ms < 0) return 'just now'
   const minutes = Math.round(ms / 60_000)
-  if (minutes < 1) return 'less than a minute ago'
+  if (minutes < 1) return 'just now'
   if (minutes === 1) return 'a minute ago'
   if (minutes < 60) return `${minutes} minutes ago`
   const hours = Math.round(minutes / 60)

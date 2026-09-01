@@ -36,7 +36,25 @@ export interface LiveResult<T> {
    * screen that the following second contradicts.
    */
   failed: boolean
-  refresh: () => void
+  /**
+   * When the record on screen was last actually read, as an ISO time.
+   *
+   * Null until the first read comes back. A polling screen has no other way to
+   * say how old what you are looking at is, and "this is four seconds old" and
+   * "this is from before the tunnel" look identical without it. Screens turn
+   * this into a sentence rather than a timestamp — nobody wants to subtract
+   * clock times to find out whether their record is current.
+   */
+  updatedAt: string | null
+  /**
+   * Read again now.
+   *
+   * Returns the promise rather than firing and forgetting, so a control that
+   * offers this can say "Updating your record…" for exactly as long as it is
+   * true. It was typed `void` while returning a promise, which is how a retry
+   * button ends up reporting success in the same frame it was pressed.
+   */
+  refresh: () => Promise<boolean>
 }
 
 /**
@@ -63,30 +81,46 @@ export function useLive<T>(
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const timer = useRef<number | null>(null)
   const alive = useRef(true)
 
-  const read = useCallback(async () => {
+  /**
+   * Returns whether the read got an answer.
+   *
+   * The polling loop ignores this — it has `failed` for that. It exists for the
+   * "Try now" button, which awaited a promise that resolved whether or not the
+   * read had worked, and so reported success every single time it was pressed.
+   * A retry control that always says it succeeded is worse than one that says
+   * nothing.
+   */
+  const read = useCallback(async (): Promise<boolean> => {
     if (!isSupabaseConfigured) {
       setLoading(false)
-      return
+      return false
     }
     try {
       const { data: body, error } = await supabase.functions.invoke('app-read', {
         body: { resource, role, actor_id: option?.personId ?? null, patient_id: forRecord },
       })
-      if (!alive.current) return
+      if (!alive.current) return false
       if (!error && body?.permitted) {
         setData((body.data as T) ?? null)
         setFailed(false)
+        setUpdatedAt(new Date().toISOString())
+        return true
       } else {
         // A refusal is not a failure — it is an answer, and the screens that
         // ask for a resource they may not have already handle it. Only an
         // actual inability to find out counts here.
         setFailed(Boolean(error))
+        // A refusal came back from a working connection, so the read did reach
+        // the record. Nothing was retrieved, but nothing is wrong either.
+        return !error
       }
     } catch {
       if (alive.current) setFailed(true)
+      return false
     } finally {
       if (alive.current) setLoading(false)
     }
@@ -134,7 +168,7 @@ export function useLive<T>(
     }
   }, [read, intervalMs])
 
-  return { data, loading, failed, refresh: read }
+  return { data, loading, failed, updatedAt, refresh: read }
 }
 
 /* ------------------------------------------------------------------- writes */

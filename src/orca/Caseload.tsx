@@ -15,7 +15,7 @@ import { useSession } from '../state/session'
 import { useRecordStatus } from '../data/RecordProvider'
 import { eventsFor } from '../data/db'
 import { useSubject } from './subject'
-import { Card, Nothing, PageTitle, longDate } from './parts'
+import { Card, Loading, Nothing, PageTitle, longDate } from './parts'
 
 export default function Caseload() {
   const { option } = useSession()
@@ -41,7 +41,17 @@ export default function Caseload() {
     <>
       <PageTitle>Your caseload</PageTitle>
 
-      {!rows.length ? (
+      {/*
+        "Still reading" and "you hold nobody's record" are different sentences.
+
+        The second one is a clinician's whole working day being absent, and it
+        is the kind of thing somebody acts on immediately — by assuming their
+        access was withdrawn. It must never be shown while the answer is still
+        being fetched.
+      */}
+      {status === 'loading' ? <Loading what="your caseload" /> : null}
+
+      {status !== 'loading' && !rows.length ? (
         <Nothing>
           You do not currently hold a live connection to anyone&rsquo;s record. A connection is
           made by the person whose record it is.
