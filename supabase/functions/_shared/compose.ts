@@ -398,13 +398,22 @@ const PREFIX: Record<WorkflowName, string> = {
   fifteen: 'YOXA',
 }
 
-/** Whether a lane is configured at all, without building anything. */
+/**
+ * Whether a lane can actually be started.
+ *
+ * This used to check only that the variables were non-empty, which is a
+ * different question and gave a worse answer: a trigger URL with the secret
+ * pasted into it is set, so routing counted the lane as available, planned a
+ * run for it, and only then did `deploymentFor` reject the value. The person
+ * saw a path chosen and nothing happen.
+ *
+ * Now it asks the same question the trigger asks, by running the same lookup.
+ * A lane whose URL will be refused is a lane routing must not name, so the
+ * refusal arrives as "this is not configured" before anything is planned
+ * rather than as a failure after.
+ */
 export const isConfigured = (workflow: WorkflowName): boolean =>
-  Boolean(
-    Deno.env.get(`${PREFIX[workflow]}_DEPLOYMENT_SECRET`) &&
-      (Deno.env.get(`${PREFIX[workflow]}_TRIGGER_URL`) ||
-        Deno.env.get(`${PREFIX[workflow]}_DEPLOYMENT_ID`)),
-  )
+  deploymentFor(workflow).ok
 
 export function deploymentFor(workflow: WorkflowName): DeploymentLookup {
   const prefix = PREFIX[workflow]

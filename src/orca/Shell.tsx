@@ -49,6 +49,7 @@ import {
   IconHome,
   IconIncidents,
   IconNotes,
+  IconPipeline,
   IconRecord,
   IconRequests,
   IconRuns,
@@ -231,6 +232,7 @@ const GLYPH: Record<IconName, (p: { size?: number }) => React.ReactElement> = {
   health: IconHealth,
   caseload: IconCaseload,
   notes: IconNotes,
+  pipeline: IconPipeline,
 }
 
 /**

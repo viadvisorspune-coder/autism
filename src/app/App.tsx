@@ -8,6 +8,7 @@ import Onboarding from '../routes/auth/Onboarding'
 
 import Shell from '../orca/Shell'
 import OrcaHome from '../orca/Home'
+import OrcaPipeline from '../orca/Pipeline'
 import Ask from '../orca/Ask'
 import Answer from '../orca/Answer'
 import OrcaRecord, { Entry } from '../orca/Record'
@@ -239,6 +240,11 @@ export default function App() {
             </Only>
           }
         />
+        {/*
+          A launcher rather than a second chat. Ask routes; this one does not,
+          which is the only reason it exists as a separate screen.
+        */}
+        <Route path="/pipeline" element={<Only when={notAdmin}><OrcaPipeline /></Only>} />
         <Route path="/ask" element={<Only when={notAdmin}><Ask /></Only>} />
         <Route path="/ask/:askId" element={<Only when={notAdmin}><Answer /></Only>} />
         <Route path="/record" element={<Only when={notAdmin}><OrcaRecord /></Only>} />

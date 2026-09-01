@@ -32,6 +32,14 @@ import { resolveRecipient } from '../_shared/recipient.ts'
 /** How long a retrieval stays fresh enough to draft from without looking again. */
 const EVIDENCE_FRESH_MS = 60 * 60 * 1000
 
+/** The path a lane belongs to, for a run whose lane was chosen rather than routed. */
+const PATH_FOR: Record<Lane, string> = {
+  understand: 'understand_only',
+  produce: 'produce_only',
+  chat: 'chatbot_direct',
+  fifteen: 'fifteen_step',
+}
+
 /**
  * The two facts routing cannot read off the sentence.
  *
@@ -226,9 +234,18 @@ Deno.serve(async (req) => {
       ? asked
       : null
 
+  /**
+   * An override names the lane, so the path is that lane's own path.
+   *
+   * This read `path: 'understand_only'` whatever was chosen, so a run sent
+   * deliberately down the fifteen-step chain was filed on the record as an
+   * ordinary read. The workflow fired correctly and the row said the wrong
+   * thing about why, which is the one kind of wrong a governance record must
+   * not be.
+   */
   const plan: Plan = override
     ? {
-        path: 'understand_only',
+        path: PATH_FOR[override],
         lane: override,
         then: null,
         reason: 'You chose this yourself.',

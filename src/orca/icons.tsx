@@ -184,6 +184,16 @@ export const IconNotes = (p: IconProps) => (
   </Glyph>
 )
 
+/** The full pipeline. Stages in sequence, with a gate partway. */
+export const IconPipeline = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M3.4 12h4.2M10.4 12h3.2M16.4 12h4.2" />
+    <circle cx="9" cy="12" r="1.5" />
+    <circle cx="15" cy="12" r="1.5" />
+    <path d="M12 5.6v2.2M12 16.2v2.2" />
+  </Glyph>
+)
+
 export const IconSearch = (p: IconProps) => (
   <Glyph {...p}>
     <circle cx="10.8" cy="10.8" r="5.8" />

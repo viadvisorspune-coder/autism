@@ -133,6 +133,7 @@ export type IconName =
   | 'health'
   | 'caseload'
   | 'notes'
+  | 'pipeline'
 
 /**
  * Four items for everyone except the administrator. Same words, same order,
@@ -157,6 +158,16 @@ export function navFor(role: Role | null): Destination[] {
    * in the row because it is a place you go.
    */
   const adjust: Destination = { label: 'Adjust', to: '/adjust', icon: 'adjust' }
+
+  /**
+   * The governed chain, given its own door.
+   *
+   * Ask decides which workflow answers, which is right for a question and
+   * wrong when the thing you want is one specific chain running. This sends
+   * every request down the fifteen-step pipeline and routes nothing, so what
+   * ran is never a matter of how the sentence was phrased.
+   */
+  const pipeline: Destination = { label: 'Full pipeline', to: '/pipeline', icon: 'pipeline' }
 
   if (role === 'admin') {
     return [
@@ -203,6 +214,7 @@ export function navFor(role: Role | null): Destination[] {
       decisions,
       documents,
       { label: 'Sharing', to: '/sharing', icon: 'sharing' },
+      pipeline,
       adjust,
     ]
   }
@@ -216,7 +228,7 @@ export function navFor(role: Role | null): Destination[] {
    * week than anyone with a clinic appointment does, and until now the only
    * thing she could do with that was ask a question about it.
    */
-  if (role === 'trusted') return [ask, record, notes, adjust]
+  if (role === 'trusted') return [ask, record, notes, pipeline, adjust]
 
   /**
    * Priya coordinates, and Tasks is her home rather than Ask.
@@ -236,6 +248,7 @@ export function navFor(role: Role | null): Destination[] {
       ask,
       record,
       documents,
+      pipeline,
       adjust,
     ]
   }
@@ -258,6 +271,7 @@ export function navFor(role: Role | null): Destination[] {
       notes,
       { label: 'Tasks', to: '/tasks', icon: 'tasks' },
       documents,
+      pipeline,
       adjust,
     ]
   }
@@ -270,7 +284,17 @@ export function navFor(role: Role | null): Destination[] {
    * add a line to it.
    */
   if (hasCaseload(role)) {
-    return [caseload, ask, record, notes, { label: 'Tasks', to: '/tasks', icon: 'tasks' }, documents, decisions, adjust]
+    return [
+      caseload,
+      ask,
+      record,
+      notes,
+      { label: 'Tasks', to: '/tasks', icon: 'tasks' },
+      documents,
+      decisions,
+      pipeline,
+      adjust,
+    ]
   }
 
   /**
@@ -297,6 +321,7 @@ export function navFor(role: Role | null): Destination[] {
       ask,
       record,
       documents,
+      pipeline,
       adjust,
     ]
   }
