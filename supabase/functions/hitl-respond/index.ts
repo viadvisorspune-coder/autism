@@ -9,6 +9,35 @@
 import { admin, cors, json, str } from '../_shared/yoxa.ts'
 import { actorFromRequest, forbidden, mayActOnPatient, unauthorised, yoxaOrigin } from '../_shared/app.ts'
 
+/**
+ * The secret that answers a particular deployment.
+ *
+ * Yoxa issues an approval response secret per deployment, and this read a
+ * single environment variable — so a second workflow's approvals could only be
+ * answered by overwriting the first workflow's secret, silently breaking it.
+ * The receiver already accepts several signing secrets for exactly this
+ * reason; the responder did not, and the asymmetry was going to be discovered
+ * by a person pressing Approve and being told the run was not configured.
+ *
+ * YOXA_HITL_RESPONSE_SECRETS holds a JSON object keyed by deployment id.
+ * YOXA_HITL_RESPONSE_SECRET remains the fallback for a single deployment and
+ * for anything already configured, so nothing that works today stops working.
+ */
+function responseSecretFor(deploymentId: string | null | undefined): string | null {
+  const raw = Deno.env.get('YOXA_HITL_RESPONSE_SECRETS')
+  if (raw && deploymentId) {
+    try {
+      const byDeployment = JSON.parse(raw) as Record<string, unknown>
+      const found = byDeployment[deploymentId]
+      if (typeof found === 'string' && found.trim()) return found.trim()
+    } catch {
+      // A malformed map must not take out the single-secret path below.
+      console.error('YOXA_HITL_RESPONSE_SECRETS is not valid JSON; using the single secret.')
+    }
+  }
+  return Deno.env.get('YOXA_HITL_RESPONSE_SECRET') ?? null
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405)
@@ -69,7 +98,7 @@ Deno.serve(async (req) => {
   }
 
   const origin = yoxaOrigin()
-  const responseSecret = Deno.env.get('YOXA_HITL_RESPONSE_SECRET')
+  const responseSecret = responseSecretFor(task.deployment_id)
   if (!origin || !responseSecret || !task.deployment_id) {
     return json({ error: 'hitl_response_not_configured' }, 503)
   }
