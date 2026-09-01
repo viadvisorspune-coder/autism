@@ -209,28 +209,39 @@ Deno.serve(async (req) => {
     recipient: recipientIn,
     artifactType: str(body.artifact_type),
     /**
-     * A replay is handed the answer it is replaying.
+     * A run told not to look things up is handed what it is drafting from.
      *
-     * Routing found a prior answer to this same question, from this actor,
-     * about this record — that is the entire basis on which the chat lane was
-     * chosen over UNDERSTAND. But the run was then started with no reference
-     * to it, so the workflow received the question and nothing else and had to
-     * re-derive an answer from the record. That is not a replay; it is a
-     * second, slower UNDERSTAND wearing the chatbot's name, and it can
-     * silently disagree with what the person was told the first time.
+     * Two of the five paths are chosen BECAUSE routing found an earlier run
+     * whose output is the material for this one — `produce_only` because a
+     * recent retrieval means the record need not be read again, and
+     * `chatbot_replay` because the same question already has an answer. Both
+     * were then started with no reference to that run.
      *
-     * `chainedFrom` is the existing road for this: `launch` reads the prior
+     * The consequence differed by path and neither announced itself.
+     * `produce_only` told PRODUCE "a draft will be written from what was just
+     * found, so nothing needs looking up again" and gave it nothing, so it
+     * either drafted from the question alone or retrieved anyway — the second
+     * being a wider read than the one the person was told about. A replay
+     * re-derived instead of replaying, and could silently disagree with what
+     * the person had already been told.
+     *
+     * `chainedFrom` is the existing road for this. `launch` reads the prior
      * run from the database rather than trusting anything passed in, and
-     * composes the earlier answer, its sources and its withheld list into the
-     * trigger under a heading that says plainly it is prior ORCA output rather
-     * than record content.
+     * composes its answer, sources and withheld list into the trigger under a
+     * heading that says plainly it is prior ORCA output, not record content.
      *
-     * An explicit chain_from in the request still wins, so nothing that
-     * already sets it changes behaviour.
+     * WHICH earlier run stays ORCA's decision, not the workflow's. Routing
+     * already scoped it to this actor, this record and this question; letting
+     * a workflow choose its own source material would put that scoping inside
+     * a model. An explicit chain_from in the request still wins.
      */
     chainedFrom:
       str(body.chain_from) ??
-      (plan.path === 'chatbot_replay' ? facts.alreadyAnsweredRunId : null),
+      (plan.path === 'chatbot_replay'
+        ? facts.alreadyAnsweredRunId
+        : plan.path === 'produce_only'
+          ? facts.recentEvidenceRunId
+          : null),
     path: plan.path,
     reason: plan.reason,
     then: (plan.then as WorkflowName | null) ?? null,
