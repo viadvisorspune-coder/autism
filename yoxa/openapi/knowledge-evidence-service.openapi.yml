@@ -15,7 +15,47 @@ paths:
 
 
         The only source of real information about them. Call it before stating
-        any finding; anything written without it is invented.
+        any finding; anything written without it is invented. Do not answer
+        from a document search, an uploaded extract, or your own knowledge:
+        those describe a different record, and the ids in them are not ids
+        this system can resolve.
+
+
+        IDENTIFIERS. Copy patient_id, actor_id and workflow_run_id verbatim
+        from the trigger's labelled lines. workflow_run_id is what attaches
+        this read to the run in the audit trail; without it the record shows
+        that somebody's history was read and cannot say which request asked
+        for it.
+
+
+        WHAT COMES BACK, AND WHAT TO DO WITH IT. Every record carries id,
+        title, summary, category, recorded_on, occurred_on, evidence_status,
+        source and source_role. Nothing is truncated. `sufficiency` states
+        whether the retrieval was enough and names what is missing.
+
+
+        Pass the response through to the next step whole. Do not summarise it,
+        shorten the summaries, or drop the ids, dates and source roles on the
+        way — a later step asked to weigh evidence it cannot attribute will
+        correctly refuse to use it, and the run then fails for a reason that
+        looks like missing data when the data was returned in full.
+
+
+        Carry every id you rely on through to the answer's sources, spelled
+        exactly as it came back. That id is what lets the person open the entry
+        an answer came from, and what lets a follow-on workflow attribute the
+        material it was handed.
+
+
+        `evidence_status` says how far to trust a line, and `source_role` says
+        who wrote it. A thing the person reported about themselves and a thing
+        a clinician documented are both true records and are not the same kind
+        of claim; keep them distinguishable in anything you write.
+
+
+        An empty result is a finding, not a failure. Absence of a record is not
+        evidence of absence — say the record is silent rather than concluding
+        that nothing happened.
       requestBody:
         required: true
         content:
