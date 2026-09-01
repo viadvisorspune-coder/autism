@@ -2,17 +2,17 @@
 
 @theme {
   /*
-   * Ubuntu everywhere, with a real fallback stack behind it.
+   * Sen everywhere, with a real fallback stack behind it.
    *
    * The fallbacks are not decoration: the family is fetched from Google Fonts
    * and the fetch can fail — a blocked host, an offline first load, a
    * corporate proxy — and a stack that ends at `sans-serif` alone hands the
    * browser its own default, which on Windows is still Arial. The named faces
-   * below are the closest humanist sans on each platform, so a failed font
-   * load changes the texture of the page and not its shape.
+   * below are the closest geometric or neutral sans on each platform, so a
+   * failed font load changes the texture of the page and not its shape.
    */
   --font-sans:
-    'Ubuntu', ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable Text', 'Segoe UI',
+    'Sen', ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable Text', 'Segoe UI',
     Roboto, 'Helvetica Neue', Arial, sans-serif;
 
   /* Neutral ground — a lavender-leaning grey rather than a warm one, so the
