@@ -38,12 +38,65 @@ import { admin, guard, json, recordAudit, str } from '../_shared/yoxa.ts'
 /** Long enough for a real answer, short enough not to be a document. */
 const MAX_LENGTH = 4000
 
+/**
+ * Provenance, as data rather than as a paragraph.
+ *
+ * A workflow that names its sources inside the prose gives the person a
+ * sentence. A workflow that sends them here gives them a link: `Answer.tsx`
+ * renders each entry that carries an `id` as a link into `/record/:id`, so
+ * "this came from the OT observation on 4 August" becomes the OT observation
+ * on 4 August, one tap away. That is the difference between claiming the
+ * answer is grounded and letting somebody check.
+ *
+ * Both are optional and both are tolerant of shape. An agent that sends
+ * strings gets strings rendered; one that sends objects gets links. What it
+ * must never do is fail the whole reply because a citation list came back in
+ * an unexpected form — the answer is what the person is waiting for, and the
+ * bibliography is not worth losing it over.
+ */
+const MAX_CITED = 25
+
+function readCited(input: unknown): { id?: string; reporter?: string; date?: string; label?: string }[] {
+  if (!Array.isArray(input)) return []
+  return input
+    .slice(0, MAX_CITED)
+    .map((entry) => {
+      if (typeof entry === 'string') return entry.trim() ? { label: entry.trim() } : null
+      if (!entry || typeof entry !== 'object') return null
+      const r = entry as Record<string, unknown>
+      const row = {
+        id: str(r.id) ?? undefined,
+        reporter: str(r.reporter) ?? str(r.source) ?? undefined,
+        date: str(r.date) ?? str(r.recorded_on) ?? undefined,
+        label: str(r.label) ?? str(r.title) ?? undefined,
+      }
+      return row.id || row.reporter || row.date || row.label ? row : null
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null)
+}
+
+function readWithheld(input: unknown): { domain?: string; reason?: string }[] {
+  if (!Array.isArray(input)) return []
+  return input
+    .slice(0, MAX_CITED)
+    .map((entry) => {
+      if (typeof entry === 'string') return entry.trim() ? { domain: entry.trim() } : null
+      if (!entry || typeof entry !== 'object') return null
+      const r = entry as Record<string, unknown>
+      const row = { domain: str(r.domain) ?? undefined, reason: str(r.reason) ?? undefined }
+      return row.domain || row.reason ? row : null
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null)
+}
+
 Deno.serve(
   guard(async (_req, { body }) => {
     const patientId = str(body.patient_id)
     const actorId = str(body.actor_id)
     const text = str(body.text)
     const workflowRunId = str(body.workflow_run_id)
+    const cited = readCited(body.sources)
+    const withheld = readWithheld(body.withheld)
 
     // An agent that could not see the ids sends empty strings, which satisfy
     // the connector schema and fail here. Rather than refuse a reply the
@@ -204,7 +257,18 @@ Deno.serve(
       if (run) {
         const outcome = await deliver(run, {
           answerHtml: text,
-          envelope: { answer: text, via: 'conversation_reply' },
+          /**
+           * The envelope carries what the answer screen can render.
+           *
+           * `parseEnvelope` reads `answer`, `sources` and `withheld`, and the
+           * screen draws each of the three differently — prose, a checkable
+           * list of entries, and a statement of what was left out. Sending
+           * only `answer` meant the other two sections never appeared, so a
+           * workflow that had done the work of citing its evidence had no way
+           * to hand that over, and said it in prose instead where nothing
+           * could link it back.
+           */
+          envelope: { answer: text, sources: cited, withheld, via: 'conversation_reply' },
           status: 'Completed',
           step: 'Replied',
         })

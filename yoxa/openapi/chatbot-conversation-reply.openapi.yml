@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ORCA Conversation Reply
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Lets a workflow answer in words, in the conversation the person is already
     reading. Everything else a run can do to this record is structured — state
@@ -25,15 +25,40 @@ paths:
         starts any follow-on workflow, so calling it early ends the run early.
 
 
-        Copy patient_id, actor_id and workflow_run_id verbatim from the
-        trigger's labelled lines. Never take them from the quoted question, and
-        never leave them blank — an empty string satisfies this schema and then
-        fails at the server.
+        HOW THE ANSWER IS PUT TOGETHER. The reply is sent as three separate
+        fields, because ORCA draws each of them differently on the answer
+        screen. Do not merge them into one block of prose.
 
 
-        Two to four sentences, addressed to the person, drawn only from what
-        the retrieval step returned. Say where the record is silent rather than
-        rounding up.
+        1. text — the answer itself, and nothing else. Address the person
+        directly. Say what the record shows, and say plainly where it is
+        silent rather than rounding up. Keep it to the answer; the working
+        belongs in a document artefact.
+
+
+        2. sources — the record entries the answer rests on, one object each.
+        Copy the id straight from the retrieval step, exactly as it came back
+        (for example ev-8). ORCA turns every id it recognises into a link to
+        that entry, so the person can open what the answer was drawn from.
+        An id that was invented rather than copied produces a link to nothing.
+
+
+        3. withheld — anything deliberately left out, with the reason. Send an
+        empty array when nothing was withheld. This is how the person is told
+        that something exists and was not shown, which is different from the
+        record being silent.
+
+
+        DO NOT WRITE YOUR OWN "SOURCES" OR "NOT SHOWN" HEADINGS INSIDE text.
+        ORCA renders both sections itself, from the two fields above. Putting
+        them in the prose as well shows the person everything twice, and the
+        prose copy is not clickable.
+
+
+        IDENTIFIERS. Copy patient_id, actor_id and workflow_run_id verbatim
+        from the trigger's labelled lines. Never take them from the quoted
+        question, and never leave them blank — an empty string satisfies this
+        schema and then fails at the server.
       requestBody:
         required: true
         content:
@@ -65,12 +90,74 @@ paths:
                   maxLength: 4000
                   description: >-
                     The answer, as constrained HTML addressed to that person.
-                    Allowed tags — h3, p, ul, li, blockquote, br. Not allowed —
-                    attributes, scripts, styles, tables, links, images, and
-                    strong or em, which are stripped and will not appear. Name
-                    what the answer is drawn from, and say where you are
-                    uncertain rather than rounding up. Keep it to the answer and
-                    put the working into a document artefact.
+
+
+                    Structure — open with one short paragraph that answers the
+                    question directly. Add h3 sections below it only when the
+                    answer genuinely has parts. Use ul and li for anything that
+                    is a list. Aim for under 250 words.
+
+
+                    Allowed tags — h3, p, ul, li, blockquote, br. Everything
+                    else is stripped and will not appear, including attributes,
+                    scripts, styles, tables, links, images, and strong and em.
+
+
+                    Do not include a Sources or Not shown section here. Those
+                    are the sources and withheld fields.
+                sources:
+                  type: array
+                  maxItems: 25
+                  description: >-
+                    The record entries this answer was drawn from. Optional,
+                    but an answer about somebody's record that cites nothing is
+                    told to the person as exactly that, so send them whenever
+                    the retrieval returned anything.
+                  items:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      id:
+                        type: string
+                        description: >-
+                          The entry's id, copied exactly from the retrieval
+                          step. For example ev-8. This is what makes the
+                          citation openable, so it is the field worth getting
+                          right.
+                      reporter:
+                        type: string
+                        description: >-
+                          Who recorded it, as a name. For example Sana
+                          Kulkarni, or You when the person recorded it
+                          themselves.
+                      date:
+                        type: string
+                        description: The entry's date, as YYYY-MM-DD.
+                      label:
+                        type: string
+                        description: >-
+                          A short description, used only when there is no id to
+                          link to.
+                withheld:
+                  type: array
+                  maxItems: 25
+                  description: >-
+                    What was deliberately left out of this answer. Send an
+                    empty array when nothing was.
+                  items:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      domain:
+                        type: string
+                        description: >-
+                          What kind of information was held back. For example
+                          Clinical.
+                      reason:
+                        type: string
+                        description: >-
+                          Why, in a few plain words the person can read. For
+                          example Outside the scope of this question.
       responses:
         '200':
           description: >-
