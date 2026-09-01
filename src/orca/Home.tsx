@@ -35,6 +35,7 @@ import type { PendingApproval } from '../components/ApprovalPanel'
 import { useAsks } from './asks'
 import { useSubject } from './subject'
 import { CouldNotLoad, Updated, longDate } from './parts'
+import { greetingName } from './system'
 import {
   IconAppointments,
   IconArrow,
@@ -117,7 +118,10 @@ export default function Home() {
   )
   const gates = useLive<{ approvals: PendingApproval[] }>('approvals', subjectId)
 
-  const firstName = (option?.name ?? '').split(' ')[0] || 'there'
+  // Not `split(' ')[0]`. See `greetingName` — that rule greets a consultant
+  // psychologist as "Dr", and Ananya is not the only account that ever reaches
+  // a greeting.
+  const firstName = greetingName(option?.name) || 'there'
 
   /**
    * Today and the next few days, not "today" alone.

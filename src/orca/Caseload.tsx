@@ -15,7 +15,9 @@ import { useSession } from '../state/session'
 import { useRecordStatus } from '../data/RecordProvider'
 import { eventsFor } from '../data/db'
 import { useSubject } from './subject'
-import { Card, Loading, Nothing, PageTitle, longDate } from './parts'
+import { Loading, Nothing, PageTitle, longDate } from './parts'
+import { toneClass } from './system'
+import { IconCaseload, IconChevron } from './icons'
 import { useLive } from '../lib/live'
 
 /**
@@ -197,47 +199,54 @@ export default function Caseload() {
         </Nothing>
       ) : null}
 
-      <ul className="space-y-8">
+      {/*
+        A row each, not a card each.
+
+        A caseload is a list you scan to pick one name out of, and three cards
+        tall enough to hold a paragraph filled a screen with six lines of
+        content. The row carries the same four facts — who, when you last saw
+        them, what has arrived since, and whether anything is open — and the
+        one in scope keeps the accent so it is still obvious which record you
+        are in.
+      */}
+      <ul className="o-rows">
         {rows.map((r) => (
-          <li key={r.id}>
+          <li key={r.id} className={toneClass[r.id === subjectId ? 'current' : 'past']}>
             <button
               type="button"
-              className="block w-full text-left"
+              className="o-row"
               onClick={() => {
                 choose(r.id)
                 navigate('/ask')
               }}
             >
-              <Card tone={r.id === subjectId ? 'current' : 'past'}>
-                <div className="o-card-body">
-                  <p className="o-h2">{r.name}</p>
-                  <p className="o-meta mt-2">
-                    {r.seen ? `Last seen ${longDate(r.seen)}` : 'You have not recorded a session yet'}
-                  </p>
-                  {/*
-                    "since then" — the sentence used to stop at "since" and
-                    name nothing, so a clinician read "3 new entries since" and
-                    had to supply the object themselves. It points at the line
-                    directly above, which is the date and is always present:
-                    `since` is only counted when `seen` exists, so this can
-                    never be anaphoric to nothing.
-                  */}
-                  {r.since ? (
-                    <p className="o-body mt-3">
-                      {r.since === 1
-                        ? 'One new entry since then'
-                        : `${r.since} new entries since then`}
-                    </p>
-                  ) : null}
-                  {/*
-                    Open items, where there are any. A coordinator's whole
-                    question is which of these has something outstanding, and
-                    a caseload that does not say makes them open six records
-                    to find out.
-                  */}
-                  <Open patientId={r.id} />
-                </div>
-              </Card>
+              <span className="o-row-mark">
+                <IconCaseload size={17} />
+              </span>
+              <span className="o-row-main">
+                <span className="o-row-title block">{r.name}</span>
+                {/*
+                  "since then" — the sentence used to stop at "since" and name
+                  nothing, so a clinician read "3 new entries since" and had to
+                  supply the object themselves. It points at the date beside
+                  it, which is always present: `since` is only counted when
+                  `seen` exists, so this can never be anaphoric to nothing.
+                */}
+                <span className="o-row-meta block">
+                  {r.seen ? `Last seen ${longDate(r.seen)}` : 'You have not recorded a session yet'}
+                  {r.since
+                    ? ` · ${r.since === 1 ? 'one new entry' : `${r.since} new entries`} since then`
+                    : ''}
+                </span>
+              </span>
+              {r.id === subjectId ? <span className="o-pill o-pill-live">In scope</span> : null}
+              {/*
+                Open items, where there are any. A coordinator's whole question
+                is which of these has something outstanding, and a caseload
+                that does not say makes them open six records to find out.
+              */}
+              <Open patientId={r.id} />
+              <IconChevron size={16} />
             </button>
           </li>
         ))}
@@ -272,9 +281,11 @@ function Open({ patientId }: { patientId: string }) {
     (t) => t.patient_id === patientId && t.status !== 'Completed' && t.status !== 'Cancelled',
   ).length
   if (!count) return null
+  // A pill now, because it sits inside a row rather than under a card. Same
+  // fact, same words, in the shape the row uses for every other status.
   return (
-    <p className="o-meta mt-2">
+    <span className="o-pill o-pill-waiting">
       {count === 1 ? 'One open item' : `${count} open items`}
-    </p>
+    </span>
   )
 }

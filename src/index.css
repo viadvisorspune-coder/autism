@@ -671,15 +671,28 @@ html[data-experience='patient'] .frost-tint {
     --band: 10px;
   }
 
-  /* Divya. One warm colour, used the way Ananya's mustard is used; everything
-     else falls back to paper with the card's hairline doing the separating. */
+  /*
+   * One colour each for the professionals, at two strengths.
+   *
+   * The tones that are not "current" or "needs a decision" used to resolve to
+   * `--surface-2`, on the reasoning that a professional gets one colour and
+   * everything else falls back to paper. On a flat page that read as absence,
+   * which was the intent. On a rounded card with a 10px tone band across the
+   * top it read as a grey lip — a rendering artefact rather than a signal, and
+   * the eye goes to it precisely because it means nothing.
+   *
+   * They now take the same colour at a quarter strength. That keeps the rule
+   * intact — one colour per professional, and the amount of it says how close
+   * you are to the person — while giving the band something to be. Derived
+   * from the accent rather than hand-picked, so the two cannot drift.
+   */
   html[data-ia='orca'][data-look='warm'] {
     --accent: #e0a458;
     --c-current: #e0a458;
     --c-decision: #e0a458;
-    --c-past: var(--surface-2);
-    --c-shared: var(--surface-2);
-    --c-confirmed: var(--surface-2);
+    --c-past: rgba(224, 164, 88, 0.28);
+    --c-shared: rgba(224, 164, 88, 0.28);
+    --c-confirmed: rgba(224, 164, 88, 0.5);
   }
 
   /* Kavita, Arun, Vikram, Meera, Sana, Priya. One cool colour, same rule. */
@@ -687,9 +700,9 @@ html[data-experience='patient'] .frost-tint {
     --accent: #3d6b8c;
     --c-current: #3d6b8c;
     --c-decision: #3d6b8c;
-    --c-past: var(--surface-2);
-    --c-shared: var(--surface-2);
-    --c-confirmed: var(--surface-2);
+    --c-past: rgba(61, 107, 140, 0.24);
+    --c-shared: rgba(61, 107, 140, 0.24);
+    --c-confirmed: rgba(61, 107, 140, 0.5);
   }
 
   /* Anil, Ruth, Tejas. No accent at all — the absence is doing work, so it is
@@ -1052,27 +1065,74 @@ html[data-experience='patient'] .frost-tint {
   }
 
   /* ==========================================================================
-   * Ananya's shell.
+   * The shell, for everybody.
    *
-   * ONE PERSON'S SCREENS, AND ONLY HERS. Everything below is scoped to
-   * `[data-look='full']`, which is the patient and nobody else. The reasoning
-   * behind the original ink-on-paper system has not changed for the people it
-   * was written for: an employer looking at a disclosure request, an
-   * administrator reading run logs, a clinician working through a caseload are
-   * all doing a piece of work, and a soft lilac card would be the interface
-   * having an opinion about a task that does not need one.
+   * ONE SHAPE, DIFFERENT AMOUNTS OF COLOUR. The rail, the rounded surfaces,
+   * the rows and the chips are the product now, and they are the same for a
+   * clinician working through a caseload as for Ananya reading her own record.
+   * An earlier version of this block was hers alone, on the argument that
+   * everybody else is doing a piece of work and a soft card would be the
+   * interface having an opinion about it. That argument was about decoration
+   * and it applied it to structure: a persistent map of the destinations and a
+   * list you can scan are not indulgences, and giving a psychologist a
+   * different navigation model than the person whose record she is reading
+   * made one product look like two.
    *
-   * Ananya is not doing a piece of work. This is her record, she is in it
-   * daily, often on a difficult day, and it is the one screen in the product
-   * that has to be somewhere a person wants to be. That is the whole argument
-   * for the colour, the rail and the rounded cards, and it is why they stop at
-   * her account.
+   * What still varies is colour, and it varies for the reason it always did:
+   * the further from the person whose life this is, the less of it. Ananya's
+   * accent is a purple that belongs to nothing else in the product; a
+   * clinician's is one cool colour; an employer has none at all and their
+   * filled control stays black, because black is what "this is the action"
+   * looks like when there is no colour to say it with. That rule is set by
+   * `paletteFor` and lives in the token blocks below.
    *
-   * The colour still means what it meant. The five governance tones are
-   * untouched below — lilac, mint and amber here are surface tints on cards
-   * that group different KINDS of thing (today, new, waiting), which is a
-   * different job from the tones that say what a single item IS.
+   * The five governance tones are untouched. The tints here are surfaces on
+   * cards that group different KINDS of thing (today, new, waiting), which is
+   * a different job from the tones that say what a single item IS.
    * ------------------------------------------------------------------------ */
+
+  html[data-ia='orca'] {
+    /*
+     * Neutral defaults, so a look with no accent still gets the shape.
+     *
+     * `.o-rail` sizes itself from `--rail` and `.o-chip` tints itself from
+     * `--accent-soft`; when those were declared only under the patient's block
+     * every other role got a zero-width rail and an invisible selected state.
+     * Defined here, overridden per look below.
+     */
+    --rail: 232px;
+    --accent-soft: var(--surface-2);
+    --accent-ink: var(--paper);
+    --tint-plan: var(--surface-2);
+    --tint-new: var(--surface-2);
+    --tint-waiting: var(--surface-2);
+  }
+
+  /*
+   * The cool roles get their one colour on the same surfaces.
+   *
+   * `--accent-soft` is the accent at low alpha rather than a second hex: a
+   * selected chip should be visibly the same colour as the control it belongs
+   * to, and two hand-picked values drift apart the first time either changes.
+   */
+  html[data-ia='orca'][data-look='cool'] {
+    --accent-soft: rgba(61, 107, 140, 0.12);
+    --accent-ink: #ffffff;
+  }
+  html[data-ia='orca'][data-look='warm'] {
+    --accent-soft: rgba(224, 164, 88, 0.16);
+    --accent-ink: #1c1a25;
+  }
+  /*
+   * Anil, Ruth, Tejas. The absence of colour is doing work, so the chip's
+   * selected state is a ring rather than a tint — the same distinction, drawn
+   * without spending a colour that would mean something here.
+   */
+  html[data-ia='orca'][data-look='none'],
+  html[data-ia='orca'][data-look='mono'] {
+    --accent-soft: var(--surface-2);
+    --accent-ink: var(--paper);
+  }
 
   html[data-ia='orca'][data-look='full'] {
     --paper: #fbf9f5;
@@ -1109,43 +1169,51 @@ html[data-experience='patient'] .frost-tint {
   }
 
   /*
-   * A slightly smaller top of the scale on this shell, and only the top.
+   * The one filled control is the accent, whatever the accent happens to be.
    *
-   * The 44px page title was set for a 720px column with one thing on it. This
-   * shell puts three cards in a row, and a title that size above them stops
-   * being a heading and becomes a third of the screen — the eye lands on the
-   * greeting rather than on the cards, which are what somebody came for.
+   * One rule rather than one per look, because `--accent` already resolves
+   * correctly for every palette: purple for Ananya, one cool blue for the
+   * clinical roles, amber for Divya, and `var(--ink)` for the roles that get
+   * no colour at all — so the employer's filled control stays black without a
+   * rule of its own. Black is what "this is the action" looks like when there
+   * is no colour to say it with, and that is a resolved token here rather than
+   * a special case.
    *
-   * BODY TEXT IS UNTOUCHED. The large body size is the accessibility decision
-   * and it stays exactly where it is; what moves is the display line, which
-   * nobody has trouble reading. Even reduced, this is well above the 30-32px
-   * a conventional dashboard would set, and Adjust still scales all of it.
+   * `--accent-ink` carries the label colour with it, because the right one
+   * differs: white on the purple and the blue, near-black on the amber.
    */
-  /*
-   * The one filled control on her screens is the accent, not the ink.
-   *
-   * Same rule as everywhere else — one filled control per screen — with a
-   * different fill. On the palettes that have no accent the filled control
-   * stays black, because black is what "this is the action" looks like when
-   * there is no colour to say it with. Ananya has a colour, and spending it on
-   * the single thing the screen wants her to press is what an accent is for.
-   */
-  html[data-ia='orca'][data-look='full'] .o-btn-primary {
+  html[data-ia='orca'] .o-btn-primary {
     background: var(--accent);
     border-color: var(--accent);
     color: var(--accent-ink);
   }
-  html[data-ia='orca'][data-look='full'] .o-btn-primary:hover:not(:disabled) {
-    background: #6b4ae0;
+  /* Darkened rather than a second colour per palette, so adding a look does
+     not mean remembering to add its hover. */
+  html[data-ia='orca'] .o-btn-primary:hover:not(:disabled) {
+    background: var(--accent);
+    filter: brightness(0.9);
   }
 
-  html[data-ia='orca'][data-look='full'] .o-title {
+  /*
+   * A slightly smaller top of the scale, and only the top.
+   *
+   * The 44px page title was set for a 720px column with one thing in it. Every
+   * shell is now a rail beside a wide canvas that puts things side by side,
+   * and a title that size above them stops being a heading and becomes a third
+   * of the screen — the eye lands on the greeting rather than on the work.
+   *
+   * BODY TEXT IS UNTOUCHED. The large body size is the accessibility decision
+   * and it stays where it is; what moves is the display line, which nobody has
+   * trouble reading. Even reduced this is well above the 30-32px a
+   * conventional dashboard would set, and Adjust still scales all of it.
+   */
+  html[data-ia='orca'] .o-title {
     font-size: 36px;
   }
-  html[data-ia='orca'][data-look='full'] .o-h2 {
+  html[data-ia='orca'] .o-h2 {
     font-size: 24px;
   }
-  html[data-ia='orca'][data-look='full'] .o-tile .o-h3 {
+  html[data-ia='orca'] .o-tile .o-h3 {
     font-size: 18px;
   }
 

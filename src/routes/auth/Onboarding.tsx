@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Card, CardBody } from '../../components/ui'
 import { useSession } from '../../state/session'
 import { useUI } from '../../state/ui'
 import { useMaturity } from '../../state/maturity'
+import { greetingName, homeFor, paletteFor } from '../../orca/system'
 
 /**
  * The first six minutes.
@@ -34,12 +34,36 @@ import { useMaturity } from '../../state/maturity'
 const STEPS = ['Welcome', 'How it works', 'Privacy', 'Personalise', 'ORCA', 'First message'] as const
 
 export default function Onboarding() {
-  const { option, personName, role, completeSetup } = useSession()
+  const { personName, role, completeSetup } = useSession()
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
   const [first, setFirst] = useState('')
 
-  const home = option?.home ?? '/patient'
+  /**
+   * The design system, on before the first screen rather than after it.
+   *
+   * These six screens sit outside the ORCA shell, so nothing was setting
+   * `data-ia` and every rule in the sheet is scoped to it. The result was the
+   * one flow that is supposed to explain the product rendering in the older
+   * interface's palette -- a person met a lavender product and then signed in
+   * to a different-looking one. Same attributes the shell sets, set here for
+   * the same reason, and taken off on the way out.
+   */
+  useEffect(() => {
+    const root = document.documentElement
+    root.dataset.ia = 'orca'
+    root.dataset.look = paletteFor(role)
+    return () => {
+      delete root.dataset.ia
+      delete root.dataset.look
+    }
+  }, [role])
+
+  // Where finishing lands, from the same function the rest of the product
+  // uses. `option.home` is a different fact -- a base path for the older
+  // interface -- and reading it here sent three roles past their own first
+  // screen.
+  const home = homeFor(role)
   const isPatient = role === 'patient'
 
   function finish(message?: string) {
@@ -52,7 +76,7 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-canvas px-4 py-10">
+    <div className="min-h-screen px-4 py-10" style={{ background: 'var(--paper)' }}>
       <div className="mx-auto w-full max-w-2xl">
         {/* Where you are, and how much is left. Six unlabelled dots would only
             say "some". */}
@@ -60,16 +84,17 @@ export default function Onboarding() {
           {STEPS.map((label, i) => (
             <span
               key={label}
-              className={`h-1.5 flex-1 rounded-full ${i <= step ? 'bg-brand' : 'bg-line'}`}
+              className="h-1.5 flex-1 rounded-full"
+              style={{ background: i <= step ? 'var(--accent)' : 'var(--surface-2)' }}
             />
           ))}
         </div>
-        <p className="mb-6 text-[0.78rem] font-semibold uppercase tracking-[0.07em] text-muted">
+        <p className="o-label mb-6 uppercase" style={{ color: 'var(--ink-3)' }}>
           Step {step + 1} of {STEPS.length} · {STEPS[step]}
         </p>
 
-        <Card>
-          <CardBody className="px-6 py-6 sm:px-8 sm:py-8">
+        <div className="o-card">
+          <div className="o-card-body">
             {step === 0 ? <Welcome name={personName} isPatient={isPatient} /> : null}
             {step === 1 ? <HowItWorks isPatient={isPatient} /> : null}
             {step === 2 ? <Privacy isPatient={isPatient} /> : null}
@@ -83,29 +108,30 @@ export default function Onboarding() {
                 onSend={() => finish(first)}
               />
             ) : null}
-          </CardBody>
-        </Card>
+          </div>
+        </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          {step > 0 ? <Button onClick={() => setStep((s) => s - 1)}>Back</Button> : null}
+          {step > 0 ? (
+            <button type="button" className="o-btn" onClick={() => setStep((s) => s - 1)}>
+              Back
+            </button>
+          ) : null}
           {step < STEPS.length - 1 ? (
-            <Button variant="primary" onClick={() => setStep((s) => s + 1)}>
+            <button type="button" className="o-btn o-btn-primary" onClick={() => setStep((s) => s + 1)}>
               Continue
-            </Button>
+            </button>
           ) : (
-            <Button variant="primary" onClick={() => finish(first)}>
+            <button type="button" className="o-btn o-btn-primary" onClick={() => finish(first)}>
               {first.trim() && isPatient ? 'Send and open ORCA' : 'Go to my home page'}
-            </Button>
+            </button>
           )}
-          <button
-            onClick={() => finish()}
-            className="ml-auto text-[0.84rem] text-muted underline-offset-2 hover:text-ink-2 hover:underline"
-          >
+          <button type="button" onClick={() => finish()} className="o-meta ml-auto underline">
             Skip setup
           </button>
         </div>
 
-        <p className="mt-4 text-[0.79rem] leading-relaxed text-muted">
+        <p className="o-meta o-measure mt-4">
           Nothing here is permanent. Everything on these screens can be changed later from Display
           settings, and skipping changes nothing about what ORCA is allowed to do.
         </p>
@@ -119,22 +145,18 @@ export default function Onboarding() {
 function Welcome({ name, isPatient }: { name: string; isPatient: boolean }) {
   return (
     <>
-      <h1 className="text-[1.55rem] font-semibold leading-tight tracking-[-0.015em] text-ink">
-        Hello, {name.split(' ')[0]}.
-      </h1>
-      <p className="mt-3 text-[0.98rem] leading-relaxed text-ink-2">
+      <h1 className="o-h2">Hello, {greetingName(name)}.</h1>
+      <p className="o-body o-measure mt-4">
         {isPatient
           ? 'A diagnosis usually arrives as a document and then nothing. What happens next tends to be your job: remembering what helped, explaining yourself again to each new person, and keeping track of what you asked for and never heard back about.'
           : 'Post-diagnostic care falls apart in the gaps between people — the strategy nobody recorded the outcome of, the request that stalled with an employer, the context that never reached the next clinician.'}
       </p>
-      <p className="mt-3 text-[0.98rem] leading-relaxed text-ink-2">
+      <p className="o-body o-measure mt-4">
         {isPatient
           ? 'ORCA is where that gets held instead. It is your record, and it does not act on its own.'
           : 'ORCA holds the thread across those gaps, and stops for a person at every point where a decision belongs to one.'}
       </p>
-      <p className="mt-4 text-[0.88rem] leading-relaxed text-muted">
-        Six short screens. You can leave at any point.
-      </p>
+      <p className="o-meta o-measure mt-6">Six short screens. You can leave at any point.</p>
     </>
   )
 }
@@ -154,12 +176,12 @@ function HowItWorks({ isPatient }: { isPatient: boolean }) {
 
   return (
     <>
-      <h1 className="text-[1.4rem] font-semibold tracking-[-0.015em] text-ink">How ORCA works</h1>
-      <ul className="mt-5 space-y-5">
+      <h1 className="o-h2">How ORCA works</h1>
+      <ul className="mt-6 space-y-6">
         {points.map(([title, detail]) => (
           <li key={title}>
-            <p className="text-[1rem] font-medium text-ink">{title}</p>
-            <p className="mt-1 text-[0.92rem] leading-relaxed text-ink-2">{detail}</p>
+            <p className="o-h3">{title}</p>
+            <p className="o-body o-measure mt-2">{detail}</p>
           </li>
         ))}
       </ul>
@@ -170,16 +192,14 @@ function HowItWorks({ isPatient }: { isPatient: boolean }) {
 function Privacy({ isPatient }: { isPatient: boolean }) {
   return (
     <>
-      <h1 className="text-[1.4rem] font-semibold tracking-[-0.015em] text-ink">
-        {isPatient ? 'Who can see what' : 'What you are allowed to see'}
-      </h1>
-      <p className="mt-3 text-[0.95rem] leading-relaxed text-ink-2">
+      <h1 className="o-h2">{isPatient ? 'Who can see what' : 'What you are allowed to see'}</h1>
+      <p className="o-body o-measure mt-4">
         {isPatient
           ? 'Nobody is given your whole record. Each person you connect to gets a named part of it, for a stated reason, until a date you set.'
           : 'Access is per patient, per person, for a purpose, with a review date. You will be shown what you may not see as plainly as what you may — a blank space with no explanation is how people end up assuming the worst.'}
       </p>
 
-      <ul className="mt-5 space-y-3">
+      <ul className="mt-6 space-y-4">
         {(isPatient
           ? [
               'You approve each connection, and you can narrow or end one at any time.',
@@ -194,9 +214,13 @@ function Privacy({ isPatient }: { isPatient: boolean }) {
               'Anything leaving the clinic stops for the patient first, however routine it looks.',
             ]
         ).map((line) => (
-          <li key={line} className="flex gap-3 text-[0.92rem] leading-relaxed text-ink-2">
-            <span aria-hidden className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand" />
-            {line}
+          <li key={line} className="o-body o-measure flex gap-3">
+            <span
+              aria-hidden
+              className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full"
+              style={{ background: 'var(--accent)' }}
+            />
+            <span>{line}</span>
           </li>
         ))}
       </ul>
@@ -219,15 +243,13 @@ function Personalise() {
 
   return (
     <>
-      <h1 className="text-[1.4rem] font-semibold tracking-[-0.015em] text-ink">
-        Set it up the way you need it
-      </h1>
-      <p className="mt-2 text-[0.92rem] leading-relaxed text-ink-2">
+      <h1 className="o-h2">Set it up the way you need it</h1>
+      <p className="o-body o-measure mt-4">
         These take effect as you choose them, so you can see what you are picking. All of them are
         in Display settings afterwards.
       </p>
 
-      <div className="mt-6 space-y-6">
+      <div className="mt-8 space-y-8">
         <Choice
           label="How much on screen at once"
           hint="Calm keeps supporting detail folded away behind a named control. Nothing is hidden without saying so."
@@ -290,19 +312,23 @@ function Choice({
 }) {
   return (
     <fieldset>
-      <legend className="text-[0.95rem] font-medium text-ink">{label}</legend>
-      {hint ? <p className="mt-1 text-[0.84rem] leading-relaxed text-muted">{hint}</p> : null}
-      <div className="mt-2 flex flex-wrap gap-2">
+      <legend className="o-h3">{label}</legend>
+      {hint ? <p className="o-meta o-measure mt-2">{hint}</p> : null}
+      {/*
+        Chips, because these are choices among peers.
+
+        They were borrowing the primary button for their selected state, which
+        on a screen with four of them put four filled rectangles beside the one
+        control that actually advances the flow.
+      */}
+      <div className="o-chips mt-3">
         {options.map((option) => (
           <button
             key={option.value}
+            type="button"
             onClick={() => onChange(option.value)}
             aria-pressed={value === option.value}
-            className={`rounded-2xl  px-3.5 py-2 text-[0.86rem] ${
-              value === option.value
-                ? 'border-brand bg-brand-tint font-medium text-brand-ink'
-                : 'border-line text-ink-2 hover:text-ink'
-            }`}
+            className="o-chip"
           >
             {option.label}
           </button>
@@ -316,28 +342,23 @@ function MeetOrca({ isPatient }: { isPatient: boolean }) {
   return (
     <>
       <div className="flex items-center gap-3">
-        <span
-          aria-hidden
-          className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand text-[1.05rem] font-bold text-white"
-        >
+        <span aria-hidden className="o-avatar">
           O
         </span>
-        <h1 className="text-[1.4rem] font-semibold tracking-[-0.015em] text-ink">
-          {isPatient ? 'Talking to ORCA' : 'The ORCA copilot'}
-        </h1>
+        <h1 className="o-h2">{isPatient ? 'Talking to ORCA' : 'The ORCA copilot'}</h1>
       </div>
 
-      <p className="mt-4 text-[0.95rem] leading-relaxed text-ink-2">
+      <p className="o-body o-measure mt-5">
         {isPatient
           ? 'There is a button in the corner of every screen. Press it and write what is going on — badly, in fragments, at two in the morning. You do not have to work out what kind of request it is first, or which form it belongs in. That is the part ORCA is for.'
           : 'A rail beside the record rather than a separate page, so an answer arrives next to the thing it is about. Ask about a patient and it answers from their record, naming what it used — and telling you what it could not see as readily as what it could.'}
       </p>
 
-      <div className="mt-5 rounded-[20px]  border-line bg-canvas px-5 py-4">
-        <p className="text-[0.8rem] font-semibold uppercase tracking-[0.06em] text-muted">
+      <div className="o-panel mt-6 p-5">
+        <p className="o-label uppercase" style={{ color: 'var(--ink-3)' }}>
           What it will not do
         </p>
-        <p className="mt-1.5 text-[0.9rem] leading-relaxed text-ink-2">
+        <p className="o-body o-measure mt-2">
           {isPatient
             ? 'It will not diagnose you, decide anything on your behalf, or send anything to anyone without asking first. If it thinks a person should answer instead of it, it says so and stops.'
             : 'It will not make a clinical judgement, write to the record unprompted, or disclose anything outside the clinic. Where authority is yours it stops and says why, rather than proceeding and flagging it afterwards.'}
@@ -360,10 +381,10 @@ function FirstMessage({
 }) {
   return (
     <>
-      <h1 className="text-[1.4rem] font-semibold tracking-[-0.015em] text-ink">
+      <h1 className="o-h2">
         {isPatient ? 'What is going on at the moment?' : 'Anything you want to start with?'}
       </h1>
-      <p className="mt-2 text-[0.92rem] leading-relaxed text-ink-2">
+      <p className="o-body o-measure mt-4">
         {isPatient
           ? 'However it comes out. It does not need to be a complete thought, and nothing you write here is saved as a fact about you — it is a message, not a form.'
           : 'Or leave it blank and go straight to your caseload.'}
@@ -374,7 +395,7 @@ function FirstMessage({
           e.preventDefault()
           onSend()
         }}
-        className="mt-4"
+        className="mt-6"
       >
         <label htmlFor="first-message" className="sr-only">
           Your first message to ORCA
@@ -389,11 +410,11 @@ function FirstMessage({
               ? 'For example: the open-plan office is getting harder and I do not know what to ask for'
               : 'For example: what changed across my caseload this week?'
           }
-          className="w-full rounded-2xl  bg-surface-2 px-4 py-3 text-[0.94rem] leading-relaxed outline-none placeholder:text-muted"
+          className="o-input"
         />
       </form>
 
-      <p className="mt-3 text-[0.83rem] leading-relaxed text-muted">
+      <p className="o-meta o-measure mt-4">
         You can also leave this empty. The button is on every screen when you want it.
       </p>
     </>

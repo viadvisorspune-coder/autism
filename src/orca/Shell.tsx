@@ -1,45 +1,60 @@
 /**
- * The shell — two of them, and which one you get depends on whose record it is.
+ * The shell: a rail of destinations, and the screen beside it.
  *
- * THE HEADER SHELL is the original and still the default: one row of
- * navigation, one 720px column beneath it, the same words in the same order and
- * the same place on every screen. It is what a clinician, a coordinator, an
- * employer and an administrator get, and the reasoning behind it has not
- * changed. They arrive to do a piece of work, the column is the work, and a
- * persistent sidebar would be furniture taking width away from it.
+ * ONE SHELL, FOR EVERYBODY. There were two for a while — a header row for the
+ * professionals and this rail for Ananya — on the argument that everyone else
+ * arrives to do a piece of work and a persistent sidebar is furniture taking
+ * width from it. That was wrong about what a rail is. A map of the
+ * destinations that stays visible is worth more to somebody moving between a
+ * caseload, a record and a set of tasks than to somebody with one record to
+ * read, and giving a psychologist a different navigation model than the person
+ * whose record she is reading made one product look like two.
  *
- * THE RAIL SHELL is Ananya's, and only Ananya's. She is not doing a piece of
- * work. This is her own record, she is in it often and sometimes on a bad day,
- * and she is the only person here whose screens put things side by side — what
- * is today, what is new, what is waiting. A left rail is what makes that
- * layout legible, and it lets the destinations stay visible while she reads,
- * which for somebody who navigates by recognising a stable map matters more
- * than the width it costs.
- *
- * Both shells take the same `navFor(role)` list, in the same order, with the
- * same words. What differs is where the list is drawn.
+ * The list is `navFor(role)` and nothing else: same words, same order, drawn
+ * the same way for every account. What a person has on it differs; how they
+ * read it does not. It collapses to a strip along the top on a narrow
+ * viewport, in CSS, which is the only rearrangement in the whole shell — a
+ * 232px column beside a 360px screen leaves no readable measure, so the choice
+ * is two shapes against unreadable rather than two shapes against one.
  *
  * The palette is set here, on the root element, from who is signed in. It is a
  * statement about whose record this is rather than a preference: the further
  * from the person, the less colour, and a screen cannot opt out of that by
- * styling itself differently.
+ * styling itself differently. Structure no longer varies by role; colour still
+ * does.
  */
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useSession } from '../state/session'
 import { useRecordStatus } from '../data/RecordProvider'
 import { AsksProvider, useAsks } from './asks'
 import { SubjectProvider, useSubject } from './subject'
-import { type Destination, type IconName, homeFor, navFor, paletteFor } from './system'
 import {
+  type Destination,
+  type IconName,
+  greetingName,
+  homeFor,
+  navFor,
+  paletteFor,
+} from './system'
+import {
+  IconAccess,
   IconAdjust,
   IconAppointments,
   IconAsk,
+  IconCaseload,
   IconDecisions,
   IconDocuments,
+  IconHealth,
   IconHome,
+  IconIncidents,
+  IconNotes,
   IconRecord,
+  IconRequests,
+  IconRuns,
   IconSharing,
+  IconStrategies,
+  IconTasks,
 } from './icons'
 import { SkipLink, screenName, useConnection, useFocusOnNavigate, useTitle } from './orientation'
 
@@ -86,27 +101,12 @@ function Frame() {
   useTitle(screenName(pathname, role))
   useFocusOnNavigate()
   const { offline, restored, clearRestored } = useConnection()
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [navOpen, setNavOpen] = useState(false)
 
-  // A new screen is a new context. Leaving a menu hanging open across a
-  // navigation is a small thing that makes an interface feel unreliable.
+  // The reconnection notice has been read by anyone who moved on. It does not
+  // time out — see useConnection — but it does not follow you around either.
   useEffect(() => {
-    setMenuOpen(false)
-    setNavOpen(false)
-    // The reconnection notice has been read by anyone who moved on. It does not
-    // time out — see useConnection — but it does not follow you around either.
     clearRestored()
   }, [pathname, clearRestored])
-
-  /**
-   * The rail is Ananya's, decided from the role and nothing else.
-   *
-   * Not a preference and not a breakpoint. Which shell you are in is a fact
-   * about which account you are signed into, so it cannot drift, and a
-   * clinician cannot end up in the patient's shell by resizing a window.
-   */
-  const rail = role === 'patient'
 
   const notices = (
     <>
@@ -173,139 +173,42 @@ function Frame() {
     </p>
   )
 
-  if (rail) {
-    return (
-      <div className="o-app">
-        <SkipLink />
-        <Rail items={items} name={option?.name ?? 'You'} onSignOut={signOut} />
-        <div className="min-w-0">
-          {notices}
-          <main id="orca-main" className="o-canvas">
-            <Outlet />
-          </main>
-          <div className="o-canvas pt-0">
-            {footnote}
-            <NotLive />
-          </div>
-        </div>
+  /**
+   * Which record you are in, above the screen, on every screen.
+   *
+   * Only for the people who look after more than one. For everybody else there
+   * is exactly one record and naming it in the furniture would be noise; for a
+   * clinician it is the difference between writing a handover about Ananya and
+   * writing one about Rohan.
+   */
+  const subjectBar =
+    choosable && subjectId ? (
+      <div className="o-row mb-6">
+        <span className="o-row-main">
+          <span className="o-row-title block">{subjectName}</span>
+          <span className="o-row-meta block">The record every screen below is about</span>
+        </span>
+        <Link to="/caseload" className="o-chip no-underline">
+          Change who this is about
+        </Link>
       </div>
-    )
-  }
+    ) : null
 
   return (
-    <div className="min-h-screen">
+    <div className="o-app">
       <SkipLink />
-      {notices}
-      <header className="border-b border-black bg-[var(--paper)]">
-        {/*
-          Wraps rather than clips.
-
-          A clinician has five destinations plus their own name, and at 720px
-          that does not fit on one line — the account control was sitting on
-          top of "Documents". Navigation that overlaps itself is worse than
-          navigation on two lines.
-        */}
-        <div className="o-wrap flex flex-wrap items-center justify-between gap-x-4 gap-y-3 py-4">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
-            <Link to={homeFor(role)} className="o-h3 shrink-0 font-extrabold no-underline">
-              ORCA
-            </Link>
-            <nav aria-label="Sections" className="hidden flex-wrap items-center gap-x-5 gap-y-2 md:flex">
-              {items.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) =>
-                    `o-body no-underline ${
-                      isActive ? 'font-semibold underline decoration-2 underline-offset-8' : ''
-                    }`
-                  }
-                >
-                  {item.label}
-                  <Waiting to={item.to} />
-                </NavLink>
-              ))}
-            </nav>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-3">
-            {/*
-              The wrapper carries the breakpoint, not the button.
-
-              `.o-btn` sets its own display, and this sheet is loaded after
-              Tailwind's, so `md:hidden` on the button itself lost the cascade
-              and left a second navigation control sitting on top of the first
-              at every width. A div with nothing else on it cannot lose that
-              argument.
-            */}
-            <div className="md:hidden">
-              <button
-                type="button"
-                className="o-btn o-btn-small"
-                aria-expanded={navOpen}
-                onClick={() => setNavOpen((o) => !o)}
-              >
-                Sections
-              </button>
-            </div>
-            <button
-              type="button"
-              className="o-btn o-btn-small"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((o) => !o)}
-            >
-              {option?.name?.split(' ')[0] ?? 'Account'} ▾
-            </button>
-          </div>
-        </div>
-
-        {navOpen ? (
-          <nav aria-label="Sections" className="o-wrap border-t border-black py-3 md:hidden">
-            <ul className="space-y-3">
-              {items.map((item) => (
-                <li key={item.to}>
-                  <NavLink to={item.to} className="o-body no-underline">
-                    {item.label}
-                    <Waiting to={item.to} />
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        ) : null}
-
-        {menuOpen ? <Account onSignOut={signOut} /> : null}
-
-        {/*
-          Which record you are in, in the chrome, on every screen.
-
-          Only for the people who look after more than one. For everybody else
-          there is exactly one record and naming it in the furniture would be
-          noise; for a clinician it is the difference between writing a handover
-          about Ananya and writing one about Rohan.
-        */}
-        {choosable && subjectId ? (
-          <div className="border-t border-black bg-[var(--paper)]">
-            <div className="o-wrap flex flex-wrap items-center justify-between gap-3 py-3">
-              <p className="o-body font-semibold">{subjectName}</p>
-              <Link to="/caseload" className="o-meta underline">
-                Change who this is about
-              </Link>
-            </div>
-          </div>
-        ) : null}
-      </header>
-
-      <main id="orca-main" className="o-wrap py-16">
-        <Outlet />
-      </main>
-
-      <footer className="mt-16 border-t border-black">
-        <div className="o-wrap py-8">
+      <Rail items={items} name={option?.name ?? 'You'} home={homeFor(role)} onSignOut={signOut} />
+      <div className="min-w-0">
+        {notices}
+        <main id="orca-main" className="o-canvas">
+          {subjectBar}
+          <Outlet />
+        </main>
+        <div className="o-canvas pt-0">
           {footnote}
           <NotLive />
         </div>
-      </footer>
+      </div>
     </div>
   )
 }
@@ -319,6 +222,15 @@ const GLYPH: Record<IconName, (p: { size?: number }) => React.ReactElement> = {
   sharing: IconSharing,
   appointments: IconAppointments,
   adjust: IconAdjust,
+  tasks: IconTasks,
+  strategies: IconStrategies,
+  requests: IconRequests,
+  runs: IconRuns,
+  access: IconAccess,
+  incidents: IconIncidents,
+  health: IconHealth,
+  caseload: IconCaseload,
+  notes: IconNotes,
 }
 
 /**
@@ -336,16 +248,19 @@ const GLYPH: Record<IconName, (p: { size?: number }) => React.ReactElement> = {
 function Rail({
   items,
   name,
+  home,
   onSignOut,
 }: {
   items: Destination[]
   name: string
+  /** Where the wordmark goes. Each role's own first screen, never a fixed one. */
+  home: string
   onSignOut: () => void
 }) {
   return (
     <div className="o-rail">
       <Link
-        to="/home"
+        to={home}
         className="o-h3 flex shrink-0 items-center gap-2 px-3 font-extrabold no-underline"
       >
         <span aria-hidden className="o-avatar">
@@ -377,8 +292,15 @@ function Rail({
         eighth item that ends the session is a rail with a trapdoor in it.
       */}
       <div className="o-rail-foot">
+        {/*
+          The initial of what you would call them, not of the string.
+
+          `name[0]` on "Dr Kavita Nair" is D, which is the initial of an
+          honorific rather than of a person — every clinician in the cast had
+          the same letter in their own profile card.
+        */}
         <span aria-hidden className="o-avatar">
-          {name.slice(0, 1)}
+          {(greetingName(name).split(' ').pop() ?? name).slice(0, 1)}
         </span>
         <span className="min-w-0 flex-1">
           <span className="o-row-title block truncate">{name}</span>
@@ -445,47 +367,5 @@ function NotLive() {
       <span className="font-semibold">This is example data, not a real record.</span>{' '}
       {note} Nothing you do here reaches anyone, and nothing here was written by a person.
     </p>
-  )
-}
-
-/**
- * The account panel: who you are, and the way out.
- *
- * The two settings that lived here have moved to Adjust, which is a
- * destination in the navigation rather than something behind your own name in
- * a dropdown. Text size and colour intensity are, for a fair number of the
- * people using this, the difference between a readable screen and an unusable
- * one; hiding them one press deeper than everything else was a statement about
- * how often we expected them to be needed, and it was the wrong one.
- *
- * What is left is what a panel behind somebody's name should hold: who they
- * are signed in as, where the settings went, and how to leave.
- */
-function Account({ onSignOut }: { onSignOut: () => void }) {
-  const { option, organisation } = useSession()
-
-  return (
-    <div className="border-t border-black bg-[var(--paper)]">
-      <div className="o-wrap py-8">
-        <p className="o-h3">{option?.name}</p>
-        <p className="o-meta mt-1">
-          {option?.title}
-          {organisation ? ` · ${organisation}` : ''}
-        </p>
-
-        <p className="o-body o-measure mt-6">
-          Text size, colour, movement and what this device keeps are on{' '}
-          <Link to="/adjust" className="underline">
-            Adjust
-          </Link>
-          .
-        </p>
-
-        <hr className="o-rule my-8" />
-        <button type="button" className="o-btn" onClick={onSignOut}>
-          Sign out
-        </button>
-      </div>
-    </div>
   )
 }

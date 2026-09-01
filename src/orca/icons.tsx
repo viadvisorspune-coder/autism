@@ -111,6 +111,79 @@ export const IconAdjust = (p: IconProps) => (
   </Glyph>
 )
 
+/** Tasks. A list with things ticked off it. */
+export const IconTasks = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M4.4 7.2 6 8.8l2.8-3M4.4 16.4 6 18l2.8-3" />
+    <path d="M12.2 7.6h7.4M12.2 16.8h7.4" />
+  </Glyph>
+)
+
+/** Strategies. Something tried, and the direction it went. */
+export const IconStrategies = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M4 17.4 9 11l3.6 3.4L20 6" />
+    <path d="M15.4 6H20v4.6" />
+  </Glyph>
+)
+
+/** Requests. One person asking another. */
+export const IconRequests = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M4.6 6.6h14.8v9.2a1 1 0 0 1-1 1H8.8L4.6 20V6.6Z" />
+    <path d="M9 10.4h6M9 13.4h3.6" />
+  </Glyph>
+)
+
+/** Runs. Work moving through stages. */
+export const IconRuns = (p: IconProps) => (
+  <Glyph {...p}>
+    <circle cx="12" cy="12" r="8" />
+    <path d="M12 7.4V12l3 1.8" />
+  </Glyph>
+)
+
+/** Access. A key, because that is what this screen hands out. */
+export const IconAccess = (p: IconProps) => (
+  <Glyph {...p}>
+    <circle cx="8.4" cy="12" r="3.6" />
+    <path d="M12 12h7.6M17 12v2.8M14.8 12v2.2" />
+  </Glyph>
+)
+
+/** Incidents. Something that needs looking at. */
+export const IconIncidents = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M12 4.6 20.4 19H3.6L12 4.6Z" />
+    <path d="M12 10.2v3.6M12 16.4h.01" />
+  </Glyph>
+)
+
+/** Health. Whether the parts are up. */
+export const IconHealth = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M3.6 12.4h4l2-4.6 3 9.4 2.2-6 1.6 3.2h4" />
+  </Glyph>
+)
+
+/** Caseload. More than one life, which is the whole distinction. */
+export const IconCaseload = (p: IconProps) => (
+  <Glyph {...p}>
+    <circle cx="9.2" cy="9" r="3.2" />
+    <path d="M3.8 19.2a5.4 5.4 0 0 1 10.8 0" />
+    <path d="M16 6.2a3 3 0 0 1 0 5.8M17.4 19.2a5 5 0 0 0-2-4" />
+  </Glyph>
+)
+
+/** Notes. Written by hand, by a person. */
+export const IconNotes = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M5 19.4V6a1 1 0 0 1 1-1h8.6L19 9.4v10a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1Z" />
+    <path d="M14.4 5v4.4H19" />
+    <path d="M8.4 12.6h6M8.4 15.8h3.4" />
+  </Glyph>
+)
+
 export const IconSearch = (p: IconProps) => (
   <Glyph {...p}>
     <circle cx="10.8" cy="10.8" r="5.8" />

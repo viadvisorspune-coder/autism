@@ -124,6 +124,15 @@ export type IconName =
   | 'sharing'
   | 'appointments'
   | 'adjust'
+  | 'tasks'
+  | 'strategies'
+  | 'requests'
+  | 'runs'
+  | 'access'
+  | 'incidents'
+  | 'health'
+  | 'caseload'
+  | 'notes'
 
 /**
  * Four items for everyone except the administrator. Same words, same order,
@@ -151,10 +160,10 @@ export function navFor(role: Role | null): Destination[] {
 
   if (role === 'admin') {
     return [
-      { label: 'Runs', to: '/runs' },
-      { label: 'Access', to: '/access' },
-      { label: 'Incidents', to: '/incidents' },
-      { label: 'Health', to: '/health' },
+      { label: 'Runs', to: '/runs', icon: 'runs' },
+      { label: 'Access', to: '/access', icon: 'access' },
+      { label: 'Incidents', to: '/incidents', icon: 'incidents' },
+      { label: 'Health', to: '/health', icon: 'health' },
       adjust,
     ]
   }
@@ -163,8 +172,8 @@ export function navFor(role: Role | null): Destination[] {
   const record: Destination = { label: 'Record', to: '/record', icon: 'record' }
   const decisions: Destination = { label: 'Decisions', to: '/decisions', icon: 'decisions' }
   const documents: Destination = { label: 'Documents', to: '/documents', icon: 'documents' }
-  const notes: Destination = { label: 'Notes', to: '/notes', icon: 'record' }
-  const caseload: Destination = { label: 'Caseload', to: '/caseload', icon: 'record' }
+  const notes: Destination = { label: 'Notes', to: '/notes', icon: 'notes' }
+  const caseload: Destination = { label: 'Caseload', to: '/caseload', icon: 'caseload' }
 
   const appointments: Destination = {
     label: 'Appointments',
@@ -222,8 +231,8 @@ export function navFor(role: Role | null): Destination[] {
   if (role === 'clinic') {
     return [
       caseload,
-      { label: 'Tasks', to: '/tasks' },
-      { label: 'Requests', to: '/requests' },
+      { label: 'Tasks', to: '/tasks', icon: 'tasks' },
+      { label: 'Requests', to: '/requests', icon: 'requests' },
       ask,
       record,
       documents,
@@ -245,9 +254,9 @@ export function navFor(role: Role | null): Destination[] {
       caseload,
       ask,
       record,
-      { label: 'Strategies', to: '/strategies' },
+      { label: 'Strategies', to: '/strategies', icon: 'strategies' },
       notes,
-      { label: 'Tasks', to: '/tasks' },
+      { label: 'Tasks', to: '/tasks', icon: 'tasks' },
       documents,
       adjust,
     ]
@@ -261,7 +270,7 @@ export function navFor(role: Role | null): Destination[] {
    * add a line to it.
    */
   if (hasCaseload(role)) {
-    return [caseload, ask, record, notes, { label: 'Tasks', to: '/tasks' }, documents, decisions, adjust]
+    return [caseload, ask, record, notes, { label: 'Tasks', to: '/tasks', icon: 'tasks' }, documents, decisions, adjust]
   }
 
   /**
@@ -278,11 +287,12 @@ export function navFor(role: Role | null): Destination[] {
    */
   if (role === 'employer' || role === 'university') {
     return [
-      { label: 'Requests', to: '/requests' },
+      { label: 'Requests', to: '/requests', icon: 'requests' },
       {
         // The sector's own word, so nobody has to learn the other one.
         label: role === 'university' ? 'Accommodations' : 'Adjustments',
         to: '/register',
+        icon: 'strategies',
       },
       ask,
       record,
@@ -292,6 +302,36 @@ export function navFor(role: Role | null): Destination[] {
   }
 
   return [ask, record, decisions, documents, adjust]
+}
+
+/**
+ * What to call somebody to their face.
+ *
+ * "The first word of their name" is the obvious rule and it is wrong for five
+ * of the eleven accounts here: `'Dr Kavita Nair'.split(' ')[0]` is `'Dr'`, so
+ * the first-run screen greeted a consultant psychologist with "Hello, Dr." and
+ * the account menu said "Dr". A greeting that gets the name wrong is worse
+ * than one that does not use a name at all.
+ *
+ * The rule is how these people actually address each other rather than a
+ * string operation that happens to work on some inputs. Somebody with a title
+ * keeps it and is greeted by surname — Dr Nair, not Kavita, which would be a
+ * familiarity nobody granted. Everybody else gets their given name.
+ *
+ * Honorifics are matched with and without the full stop, because both are
+ * written, and the list is short on purpose: a long one starts matching
+ * ordinary given names. Anything unrecognised falls through to the first word,
+ * which is the right answer for every name this does not know about.
+ */
+const HONORIFIC = /^(dr|prof|professor|mr|mrs|ms|mx|miss|sir|dame)\.?$/i
+
+export function greetingName(fullName: string | null | undefined): string {
+  const parts = (fullName ?? '').trim().split(/\s+/).filter(Boolean)
+  if (!parts.length) return ''
+  if (parts.length > 1 && HONORIFIC.test(parts[0])) {
+    return `${parts[0]} ${parts[parts.length - 1]}`
+  }
+  return parts[0]
 }
 
 /** Whether this person looks after more than one record. */
