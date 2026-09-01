@@ -46,7 +46,29 @@ Deno.serve(
     const recipient = str(body.recipient)
     const summary = str(body.summary)
     const workflowRunId = str(body.workflow_run_id)
-    const access = list(body.access).length ? list(body.access) : ['patient']
+    /**
+     * Roles, checked here rather than at the column.
+     *
+     * `documents.access` is `orca_role[]`, a Postgres enum, so a value outside
+     * the eleven roles fails the insert — and the failure surfaced as a bare
+     * database message with a 400, three layers from anything the caller could
+     * act on. A workflow that sent a user id where a role belongs was told
+     * only that the request was bad.
+     *
+     * An unknown entry is dropped rather than fatal, because the document is
+     * worth more than the access list: losing the artefact a run spent minutes
+     * producing, over a misnamed audience, is the wrong trade. An entry that
+     * was meant to widen access and does not is the safe direction to fail in
+     * — the patient always keeps it.
+     */
+    const ROLES = new Set([
+      'patient', 'psychologist', 'psychiatrist', 'therapist', 'ot', 'gp',
+      'clinic', 'employer', 'university', 'trusted', 'admin',
+    ])
+    const asked = list(body.access)
+    const access = asked.filter((r) => ROLES.has(r))
+    const ignoredRoles = asked.filter((r) => !ROLES.has(r))
+    if (!access.length) access.push('patient')
 
     if (!patientId) return json({ error: 'patient_id is required' }, 400)
 
@@ -168,9 +190,22 @@ Deno.serve(
       status: files.length ? 'Awaiting review' : 'Draft',
       received_file_count: files.length,
       stored_files: stored,
-      note: files.length
-        ? 'Stored privately on the patient’s record. It is not shared with anyone until the patient approves a disclosure.'
-        : 'No files were attached. Accepted as a connection check.',
+      /**
+       * Reported in `note` rather than as a field of its own.
+       *
+       * The response schema is a contract Yoxa validates against, so a new key
+       * fails the connector rather than informing anybody. `note` already
+       * exists and is already read.
+       */
+      note:
+        (files.length
+          ? 'Stored privately on the patient’s record. It is not shared with anyone until the patient approves a disclosure.'
+          : 'No files were attached. Accepted as a connection check.') +
+        (ignoredRoles.length
+          ? ` Ignored in access, not role names: ${ignoredRoles.join(', ')}. ` +
+            `Valid roles are patient, psychologist, psychiatrist, therapist, ot, gp, ` +
+            `clinic, employer, university, trusted, admin.`
+          : ''),
     })
   }),
 )

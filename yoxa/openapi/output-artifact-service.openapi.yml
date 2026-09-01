@@ -71,12 +71,25 @@ paths:
                 access:
                   type: array
                   description: >-
-                    Roles permitted to open it, as role names — for example ot,
-                    psychologist, employer. Defaults to the patient alone, so a
-                    document drafted for somebody else is invisible to them
-                    until their role is listed here.
+                    Roles permitted to open it. Defaults to the patient alone,
+                    so a document drafted for somebody else is invisible to
+                    them until their role is listed here. Send role names, not
+                    user ids — u-sana is not a role, ot is. Anything outside
+                    the list is ignored and named back to you in note.
                   items:
                     type: string
+                    enum:
+                      - patient
+                      - psychologist
+                      - psychiatrist
+                      - therapist
+                      - ot
+                      - gp
+                      - clinic
+                      - employer
+                      - university
+                      - trusted
+                      - admin
                 section:
                   type: string
                   description: >-
