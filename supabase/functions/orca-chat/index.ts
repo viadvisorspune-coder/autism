@@ -25,6 +25,7 @@ import { admin, cors, json, str } from '../_shared/yoxa.ts'
 import { actorFromRequest, mayActOnPatient, forbidden, unauthorised } from '../_shared/app.ts'
 import { type WorkflowName, isConfigured } from '../_shared/compose.ts'
 import { type Lane, type Plan, SAME_QUESTION, planFor, similarity } from '../_shared/route.ts'
+import { cannedFor, serveCanned } from '../_shared/canned.ts'
 import { launch, launchError } from '../_shared/start.ts'
 import { resolveRecipient } from '../_shared/recipient.ts'
 
@@ -143,6 +144,38 @@ Deno.serve(async (req) => {
   const recipientIn =
     asRecipient(body.recipient) ??
     (patientId ? await resolveRecipient(patientId, message) : null)
+
+  /**
+   * The two demonstration questions, answered here and sent nowhere.
+   *
+   * Checked before routing rather than after, because these bypass routing
+   * entirely — there is no lane to pick when the answer is already written. The
+   * match is on two exact questions about one record, so a question one word
+   * different falls straight through to everything below.
+   *
+   * A rehearsal is excluded on purpose. The point of rehearsing is to prove
+   * that routing, trigger composition and chaining are right, and a fixture
+   * that short-circuits all three would report success for work that never
+   * happened. Rehearse these questions and you rehearse the real path they
+   * would have taken.
+   */
+  if (patientId && body.dry_run !== true) {
+    const fixture = cannedFor(message, patientId)
+    if (fixture) {
+      const served = await serveCanned(fixture, actor, patientId, message)
+      if ('error' in served) return json({ error: 'could_not_record_run', detail: served.error }, 500)
+      return json({
+        run_id: served.runId,
+        workflow: fixture.lane,
+        path: fixture.path,
+        reason: fixture.reason,
+        dry_run: false,
+        status: 'queued',
+        yoxa_run_id: null,
+        trigger_text: message,
+      })
+    }
+  }
 
   /**
    * The two facts routing needs that the sentence cannot tell us.
