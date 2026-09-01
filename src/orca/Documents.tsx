@@ -211,7 +211,7 @@ export default function Documents() {
         that is not an undo, it is a reflex test.
       */}
       {discarded ? (
-        <div role="status" className="o-body o-measure mb-12 border border-black p-5">
+        <div role="status" className="o-body o-measure mb-12 o-panel p-5">
           <p className="font-semibold">Draft discarded</p>
           <p className="mt-3">
             {discarded.type}
@@ -623,7 +623,7 @@ function NewDocument({
           somebody else will read must not be sent twice by helpfulness.
         */}
         {couldNotStart ? (
-          <div role="alert" className="o-body o-measure border border-black p-5">
+          <div role="alert" className="o-body o-measure o-panel p-5">
             <p className="font-semibold">The document couldn&rsquo;t be created.</p>
             <p className="mt-3">
               Everything you typed is still on this screen and kept on this device. Nothing was

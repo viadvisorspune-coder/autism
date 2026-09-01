@@ -15,39 +15,60 @@ import { people } from '../data/db'
 import { type Domain, type Tone, domainName, toneClass } from './system'
 import { ago } from './draft'
 import { ActionButton, useAction } from './action'
+import { ShapeHead } from './shape'
 
 /* ------------------------------------------------------------ structure */
 
-/** A card: a colour block, a hairline, and content. Nothing floats. */
+/** A card: white on warm paper, a colour block, and content. */
 export function Card({
   tone,
   tall,
   active,
+  raised,
+  mark,
   children,
   className = '',
 }: {
   tone: Tone
   tall?: boolean
   /**
+   * Tier 2: the one thing on this screen.
+   *
+   * Bigger radius, more air, and the only elevation above resting that the
+   * system has. Exactly one per screen — the answer, or the decision. A page
+   * with two of these is two pages.
+   */
+  raised?: boolean
+  /**
    * This is the one being worked on.
    *
-   * Drawn as a second line inside the card's own border — the same doubled-line
-   * vocabulary a field in error and a button reporting a failure use, so a
-   * reader who has learned it once has learned it everywhere. Not a shadow and
-   * not a lift: nothing in ORCA floats, and a card that rises above its
-   * neighbours to say "this one" has said it by changing the spatial hierarchy
-   * of the screen.
+   * Drawn as a 4px accent bar down the left edge, inside the radius. Not a
+   * deeper shadow: the card is already the raised one on the screen, and
+   * raising it further would put it above a page with nothing else left to be
+   * above. Paired with it being the only open card, so nothing depends on
+   * seeing the bar.
    */
   active?: boolean
+  /**
+   * A topic, which turns the card's head into a shape mark instead of a band.
+   *
+   * Passed only on Ananya's screens — see shape.tsx for why she has this and
+   * nobody else does. It is warmth and recognition, never information: a caller
+   * that omits it loses colour and no meaning, which is exactly what every
+   * professional screen does.
+   */
+  mark?: string
   children: ReactNode
   className?: string
 }) {
   return (
     <div
-      className={`o-card ${toneClass[tone]} ${className}`}
+      className={`o-card ${raised ? 'o-card-raised' : ''} ${toneClass[tone]} ${className}`}
       data-active={active ? 'yes' : undefined}
     >
-      <div className={`o-band ${tall ? 'o-band-tall' : ''}`} />
+      {/* One head, never two. A shape field and a colour band at the top of the
+          same card would be two things claiming to be its face. */}
+      {mark ? <ShapeHead topic={mark} /> : <div className={`o-band ${tall ? 'o-band-tall' : ''}`} />}
       {children}
     </div>
   )
@@ -142,7 +163,16 @@ export function Refusal({
   instead?: ReactNode
 }) {
   return (
-    <Card tone="past">
+    /*
+     * The refusal is not a failure state and is not styled as one.
+     *
+     * No red, no icon, no exclamation, and now no elevation either: it sits on
+     * the recessed surface rather than resting above the page, because a
+     * boundary is part of the furniture of this record and not an event that
+     * has happened to somebody. It is the same shape as the answer block and
+     * quieter, which is the whole message.
+     */
+    <Card tone="past" className="o-flat">
       <div className="o-card-body">
         <h2 className="o-h2 mb-6">Not available to you</h2>
         <p className="o-body o-measure">
@@ -419,7 +449,7 @@ function RetryNow({ onRetry }: { onRetry: () => void | boolean | Promise<boolean
 /** An empty screen that says why it is empty and what would fill it. */
 export function Nothing({ children }: { children: ReactNode }) {
   return (
-    <div className="o-card">
+    <div className="o-card o-flat">
       <div className="o-card-body">
         <p className="o-body o-measure">{children}</p>
       </div>
@@ -513,7 +543,7 @@ export function Disclosure({
  */
 export function Status({ children }: { children: ReactNode }) {
   return (
-    <p role="status" className="o-body o-measure border border-black p-5">
+    <p role="status" className="o-body o-measure o-panel p-5">
       {children}
     </p>
   )

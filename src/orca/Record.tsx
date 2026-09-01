@@ -173,7 +173,7 @@ export default function Record() {
         before somebody has to ask it.
       */}
       {filter !== 'Everything' ? (
-        <div className="mb-10 flex flex-wrap items-center justify-between gap-4 border border-black p-5">
+        <div className="mb-10 flex flex-wrap items-center justify-between gap-4 o-panel p-5">
           <p className="o-body">
             <span className="font-semibold">{filter}</span> · {shown.length} of {events.length}{' '}
             {events.length === 1 ? 'entry' : 'entries'}

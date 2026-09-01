@@ -220,7 +220,7 @@ export default function Ask() {
         ) : null}
 
         {file ? (
-          <div className="mt-4 border border-black p-4">
+          <div className="mt-4 o-panel p-4">
             <p className="o-body">
               {file.fileType} · {file.title}
             </p>
@@ -241,7 +241,7 @@ export default function Ask() {
           association to proximity.
         */}
         {fileProblem ? (
-          <p id="orca-file-problem" role="alert" className="o-body o-measure mt-4 border border-black p-4">
+          <p id="orca-file-problem" role="alert" className="o-body o-measure mt-4 o-panel p-4">
             {fileProblem}
           </p>
         ) : null}
@@ -334,8 +334,22 @@ export default function Ask() {
           <ul className="grid gap-6 sm:grid-cols-2">
             {recent.slice(0, 6).map((a) => (
               <li key={a.id}>
+                {/*
+                  The shape mark, and only for Ananya.
+
+                  Eight cards of identical type is a wall to be read rather than
+                  scanned; the mark is what lets her find the one about her
+                  mornings before she has read a word. It says nothing the title
+                  does not — see shape.tsx — so the professionals below get the
+                  colour band they already had and lose nothing by it.
+                */}
                 <Link to={`/ask/${a.id}`} className="block no-underline">
-                  <Card tone={a.tone} tall className="h-full">
+                  <Card
+                    tone={a.tone}
+                    tall
+                    mark={mine ? (a.domain ?? 'Personal') : undefined}
+                    className="h-full"
+                  >
                     <div className="flex h-full flex-col justify-between p-6">
                       <p className="o-h3">{a.question}</p>
                       <p className="o-meta mt-6">
@@ -461,7 +475,7 @@ function Legend() {
           <li key={tone} className={`flex items-center gap-4 ${toneClass[tone as never]}`}>
             <span
               aria-hidden
-              className="h-6 w-12 shrink-0 border border-black"
+              className="h-6 w-12 shrink-0 border border-[var(--ink)]"
               style={{ background: 'var(--tone)' }}
             />
             <span className="o-body">{label}</span>

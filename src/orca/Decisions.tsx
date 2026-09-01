@@ -123,7 +123,7 @@ export default function Decisions() {
         by leaving, never on a timer.
       */}
       {lastAccess ? (
-        <div role="status" className="o-body o-measure mb-10 border border-black p-5">
+        <div role="status" className="o-body o-measure mb-10 o-panel p-5">
           {lastAccess.ok ? (
             <>
               <p className="font-semibold">{lastAccess.granted ? 'Access given ✓' : 'Declined ✓'}</p>
@@ -167,7 +167,7 @@ export default function Decisions() {
         {mine.map((r) => {
           const open = active === r.id
           return (
-            <Card key={r.id} tone="decision" active={open}>
+            <Card key={r.id} tone="decision" raised={open} active={open}>
               <div className="o-card-body">
                 <h2 className="o-h2 mb-6">
                   {r.fromName} is asking to see part of your record
@@ -236,7 +236,7 @@ export default function Decisions() {
           <SectionHead>What you have asked for</SectionHead>
           <ul className="space-y-6">
             {raised.map((r) => (
-              <li key={r.id} className="border border-black p-6">
+              <li key={r.id} className="o-panel p-6">
                 <p className="o-h3">{domainName[r.domain]}</p>
                 <p className="o-meta mt-2">Asked {longDate(r.at)}</p>
                 <p className="o-body mt-4">
@@ -414,7 +414,7 @@ function Approval({
   }
 
   return (
-    <Card tone="decision" active={open}>
+    <Card tone="decision" raised={open} active={open}>
       <div className="o-card-body">
         <h2 className="o-h2 mb-6">{approval.title}</h2>
 
@@ -511,7 +511,7 @@ function Approval({
           implied.
         */}
         {problem ? (
-          <div role="alert" className="o-body o-measure mt-5 border border-black p-5">
+          <div role="alert" className="o-body o-measure mt-5 o-panel p-5">
             <p className="font-semibold">We couldn&rsquo;t send your decision.</p>
             <p className="mt-3">{problem}</p>
             <p className="mt-3">

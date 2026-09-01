@@ -292,7 +292,7 @@ function NotLive() {
   const { status, note } = useRecordStatus()
   if (status !== 'mock') return null
   return (
-    <p className="o-body o-measure mt-6 border border-black p-4">
+    <p className="o-body o-measure mt-6 o-panel p-4">
       <span className="font-semibold">This is example data, not a real record.</span>{' '}
       {note} Nothing you do here reaches anyone, and nothing here was written by a person.
     </p>

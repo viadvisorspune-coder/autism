@@ -127,7 +127,7 @@ export default function Sharing() {
         they dismiss it or when they leave the screen.
       */}
       {lastSave ? (
-        <div role="status" className="o-body o-measure mb-10 border border-black p-5">
+        <div role="status" className="o-body o-measure mb-10 o-panel p-5">
           {lastSave.ok ? (
             <>
               <p className="font-semibold">

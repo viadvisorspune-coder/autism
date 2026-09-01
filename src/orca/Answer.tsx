@@ -79,7 +79,7 @@ export default function Answer() {
       ) : null}
 
       {item.rehearsed ? (
-        <p className="o-body o-measure mb-6 border border-black p-4 font-semibold">
+        <p className="o-body o-measure mb-6 o-panel p-4 font-semibold">
           Rehearsal. This was routed and composed exactly as a real question would be, and then
           not sent. Nothing was read from the record.
         </p>
@@ -128,8 +128,15 @@ export default function Answer() {
         four-second poll that re-renders this screen with the same answer in it.
       */}
       {item.shape === 'answer' && item.answer ? (
-        <div key={`answer-${item.id}`} data-arrive>
-          <Card tone={item.tone}>
+        <div key={`answer-${item.id}`} data-arrive className="my-12">
+          {/*
+            Tier 2. The one thing on this screen.
+
+            Everything else here — the routing line, the sources, the boundary —
+            is supporting, and now looks it: resting elevation, smaller radius,
+            quieter. This block is the reason the person came.
+          */}
+          <Card tone={item.tone} raised>
             <div className="o-card-body">
               <Prose html={item.answer} />
             </div>
@@ -308,7 +315,7 @@ export default function Answer() {
           >
             <ul className="space-y-6">
               {item.sources.map((s, i) => (
-                <li key={i} className="border border-black p-5">
+                <li key={i} className="o-panel p-5">
                   {/*
                     Four separate lines, not one joined string.
 
@@ -368,7 +375,7 @@ export default function Answer() {
           <SectionHead>What this produced</SectionHead>
           <ul className="space-y-5">
             {item.files.map((f) => (
-              <li key={f.id} className="border border-black p-6">
+              <li key={f.id} className="o-panel p-6">
                 <p className="o-h3">{f.title}</p>
                 <p className="o-meta mt-1">
                   {f.file_type} · prepared {f.recorded_on}

@@ -571,12 +571,73 @@ html[data-experience='patient'] .frost-tint {
    * ========================================================================== */
 
   html[data-ia='orca'] {
+    /* ---------------------------------------------------------- surfaces
+     *
+     * White cards on warm paper. The separation between a card and the page is
+     * now done by the two grounds differing, which is what lets the strokes
+     * come down to a whisper. Previously every card was paper-on-paper with a
+     * full-black 1px outline doing all of the work, and a screen of those reads
+     * as a form to be completed rather than a record to be read.
+     */
     --paper: #faf8f4;
-    --ink: #111111;
-    /* Two steps off ink, for meta lines and secondary text. Both clear 4.5:1 on
-       paper: #444 lands at 9.1:1 and #5b5b5b at 6.6:1. */
-    --ink-2: #444444;
-    --ink-3: #5b5b5b;
+    --surface: #ffffff;
+    --surface-2: #f3f0ea;
+
+    /* Ink, softened one step off true black. #141414 on paper is 15.4:1;
+       #5a5651 is 6.9:1 and #8b857d is 3.6:1 — the last is for disabled text and
+       placeholders only, which is where 3:1 is the bar. */
+    --ink: #141414;
+    --ink-2: #5a5651;
+    --ink-3: #8b857d;
+
+    /* ----------------------------------------------------------- radius
+     *
+     * Four steps, and they nest downward: a 16px card never contains a 24px
+     * one. Rounding is not decoration and it is not softness for its own sake —
+     * a square corner at full-black stroke is what made the old screens read as
+     * an audit tool.
+     */
+    --r-sm: 8px;
+    --r-md: 16px;
+    --r-lg: 24px;
+    --r-full: 999px;
+
+    /* -------------------------------------------------------- elevation
+     *
+     * Two levels, and nothing floats on top of something already floating.
+     * `rest` is a card sitting on the page. `raised` is the one thing on the
+     * screen that wants a decision. There is no hover elevation anywhere: a
+     * surface that moves under the pointer is the distraction this interface
+     * exists to not have.
+     */
+    --shadow-rest:
+      0 1px 2px rgba(17, 17, 17, 0.04),
+      0 2px 8px rgba(17, 17, 17, 0.04);
+    --shadow-raised:
+      0 2px 4px rgba(17, 17, 17, 0.04),
+      0 8px 24px rgba(17, 17, 17, 0.06);
+
+    /* ---------------------------------------------------------- strokes
+     *
+     * THE FULL-BLACK HAIRLINE IS GONE. Every rule in this interface was 1px of
+     * #111, and a page of them is a page of lines shouting at equal volume.
+     * These are the same lines at 8% and 12%, which separate without dividing.
+     *
+     * The one full-strength stroke left in the system is the keyboard focus
+     * ring, where being unmissable is the entire job.
+     */
+    --line-hair: rgba(17, 17, 17, 0.08);
+    --line-soft: rgba(17, 17, 17, 0.12);
+
+    /* --------------------------------------------------------- spacing */
+    --s-1: 4px;
+    --s-2: 8px;
+    --s-3: 12px;
+    --s-4: 16px;
+    --s-5: 32px;
+    --s-6: 48px;
+    --s-7: 64px;
+    --s-8: 96px;
 
     /* The five governance colours. Fixed meanings, never rotated. */
     --c-current: #f2c230; /* current, active, in place */
@@ -584,6 +645,16 @@ html[data-experience='patient'] .frost-tint {
     --c-decision: #ee6c4d; /* needs a decision from the person */
     --c-shared: #d9c3eb; /* shared with someone else */
     --c-confirmed: #2d6a4f; /* confirmed by a professional */
+
+    /*
+     * The one accent, for the roles that get one.
+     *
+     * Separate from the five tones because it answers a different question.
+     * The tones say what a thing is; the accent says which product you are in.
+     * Ananya has no single accent — she has all five — so hers resolves to the
+     * decision colour, which is the only one that ever asks her for anything.
+     */
+    --accent: var(--c-decision);
 
     /* How tall a colour block is. Overridden to a hairline for the users whose
        palette is ink on paper, so the structure survives without the colour. */
@@ -593,20 +664,22 @@ html[data-experience='patient'] .frost-tint {
   /* Divya. One warm colour, used the way Ananya's mustard is used; everything
      else falls back to paper with the card's hairline doing the separating. */
   html[data-ia='orca'][data-look='warm'] {
+    --accent: #e0a458;
     --c-current: #e0a458;
     --c-decision: #e0a458;
-    --c-past: #faf8f4;
-    --c-shared: #faf8f4;
-    --c-confirmed: #faf8f4;
+    --c-past: var(--surface-2);
+    --c-shared: var(--surface-2);
+    --c-confirmed: var(--surface-2);
   }
 
   /* Kavita, Arun, Vikram, Meera, Sana, Priya. One cool colour, same rule. */
   html[data-ia='orca'][data-look='cool'] {
+    --accent: #3d6b8c;
     --c-current: #3d6b8c;
     --c-decision: #3d6b8c;
-    --c-past: #faf8f4;
-    --c-shared: #faf8f4;
-    --c-confirmed: #faf8f4;
+    --c-past: var(--surface-2);
+    --c-shared: var(--surface-2);
+    --c-confirmed: var(--surface-2);
   }
 
   /* Anil, Ruth, Tejas. No accent at all — the absence is doing work, so it is
@@ -614,12 +687,13 @@ html[data-experience='patient'] .frost-tint {
      which keeps the structure and drops the signal. */
   html[data-ia='orca'][data-look='none'],
   html[data-ia='orca'][data-look='mono'] {
-    --c-current: #111111;
-    --c-past: #111111;
-    --c-decision: #111111;
-    --c-shared: #111111;
-    --c-confirmed: #111111;
-    --band: 2px;
+    --accent: var(--ink);
+    --c-current: var(--ink);
+    --c-past: var(--ink);
+    --c-decision: var(--ink);
+    --c-shared: var(--ink);
+    --c-confirmed: var(--ink);
+    --band: 3px;
   }
 
   /*
@@ -642,44 +716,58 @@ html[data-experience='patient'] .frost-tint {
 
   /* ------------------------------------------------------------------- type
    *
-   * Six roles and no more. A scale with a step for every occasion is a scale
-   * nobody follows; this one gets its authority from using very few sizes at
-   * very different weights.
+   * Seven roles. The gap between levels is what creates hierarchy, and the old
+   * scale had a canyon at the top and nothing in the middle: a 56px page title
+   * over a 24px card title, with a single 32px step between them. Squinting at
+   * a screen showed two sizes, not three tiers.
    *
-   * Body sits at 19px, which is larger than convention and deliberate. Answers
-   * get 21px because they are the thing people are actually here to read.
+   * The title comes down to 44 and the card title comes up to 20 — moving
+   * toward each other from both ends — and a 28px section heading now sits
+   * between them. Body sits at 18px, which is still larger than convention and
+   * still deliberate. Answers get 20px because they are the thing people came
+   * to read.
+   *
+   * Labels are the new role: 14px at 600 with positive tracking. Small text at
+   * heavy weight sets cramped without it.
    */
   .o-title {
-    font-size: 56px;
-    line-height: 1.05;
+    font-size: 44px;
+    line-height: 1.1;
     font-weight: 800;
     letter-spacing: -0.02em;
     text-wrap: balance;
   }
   .o-h2 {
-    font-size: 32px;
-    line-height: 1.15;
-    font-weight: 800;
+    font-size: 28px;
+    line-height: 1.2;
+    font-weight: 700;
     letter-spacing: -0.01em;
     text-wrap: balance;
   }
   .o-h3 {
-    font-size: 24px;
-    line-height: 1.25;
+    font-size: 20px;
+    line-height: 1.3;
     font-weight: 600;
   }
   .o-answer {
-    font-size: 21px;
+    font-size: 20px;
     line-height: 1.65;
     font-weight: 400;
   }
   .o-body {
-    font-size: 19px;
+    font-size: 18px;
     line-height: 1.6;
     font-weight: 400;
   }
+  .o-label {
+    font-size: 14px;
+    line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--ink-2);
+  }
   .o-meta {
-    font-size: 15px;
+    font-size: 14px;
     line-height: 1.4;
     font-weight: 400;
     color: var(--ink-2);
@@ -689,16 +777,16 @@ html[data-experience='patient'] .frost-tint {
      column does not change shape — only the type inside it does. */
   @media (max-width: 640px) {
     .o-title {
-      font-size: 34px;
+      font-size: 32px;
     }
     .o-h2 {
-      font-size: 25px;
+      font-size: 23px;
     }
     .o-h3 {
-      font-size: 20px;
+      font-size: 18px;
     }
     .o-answer {
-      font-size: 19px;
+      font-size: 18px;
     }
     .o-body {
       font-size: 17px;
@@ -720,16 +808,32 @@ html[data-experience='patient'] .frost-tint {
     max-width: 68ch;
   }
 
-  /* Vertical rhythm on an 8px base. 64px between sections, 32px inside a card. */
+  /* Section gap is --s-7. */
   .o-section + .o-section {
-    margin-top: 64px;
+    margin-top: var(--s-7);
   }
+
+  /*
+   * A card: white on warm paper, softly rounded, resting.
+   *
+   * NEVER BOTH A SHADOW AND A BORDER. That double outline is where the severity
+   * came from — a full-black 1px rule around a card that was already the same
+   * colour as the page, so the line was doing every bit of the separating and
+   * had to shout to manage it. The two grounds differ now, and the shadow is
+   * two barely-there layers that say "this sits on that" without saying
+   * anything else.
+   *
+   * `overflow: hidden` so the colour block at the top is clipped by the card's
+   * own radius instead of poking square corners out of it.
+   */
   .o-card {
-    border: 1px solid var(--ink);
-    background: var(--paper);
+    background: var(--surface);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-rest);
+    overflow: hidden;
   }
   .o-card-body {
-    padding: 32px;
+    padding: var(--s-5);
   }
   @media (max-width: 640px) {
     .o-card-body {
@@ -737,12 +841,59 @@ html[data-experience='patient'] .frost-tint {
     }
   }
 
+  /*
+   * The one thing on the screen that wants a decision.
+   *
+   * Tier 2, and there is exactly one per screen. Bigger radius, more air,
+   * raised rather than resting. Nothing else on the page may carry this.
+   */
+  .o-card-raised {
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-raised);
+  }
+
+  /*
+   * A card that is part of the furniture rather than an event.
+   *
+   * The refusal and the empty state. Recessed ground, no elevation — they are
+   * not things that have happened to somebody, they are how the record is
+   * shaped, and giving them a resting shadow put them at the same level as an
+   * answer.
+   */
+  .o-flat {
+    background: var(--surface-2);
+    box-shadow: none;
+  }
+
+  /*
+   * A panel: something said inside a screen rather than about it.
+   *
+   * The status lines, the undo offers, the recovery notices, the attached-file
+   * row. All of these were `border border-black p-5` — a hard rectangle drawn
+   * around a sentence, which is the single most repeated piece of severity in
+   * the old interface because it appeared on every screen. Recessed ground,
+   * soft edge, matching radius: present without being drawn a box around.
+   */
+  .o-panel {
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-md);
+  }
+  .o-card-raised > .o-card-body {
+    padding: var(--s-6);
+  }
+  @media (max-width: 640px) {
+    .o-card-raised > .o-card-body {
+      padding: var(--s-5);
+    }
+  }
+
   /* The colour block. Where all the colour in this interface lives, which is
-     what lets everything else stay ink on paper and still feel like a place. */
+     what lets everything else stay ink on paper and still feel like a place.
+     No rule under it any more — the card's own ground is the edge. */
   .o-band {
     height: var(--band);
     background: var(--tone, var(--c-current));
-    border-bottom: 1px solid var(--ink);
   }
   /* Taller on the editorial cards, where the block is the card's whole face. */
   .o-band-tall {
@@ -750,7 +901,7 @@ html[data-experience='patient'] .frost-tint {
   }
   html[data-ia='orca'][data-look='none'] .o-band-tall,
   html[data-ia='orca'][data-look='mono'] .o-band-tall {
-    height: 2px;
+    height: 3px;
   }
 
   .tone-current {
@@ -771,71 +922,97 @@ html[data-experience='patient'] .frost-tint {
 
   /* ---------------------------------------------------------------- controls
    *
-   * One filled control per screen; everything else outlined. Both are square,
-   * both are ink on paper or paper on ink, and both are large enough to hit
-   * with a thumb on a bad day.
+   * One filled control per screen; everything else outlined. Both are large
+   * enough to hit with a thumb on a bad day.
+   *
+   * The secondary button's outline drops from full black to 12% ink. A row of
+   * three outlined buttons at full strength is three black rectangles, and the
+   * one that mattered was not distinguishable from the two that did not.
    */
   .o-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    min-height: 56px;
-    padding: 14px 28px;
-    border: 1px solid var(--ink);
-    background: var(--paper);
+    min-height: 52px;
+    padding: 14px 24px;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-sm);
+    background: transparent;
     color: var(--ink);
     font: inherit;
-    font-size: 19px;
+    font-size: 18px;
     font-weight: 600;
     line-height: 1.2;
     cursor: pointer;
     text-align: center;
   }
+  /* Ground only. No transform and no shadow change: a control that moves or
+     lifts under the pointer is the distraction, not the affordance. */
   .o-btn:hover:not(:disabled) {
-    background: #efece5;
+    background: rgba(17, 17, 17, 0.04);
   }
   .o-btn-primary {
     background: var(--ink);
+    border-color: var(--ink);
     color: var(--paper);
+    box-shadow: var(--shadow-rest);
   }
   .o-btn-primary:hover:not(:disabled) {
-    background: #000000;
+    background: #2a2a2a;
   }
   .o-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
   }
   .o-btn-small {
-    min-height: 44px;
-    padding: 10px 18px;
-    font-size: 17px;
+    min-height: 40px;
+    padding: 8px 16px;
+    font-size: 16px;
   }
 
+  /*
+   * A field at rest is a soft grey shape, not an outlined box.
+   *
+   * `--surface-2` with a 12% stroke, rounded to match the cards around it. The
+   * old field was a full-black rectangle on white, which on a page with three
+   * of them looked like a form somebody had to fill in correctly rather than a
+   * place to write a sentence.
+   */
   html[data-ia='orca'] textarea.o-input,
-  html[data-ia='orca'] input.o-input {
+  html[data-ia='orca'] input.o-input,
+  html[data-ia='orca'] select.o-input {
     width: 100%;
-    border: 1px solid var(--ink) !important;
-    border-radius: 0;
-    background: #ffffff !important;
+    border: 1px solid var(--line-soft) !important;
+    border-radius: var(--r-md);
+    background: var(--surface-2) !important;
     color: var(--ink);
     font: inherit;
-    font-size: 19px;
+    font-size: 18px;
     line-height: 1.6;
     padding: 16px;
     resize: vertical;
   }
 
-  /* A hairline, at 1px, in ink, where separation is needed. Nowhere else. */
+  /* A hairline at 8% ink, where separation is needed. Nowhere else, and never
+     at full strength — see the stroke tokens above. */
   .o-rule {
     border: 0;
-    border-top: 1px solid var(--ink);
+    border-top: 1px solid var(--line-hair);
     margin: 0;
   }
 
-  /* Nothing rounds, nothing floats, nothing has a shadow. */
-  html[data-ia='orca'] [class*='rounded'] {
-    border-radius: 0 !important;
+  /*
+   * Tailwind's black borders, brought down to the system's strokes.
+   *
+   * The screens were written with `border border-black` and `border-b
+   * border-black` throughout, and Part 6's sixth check is that no full-black
+   * stroke survives anywhere except the focus ring. Rewriting every call site
+   * would be a large diff that says nothing; the values belong to the design
+   * system, so the design system sets them.
+   */
+  html[data-ia='orca'] .border-black {
+    border-color: var(--line-soft) !important;
   }
 
   /* ==========================================================================
@@ -882,25 +1059,28 @@ html[data-experience='patient'] .frost-tint {
    *
    * The conventional press is a one-pixel drop, and it is conventional because
    * it works. It is still a thing on the screen moving underneath a finger or
-   * a cursor, and the whole point of the two-colour tone system above is that
-   * this interface stays still. An inset line reads as depth and holds its
-   * position exactly.
+   * a cursor, and this interface stays still. Ground darkens by 4% and nothing
+   * else changes — no transform, no shadow, no size.
    */
   html[data-ia='orca'] .o-btn:active:not(:disabled) {
-    box-shadow: inset 0 2px 0 0 color-mix(in srgb, var(--ink) 22%, transparent);
+    background: rgba(17, 17, 17, 0.08);
     transition-duration: 60ms;
   }
   html[data-ia='orca'] .o-btn-primary:active:not(:disabled) {
-    box-shadow: inset 0 2px 0 0 color-mix(in srgb, var(--paper) 26%, transparent);
+    background: #050505;
   }
 
   /*
    * The field knows you are in it.
    *
-   * A second line inside the existing border rather than a thicker border:
-   * changing border-width would reflow the text inside the field by a pixel on
-   * focus, which is the one place a person is actively reading their own
-   * typing.
+   * The active stroke, drawn as an inset line rather than a thicker border:
+   * changing border-width would reflow the text inside the field by half a
+   * pixel on focus, which is the one place a person is actively reading their
+   * own typing. It takes the accent, so which product you are in is answered
+   * by the field you are typing into.
+   *
+   * The ground goes to white at the same time. A field at rest is a soft grey
+   * shape; a field you are in is the page's brightest surface.
    */
   html[data-ia='orca'] textarea.o-input,
   html[data-ia='orca'] input.o-input,
@@ -915,7 +1095,8 @@ html[data-experience='patient'] .frost-tint {
   html[data-ia='orca'] input.o-input:focus,
   html[data-ia='orca'] select.o-input:focus {
     outline: none;
-    box-shadow: inset 0 0 0 2px var(--ink);
+    background: var(--surface) !important;
+    box-shadow: inset 0 0 0 1.5px var(--accent);
   }
 
   /* ------------------------------------------------------------ state change */
@@ -927,28 +1108,27 @@ html[data-experience='patient'] .frost-tint {
    * explicit that nothing in ORCA floats.
    */
   html[data-ia='orca'] .o-card {
-    /* Ground and inner line only. `border-color` was in this list and nothing
-       ever changes it — a transition on a property that never moves. */
-    transition:
-      background-color var(--t-state) var(--ease),
-      box-shadow var(--t-state) var(--ease);
+    /* Ground only. No elevation change on hover — a surface that rises under
+       the pointer is the thing that gets distracting, and it is the one hover
+       effect the system forbids outright. */
+    transition: background-color var(--t-state) var(--ease);
   }
   html[data-ia='orca'] a:hover > .o-card,
   html[data-ia='orca'] button:hover > .o-card {
-    background: color-mix(in srgb, var(--ink) 4%, var(--paper));
+    background: color-mix(in srgb, var(--ink) 2%, var(--surface));
   }
 
   /*
    * The card being worked on.
    *
-   * A second line inside the card's own border, in the ink the card already
-   * uses. The same doubled-line vocabulary as a field in error and a control
-   * reporting a failure, so it is one thing to learn rather than three. It is
-   * paired with the card being the only open one on the screen, so nothing
-   * here depends on seeing the line.
+   * A 4px accent bar down the left edge, inside the radius. Not a deeper
+   * shadow: the card is already raised, and raising it further would put it
+   * above a page that has nothing else on it to be above. Paired with the card
+   * being the only open one on the screen, so nothing depends on seeing the
+   * bar.
    */
   html[data-ia='orca'] .o-card[data-active='yes'] {
-    box-shadow: inset 0 0 0 2px var(--ink);
+    border-left: 4px solid var(--accent);
   }
 
   /* The colour band is the one carrier of meaning in a card, so a tone that
@@ -1115,21 +1295,24 @@ html[data-experience='patient'] .frost-tint {
     opacity: 0.72;
   }
   html[data-ia='orca'] .o-btn[data-state='done'] {
-    box-shadow: inset 0 0 0 2px currentColor;
+    border-color: currentColor;
   }
-  /* Earlier shadows paint over later ones, so this is line, gap, line — the gap
-     taking the button's own ground. */
+  /*
+   * Thickened, not coloured.
+   *
+   * Done is a 1px edge in the button's own text colour; failed is that edge
+   * with a 3px band inside it. A reader who sees no colour difference at all
+   * still sees two visibly different controls, and reads two different words.
+   *
+   * `currentColor` rather than a governance tone, because the tones mean
+   * something specific here — who confirmed a thing — and one of them is
+   * near-paper in a psychologist's palette and plain ink in an
+   * administrator's. The button's own text colour contrasts with its own
+   * ground by construction, plain or inverted.
+   */
   html[data-ia='orca'] .o-btn[data-state='failed'] {
-    box-shadow:
-      inset 0 0 0 2px currentColor,
-      inset 0 0 0 3px var(--paper),
-      inset 0 0 0 5px currentColor;
-  }
-  html[data-ia='orca'] .o-btn-primary[data-state='failed'] {
-    box-shadow:
-      inset 0 0 0 2px currentColor,
-      inset 0 0 0 3px var(--ink),
-      inset 0 0 0 5px currentColor;
+    border-color: currentColor;
+    box-shadow: inset 0 0 0 3px currentColor;
   }
 
   /* A working control is disabled, and a disabled control is already dimmed.
@@ -1143,7 +1326,7 @@ html[data-experience='patient'] .frost-tint {
   /*
    * An error on a field, marked on the field.
    *
-   * The doubled inner line is what carries this, not the colour: somebody who
+   * The thickened edge is what carries this, not the colour: somebody who
    * cannot separate coral from ink still sees a field drawn differently from
    * every other field on the screen. The sentence explaining what to change
    * sits next to it in the markup, where it is read in order rather than
@@ -1152,17 +1335,15 @@ html[data-experience='patient'] .frost-tint {
   html[data-ia='orca'] textarea.o-input[aria-invalid='true'],
   html[data-ia='orca'] input.o-input[aria-invalid='true'],
   html[data-ia='orca'] select.o-input[aria-invalid='true'] {
-    box-shadow:
-      inset 0 0 0 2px var(--c-decision),
-      inset 0 0 0 4px var(--paper);
+    border-color: var(--c-decision) !important;
+    box-shadow: inset 0 0 0 3px var(--c-decision);
   }
   html[data-ia='orca'] textarea.o-input[aria-invalid='true']:focus,
   html[data-ia='orca'] input.o-input[aria-invalid='true']:focus,
   html[data-ia='orca'] select.o-input[aria-invalid='true']:focus {
     box-shadow:
-      inset 0 0 0 2px var(--c-decision),
-      inset 0 0 0 4px var(--paper),
-      inset 0 0 0 6px var(--ink);
+      inset 0 0 0 3px var(--c-decision),
+      inset 0 0 0 5px var(--ink);
   }
 
   /* ------------------------------------------------------- filters and tabs */
@@ -1195,12 +1376,20 @@ html[data-experience='patient'] .frost-tint {
    * box and cannot reflow what is next to it, and because a person tabbing
    * through a governance screen needs the ring to be the most obvious thing on
    * it.
+   *
+   * THIS IS THE ONE FULL-STRENGTH STROKE LEFT IN THE SYSTEM. Every other line
+   * in the interface is now 8% or 12% ink; this one is 2px of ink at full
+   * weight, on purpose, because being unmissable is its entire job and it is
+   * the only place where shouting is correct. It takes ink rather than the
+   * accent so it reads identically in all five palettes, including the
+   * administrator's, whose accent is ink anyway.
    */
   html[data-ia='orca'] a:focus-visible,
   html[data-ia='orca'] button:focus-visible,
   html[data-ia='orca'] [tabindex]:focus-visible {
-    outline: 3px solid var(--c-decision);
+    outline: 2px solid var(--ink);
     outline-offset: 2px;
+    border-radius: var(--r-sm);
   }
 
 }
@@ -1222,9 +1411,9 @@ html[data-ia='orca'] body {
 }
 
 html[data-ia='orca'] *:focus-visible {
-  outline: 3px solid var(--ink);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
-  border-radius: 0;
+  border-radius: var(--r-sm);
 }
 
 /*
