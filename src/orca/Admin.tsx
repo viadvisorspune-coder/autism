@@ -327,3 +327,191 @@ function Line({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
+
+/* -------------------------------------------------------------- incidents */
+
+/**
+ * Incidents — the audit story made operational.
+ *
+ * Every refusal this platform has ever produced already exists: `recordAudit`
+ * writes a row whenever somebody is stopped, and the result column says
+ * `Denied`. Nothing has ever read them. A governance model whose refusals are
+ * invisible is a governance model nobody can check, which is the same as not
+ * having one.
+ *
+ * WHAT LANDS HERE. An approval decided by somebody it was not addressed to. A
+ * write attempted outside a person's scope. A disclosure blocked before it
+ * left. A signature that did not verify. Each of those is the model working —
+ * the incident is not that ORCA failed, it is that ORCA stopped something — and
+ * that is exactly why it is worth a screen rather than a log file.
+ *
+ * STILL NO CONTENT. The administrator sees who was stopped, doing what, to
+ * which record, and why. He does not see what the record says, and this screen
+ * changes nothing about that: the reason column holds the refusal's reason,
+ * never the information that was refused.
+ *
+ * REVIEWED IS LOCAL AND SAYS SO. There is no column in the audit table for it —
+ * an audit log that can be edited from the interface it audits is not an audit
+ * log. So "reviewed" is a note this browser keeps about what its user has read,
+ * marked as such rather than dressed up as a workflow.
+ */
+const DENIED = new Set(['Denied', 'Blocked', 'Refused', 'Failed'])
+const REVIEWED_KEY = 'orca:incidents-reviewed'
+
+function readReviewed(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(REVIEWED_KEY) ?? '[]') as string[])
+  } catch {
+    return new Set()
+  }
+}
+
+export function Incidents() {
+  const { data, loading, failed, updatedAt, refresh } = useLive<{ entries: AuditRow[] }>(
+    'audit',
+    null,
+    15000,
+  )
+  const [reviewed, setReviewed] = useState<Set<string>>(readReviewed)
+  const [showReviewed, setShowReviewed] = useState(false)
+
+  const incidents = useMemo(
+    () => (data?.entries ?? []).filter((e) => DENIED.has(String(e.result ?? ''))),
+    [data],
+  )
+  const outstanding = incidents.filter((e) => !reviewed.has(e.id))
+  const seen = incidents.filter((e) => reviewed.has(e.id))
+
+  function markReviewed(id: string) {
+    const next = new Set(reviewed)
+    next.add(id)
+    setReviewed(next)
+    try {
+      localStorage.setItem(REVIEWED_KEY, JSON.stringify([...next]))
+    } catch {
+      /* Private browsing. The mark applies for this session only. */
+    }
+  }
+
+  return (
+    <>
+      <PageTitle sub="Every time this platform stopped something. Who was stopped, doing what, and why — never what the record says.">
+        {loading && !data
+          ? 'Incidents'
+          : outstanding.length === 0
+            ? 'Nothing is unreviewed'
+            : outstanding.length === 1
+              ? 'One incident to review'
+              : `${outstanding.length} incidents to review`}
+      </PageTitle>
+
+      {loading && !data ? <Loading what="the audit log" /> : null}
+      {failed ? <CouldNotLoad what="The audit log" onRetry={refresh} /> : null}
+
+      {!loading && !incidents.length && !failed ? (
+        <Nothing>
+          Nothing has been refused. That is a real state and not an empty screen: every refusal
+          this platform makes is written down, so an empty list means none were made rather than
+          that none were recorded.
+        </Nothing>
+      ) : null}
+
+      {outstanding.length ? (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <caption className="sr-only">Refusals and blocked actions, newest first</caption>
+            <thead>
+              <tr className="border-b border-black text-left">
+                {['When', 'Who', 'Role', 'What they tried', 'Record', 'Why it was stopped', ''].map(
+                  (h) => (
+                    <th key={h} className="o-meta py-3 pr-6 font-semibold text-black">
+                      {h}
+                    </th>
+                  ),
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {outstanding.map((e) => (
+                <tr key={e.id} className="border-b border-black align-top">
+                  <td className="o-meta py-4 pr-6 tabular-nums">{stamp(e.occurred_at)}</td>
+                  <td className="o-meta py-4 pr-6">{e.actor_label ?? '—'}</td>
+                  <td className="o-meta py-4 pr-6">{e.actor_role ?? '—'}</td>
+                  <td className="o-meta py-4 pr-6">{e.action}</td>
+                  <td className="o-meta py-4 pr-6 font-mono">{e.record ?? '—'}</td>
+                  <td className="o-meta py-4 pr-6">{e.why ?? '—'}</td>
+                  <td className="py-4 pr-6">
+                    <button
+                      type="button"
+                      className="o-btn o-btn-small"
+                      onClick={() => markReviewed(e.id)}
+                    >
+                      Mark reviewed
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      {seen.length ? (
+        <section className="o-section">
+          <SectionHead>Already reviewed</SectionHead>
+          {/*
+            Said plainly rather than implied. "Reviewed" here is a note this
+            browser keeps about what its user has read — there is no column for
+            it in the audit table, and adding one would mean an audit log that
+            can be edited from the interface it audits.
+          */}
+          <p className="o-body o-measure mb-6">
+            Marked on this device only. The audit log itself is unchanged and cannot be changed
+            from here — an audit log editable from the interface it audits would not be one.
+          </p>
+          <button
+            type="button"
+            aria-expanded={showReviewed}
+            onClick={() => setShowReviewed((s) => !s)}
+            className="o-body underline"
+          >
+            {showReviewed ? 'Hide reviewed ▴' : `Show ${seen.length} reviewed ▾`}
+          </button>
+          <div className="o-reveal" data-open={showReviewed ? 'yes' : 'no'}>
+            <div inert={!showReviewed}>
+              <ul className="mt-6 space-y-4">
+                {seen.map((e) => (
+                  <li key={e.id} className="o-panel p-4">
+                    <p className="o-body">{e.action}</p>
+                    <p className="o-meta mt-1">
+                      {[e.actor_label, e.actor_role, stamp(e.occurred_at)].filter(Boolean).join(' · ')}
+                    </p>
+                    {e.why ? <p className="o-meta mt-1">{e.why}</p> : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <p className="o-meta o-measure mt-8">
+        Question text, answer content and subject names are not part of this view and are not
+        loaded into it. The reason column holds why something was refused, never what was refused.
+      </p>
+
+      <Updated at={updatedAt} />
+    </>
+  )
+}
+
+interface AuditRow {
+  id: string
+  occurred_at: string
+  actor_label?: string
+  actor_role?: string
+  action: string
+  record?: string
+  why?: string
+  result?: string
+}

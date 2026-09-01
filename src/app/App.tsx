@@ -20,7 +20,7 @@ import OrcaTasks from '../orca/Tasks'
 import OrcaStrategies from '../orca/Strategies'
 import OrcaRequests from '../orca/Requests'
 import OrcaRegister from '../orca/Register'
-import { Access, Health, Runs } from '../orca/Admin'
+import { Access, Health, Incidents, Runs } from '../orca/Admin'
 import { hasCaseload, homeFor } from '../orca/system'
 
 import PatientHome from '../routes/patient/Home'
@@ -258,6 +258,7 @@ export default function App() {
         />
         <Route path="/runs" element={<Only when={role === 'admin'}><Runs /></Only>} />
         <Route path="/access" element={<Only when={role === 'admin'}><Access /></Only>} />
+        <Route path="/incidents" element={<Only when={role === 'admin'}><Incidents /></Only>} />
         <Route path="/health" element={<Only when={role === 'admin'}><Health /></Only>} />
       </Route>
 
