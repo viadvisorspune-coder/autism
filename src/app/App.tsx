@@ -176,11 +176,27 @@ export default function App() {
           and lost, which sent every first-time user straight past the
           introduction — the one screen that explains what ORCA will and will
           not do without asking. */}
+      {/*
+        Where signing in lands, from `homeFor` and not from `option.home`.
+
+        Those were two answers to one question and they had drifted apart:
+        `homeFor` says a coordinator starts on Tasks, an employer on Requests
+        and Ananya on Home, and every guard on this page already agrees with
+        it, while `option.home` still said Ask or Caseload. So the redirect
+        that actually runs on sign-in was sending three roles somewhere their
+        own navigation says is not their first screen — Ananya included, who
+        reached the Home screen only by pressing it in the rail.
+
+        `option.home` is not wrong, it is a different fact. The older interface
+        uses it as a base path — `${base}/session`, `${base}/strategies` — so
+        repointing it would break those links rather than fix this. It keeps
+        that job; `homeFor` owns the landing.
+      */}
       <Route
         path="/"
         element={
           signedIn && option ? (
-            <Navigate to={setupComplete ? option.home : '/setup'} replace />
+            <Navigate to={setupComplete ? homeFor(role) : '/setup'} replace />
           ) : (
             <Login />
           )
@@ -434,7 +450,10 @@ export default function App() {
         </Route>
       </Route>
 
-      <Route path="*" element={<Navigate to={option?.home ?? '/'} replace />} />
+      {/* An address that matches nothing goes to the same first screen signing
+          in does. Same reasoning as the root route above: `homeFor` owns where
+          a person starts, so a mistyped URL and a fresh sign-in agree. */}
+      <Route path="*" element={<Navigate to={signedIn && role ? homeFor(role) : '/'} replace />} />
     </Routes>
   )
 }
