@@ -342,6 +342,14 @@ export interface Deployment {
 
 const TRIGGER_ORIGIN = Deno.env.get('YOXA_ORIGIN') ?? 'https://yoxa.ai'
 
+/**
+ * This project's own origin, so a trigger can be told apart from a loop.
+ *
+ * Read from SUPABASE_URL, which the platform sets on every function, so there
+ * is nothing to configure and nothing to keep in step.
+ */
+const SELF_ORIGIN = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/+$/, '')
+
 /** The deployment id out of a full trigger URL, for when that is what was set. */
 const idFromUrl = (url: string): string | null =>
   url.match(/workflow-deployments\/([0-9a-f-]{36})/i)?.[1] ?? null
@@ -405,6 +413,31 @@ export function deploymentFor(workflow: WorkflowName): DeploymentLookup {
 
   const rawUrl = Deno.env.get(`${prefix}_TRIGGER_URL`)
   const url = rawUrl ? usableUrl(rawUrl) : null
+
+  /**
+   * A trigger URL pointing back at this project is never right.
+   *
+   * It is an easy paste to make — the secrets page is full of Supabase URLs —
+   * and the failure it produces is the most misleading in the system: ORCA
+   * posts the trigger to one of its own functions, that function replies with
+   * its own error, and the message is reported as though Yoxa had refused it.
+   * The one time this happened, "Yoxa refused the trigger (HTTP 400):
+   * resource is required" was ORCA talking to itself.
+   *
+   * Cheap to check and it names the mistake, which is the difference between
+   * a minute and an evening.
+   */
+  if (url && SELF_ORIGIN && url.startsWith(SELF_ORIGIN)) {
+    return {
+      ok: false,
+      reason:
+        `${prefix}_TRIGGER_URL points at this project's own functions, not at Yoxa. ` +
+        `A trigger URL looks like ` +
+        `https://yoxa.ai/api/v1/public/workflow-deployments/<id>/trigger ` +
+        `and is copied from the workflow's Integrate tab.`,
+    }
+  }
+
   if (url) return { ok: true, deployment: { id: idFromUrl(url) ?? '', secret, url } }
 
   const id = Deno.env.get(`${prefix}_DEPLOYMENT_ID`)?.trim()
