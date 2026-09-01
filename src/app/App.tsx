@@ -246,7 +246,22 @@ export default function App() {
             </Only>
           }
         />
-        <Route path="/notes" element={<Only when={notAdmin}><OrcaNotes /></Only>} />
+        {/*
+          Not the employer or the university.
+
+          Their nav has never offered Notes, but a route gated only on "not the
+          administrator" is reachable by typing the URL — and an employer
+          writing into somebody's clinical record is a role boundary this
+          product should not leave to the navigation to enforce.
+        */}
+        <Route
+          path="/notes"
+          element={
+            <Only when={notAdmin && role !== 'employer' && role !== 'university'}>
+              <OrcaNotes />
+            </Only>
+          }
+        />
         <Route path="/tasks" element={<Only when={hasCaseload(role)}><OrcaTasks /></Only>} />
         <Route
           path="/strategies"
