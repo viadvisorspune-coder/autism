@@ -53,6 +53,25 @@ function today(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+/**
+ * Open is everything that has not ended.
+ *
+ * Not `status === 'Active'`. The column is a `workflow_status`, which has
+ * fourteen values, and what is actually in the table is Draft, In progress and
+ * Awaiting information -- none of them Active. Matching on the one value this
+ * code happens to write put every seeded item under "Closed" while the page
+ * said nothing was open, which is the worst direction for this particular
+ * screen to be wrong in: an open-items list that hides open items.
+ *
+ * Two endings, and everything else is work. That also means a status nobody
+ * has thought of yet shows up rather than disappearing.
+ */
+const ENDED = new Set(['Completed', 'Cancelled'])
+
+function isOpen(status?: string): boolean {
+  return !ENDED.has(status ?? '')
+}
+
 export default function Tasks() {
   const { role, option, patientId } = useSession()
   const { subjectId, choosable } = useSubject()
@@ -76,8 +95,8 @@ export default function Tasks() {
   const [showDone, setShowDone] = useState(false)
 
   const tasks = data?.tasks ?? []
-  const open = useMemo(() => tasks.filter((t) => t.status === 'Active'), [tasks])
-  const closed = useMemo(() => tasks.filter((t) => t.status !== 'Active'), [tasks])
+  const open = useMemo(() => tasks.filter((t) => isOpen(t.status)), [tasks])
+  const closed = useMemo(() => tasks.filter((t) => !isOpen(t.status)), [tasks])
   const overdue = useMemo(() => open.filter((t) => t.due_on && t.due_on < today()), [open])
 
   async function change(id: string, patch: Record<string, unknown>): Promise<boolean> {

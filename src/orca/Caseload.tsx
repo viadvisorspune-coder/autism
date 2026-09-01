@@ -255,8 +255,11 @@ function Open({ patientId }: { patientId: string }) {
     null,
     30000,
   )
+  // Open is everything that has not ended -- see the note in Tasks.tsx. The
+  // seeded rows are Draft and In progress, so matching on 'Active' counted none
+  // of them and every caseload card said nothing was outstanding.
   const count = (data?.tasks ?? []).filter(
-    (t) => t.patient_id === patientId && t.status === 'Active',
+    (t) => t.patient_id === patientId && t.status !== 'Completed' && t.status !== 'Cancelled',
   ).length
   if (!count) return null
   return (
