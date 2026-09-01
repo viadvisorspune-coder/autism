@@ -16,6 +16,36 @@ $ErrorActionPreference = 'Stop'
 $ref = 'zievqdkhxenenpyxqese'
 $branch = 'claude/create-ui-lrq2tx'
 
+# Installed, or borrowed for the length of this script.
+#
+# The CLI is not installed on every machine that has this repository, and
+# "the term 'supabase' is not recognized" reads like a broken command rather
+# than a missing tool. npx runs the same binary without installing it, and
+# npm install -g supabase is refused by design, so this is the sanctioned
+# no-install route rather than a workaround.
+if (Get-Command supabase -ErrorAction SilentlyContinue) {
+  $cli = 'supabase'
+  $pre = @()
+  Write-Host 'Using the installed Supabase CLI.' -ForegroundColor DarkGray
+} elseif (Get-Command npx -ErrorAction SilentlyContinue) {
+  $cli = 'npx'
+  $pre = @('supabase@latest')
+  Write-Host 'Supabase CLI not on PATH. Running it through npx.' -ForegroundColor DarkGray
+} else {
+  throw 'Neither the Supabase CLI nor npx is available. Install Node, or install the CLI with: scoop bucket add supabase https://github.com/supabase/scoop-bucket.git ; scoop install supabase'
+}
+
+# Whether this machine has ever logged in. Checked before the first deploy
+# rather than after, so the failure is one line about signing in instead of an
+# access error in the middle of a deploy.
+& $cli @pre projects list *> $null
+if ($LASTEXITCODE -ne 0) {
+  Write-Host ''
+  Write-Host 'Not signed in. A browser will open.' -ForegroundColor Yellow
+  & $cli @pre login
+  if ($LASTEXITCODE -ne 0) { throw 'Sign-in did not complete. Nothing was deployed.' }
+}
+
 # The code is on the feature branch. Deploying from main would ship the old
 # functions and the new screens would keep failing in a way that looks like the
 # frontend is broken.
@@ -28,7 +58,7 @@ git pull origin $branch
 foreach ($fn in @('app-read', 'app-write')) {
   Write-Host ''
   Write-Host "Deploying $fn" -ForegroundColor Cyan
-  supabase functions deploy $fn --project-ref $ref
+  & $cli @pre functions deploy $fn --project-ref $ref
   if ($LASTEXITCODE -ne 0) {
     throw "$fn did not deploy. Nothing after this ran."
   }
