@@ -1421,29 +1421,42 @@ html[data-experience='patient'] .frost-tint {
 
   /* --------------------------------------------------------------- surfaces */
 
-  /* A card that groups a kind of thing rather than holding one thing. The tint
-     is the grouping; it carries no status.
-
-     Grey by default for the same reason the row is: an untinted tile was white
-     on what is now a white page, and the hairline around it was the only thing
-     saying a group existed. The three tinted modifiers still override it, and
-     their colours are untouched. */
+  /*
+   * A card that groups a kind of thing rather than holding one thing.
+   *
+   * WHITE, WITH ONLY A SHADOW HOLDING IT UP. These were three full-bleed washes
+   * — pale purple, pale green, pale amber, side by side — and three large
+   * blocks of colour competing at equal volume is the thing this system's own
+   * first rule forbids. Worse, the wash was carrying no meaning: it said which
+   * tile you were looking at, which the heading already said, so the loudest
+   * element on the screen was the one saying the least.
+   *
+   * The colour did not go away; it moved. Each tile's tint now fills a 36px
+   * square behind its icon and nothing else — same three tokens, same three
+   * values, about a fortieth of the area. The distinction survives at a glance
+   * and stops being the first thing the eye lands on.
+   *
+   * No border. On white, a card with both a hairline and a shadow draws itself
+   * twice, and the line wins — which is what made these read as boxes rather
+   * than as cards.
+   */
   .o-tile {
     display: flex;
     flex-direction: column;
     border-radius: var(--r-md);
-    border: 1px solid transparent;
-    background: var(--surface-2);
+    border: none;
+    background: var(--surface);
+    box-shadow: var(--shadow-rest);
     padding: var(--s-5);
   }
   .o-tile-plan {
-    background: var(--tint-plan, var(--surface));
+    --tile-tint: var(--tint-plan, var(--surface-2));
   }
   .o-tile-new {
-    background: var(--tint-new, var(--surface));
+    --tile-tint: var(--tint-new, var(--surface-2));
   }
   .o-tile-waiting {
-    background: var(--tint-waiting, var(--surface));
+    --tile-tint: var(--tint-waiting, var(--surface-2));
   }
 
   .o-tile-head {
@@ -1451,16 +1464,106 @@ html[data-experience='patient'] .frost-tint {
     align-items: center;
     justify-content: space-between;
     gap: var(--s-3);
-    margin-bottom: var(--s-3);
+    margin-bottom: var(--s-4);
   }
 
-  /* The Ask panel. The one place in the product that is allowed to look
-     inviting, because it is the one place that has to be approached. */
+  /* Where the tile's colour lives now. */
+  .o-tile-icon {
+    display: grid;
+    height: 36px;
+    width: 36px;
+    flex: none;
+    place-items: center;
+    border-radius: 12px;
+    background: var(--tile-tint, var(--surface-2));
+    color: var(--ink-2);
+  }
+
+  /*
+   * The tile's name, deliberately quieter than its contents.
+   *
+   * Every line in these tiles was set within two points and one weight of every
+   * other, so there was nothing to land on and the eye had to read all of it to
+   * find any of it. Three registers now, and the jump between them is what
+   * carries the hierarchy: a 13px label at 600 in the lightest ink says which
+   * tile this is, the first entry sets at 19px 700 in near-black because it is
+   * the thing you came to read, and the attribution under it drops back to 13px
+   * 400. Label smaller than content is the right way round on a dashboard — the
+   * label is a signpost, not the message.
+   *
+   * NO SMALL CAPS, on purpose. An uppercase eyebrow is the conventional move
+   * here and this system rules it out: word shape is a large part of how a
+   * word is recognised, caps removes it, and this is an interface built for
+   * people for whom that cost is not theoretical.
+   */
+  /*
+   * `--ink-2`, not `--ink-3`. The lightest ink is 3.8:1 on white, which its own
+   * definition says is for disabled text and placeholders — the two places 3:1
+   * is the bar. A label the size of this one, that people have to read to know
+   * which tile they are looking at, is neither. The hierarchy is carried by the
+   * size and weight jump to the lead below rather than by fading this out.
+   */
+  .o-tile-eyebrow {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0.02em;
+    color: var(--ink-2);
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+  }
+
+  /* The lead entry. Structural rather than a class the markup has to remember
+     to apply, so a tile cannot end up with two leads or none. */
+  .o-tile li:first-child .o-row-title {
+    font-size: 19px;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+  }
+  .o-tile .o-row-title {
+    font-size: 15px;
+    font-weight: 600;
+  }
+  /* Same correction as the eyebrow: these carry a person's name and a date,
+     which is information, so they clear 4.5:1 rather than sitting at the
+     placeholder ink the rest of the app still uses for row meta. */
+  .o-tile .o-row-meta {
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  /* Empty and loading states carry the tile's message when there are no rows,
+     so they read at the lead's size rather than as a footnote. */
+  .o-tile > p.o-row-meta {
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--ink-2);
+  }
+
+  /*
+   * The Ask panel. The one place in the product allowed to look inviting,
+   * because it is the one place that has to be approached.
+   *
+   * The gradient is gone. It washed the accent across a third of the panel and
+   * faded it to white, which put a soft edge in the middle of the card where
+   * nothing changes, and left the input sitting on a slightly different white
+   * from the one above it. White, and the invitation is carried by size and
+   * elevation instead: this is the only thing on the screen with the raised
+   * shadow and the large radius, which is what "approach this one" looks like
+   * when it is said with hierarchy rather than with colour.
+   */
   .o-invite {
     border-radius: var(--r-lg);
-    border: 1px solid var(--line-hair);
-    background: linear-gradient(135deg, var(--accent-soft, var(--surface-2)) 0%, var(--surface) 78%);
-    padding: var(--s-5);
+    border: none;
+    background: var(--surface);
+    box-shadow: var(--shadow-raised);
+    padding: var(--s-6);
+  }
+  @media (max-width: 640px) {
+    .o-invite {
+      padding: var(--s-5);
+    }
   }
 
   /* ------------------------------------------------------------------ pieces */
@@ -1586,14 +1689,17 @@ html[data-experience='patient'] .frost-tint {
    * exists: a five-item filter row borrowing the primary style puts six filled
    * black rectangles on a screen that has one real action on it.
    */
+  /* Grey fill, no line — same reasoning as the field above. A white chip
+     outlined at eight per cent ink was legible on the tinted panels it used to
+     sit on and is not legible on white. */
   .o-chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     border-radius: 999px;
-    border: 1px solid var(--line-hair);
-    background: var(--surface);
-    padding: 7px 14px;
+    border: 1px solid transparent;
+    background: var(--surface-2);
+    padding: 8px 16px;
     font-size: 14px;
     font-weight: 500;
     line-height: 1.4;
@@ -1606,8 +1712,15 @@ html[data-experience='patient'] .frost-tint {
       border-color var(--t-micro, 120ms) var(--ease, ease);
   }
   .o-chip:hover:not(:disabled) {
-    border-color: var(--line-soft);
+    background: #e9e9e6;
     color: var(--ink);
+  }
+  /* A chip on a grey plate takes the white instead, so it never disappears
+     into the surface it is sitting on. */
+  .o-row .o-chip,
+  .o-panel .o-chip,
+  .o-flat .o-chip {
+    background: var(--surface);
   }
   .o-chip[aria-pressed='true'] {
     background: var(--accent-soft, var(--surface-2));
@@ -1672,12 +1785,15 @@ html[data-experience='patient'] .frost-tint {
   }
 
   /* An input that sits inside a tinted panel and still reads as an input. */
+  /* Grey, like every other field. It was white with a hairline, which worked
+     while the panel behind it was tinted and vanished the moment the panel went
+     white — a text field you cannot see the edges of is not a text field. */
   .o-input-pill {
     width: 100%;
     border-radius: 999px;
-    border: 1px solid var(--line-hair);
-    background: var(--surface);
-    padding: 14px 56px 14px 20px;
+    border: 1px solid transparent;
+    background: var(--surface-2);
+    padding: 16px 60px 16px 22px;
     font: inherit;
     font-size: 16px;
     color: var(--ink);

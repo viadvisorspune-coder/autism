@@ -214,19 +214,21 @@ export default function Home() {
         {/* ------------------------------------------------------ today */}
         <section className="o-tile o-tile-plan" aria-labelledby="home-plan">
           <div className="o-tile-head">
-            <h2 id="home-plan" className="o-h3">
+            <h2 id="home-plan" className="o-tile-eyebrow">
               {todayOnly.length ? "Today's plan" : 'Coming up'}
             </h2>
-            <IconAppointments size={18} />
+            <span className="o-tile-icon">
+              <IconAppointments size={18} />
+            </span>
           </div>
 
           {diary.loading && !diary.data ? (
             <p className="o-row-meta">Reading your diary…</p>
           ) : upcoming.length ? (
-            <ul className="flex flex-col gap-2.5">
+            <ul className="flex flex-col gap-3.5">
               {upcoming.map((a) => (
                 <li key={a.id} className="flex items-baseline justify-between gap-3">
-                  <span className="o-row-title truncate">{a.purpose}</span>
+                  <span className="o-row-title line-clamp-2">{a.purpose}</span>
                   <span className="o-row-meta !mt-0 shrink-0">
                     {a.scheduled_for.slice(0, 10) === new Date(now).toISOString().slice(0, 10)
                       ? clock(a.scheduled_for)
@@ -241,7 +243,7 @@ export default function Home() {
             </p>
           )}
 
-          <Link to="/appointments" className="o-chip mt-4 self-start no-underline">
+          <Link to="/appointments" className="o-chip mt-auto self-start pt-2 no-underline">
             View full schedule <IconChevron size={14} />
           </Link>
         </section>
@@ -249,19 +251,21 @@ export default function Home() {
         {/* -------------------------------------------------------- new */}
         <section className="o-tile o-tile-new" aria-labelledby="home-new">
           <div className="o-tile-head">
-            <h2 id="home-new" className="o-h3">
+            <h2 id="home-new" className="o-tile-eyebrow">
               What is new
             </h2>
-            <IconRecord size={18} />
+            <span className="o-tile-icon">
+              <IconRecord size={18} />
+            </span>
           </div>
 
           {record.loading && !record.data ? (
             <p className="o-row-meta">Reading your record…</p>
           ) : added.length ? (
-            <ul className="flex flex-col gap-2.5">
+            <ul className="flex flex-col gap-3.5">
               {added.map((e) => (
                 <li key={e.id}>
-                  <span className="o-row-title block truncate">{e.title}</span>
+                  <span className="o-row-title block line-clamp-2">{e.title}</span>
                   <span className="o-row-meta">
                     {record.data?.people?.[String(e.source_id)]?.name ??
                       e.source_label ??
@@ -276,7 +280,7 @@ export default function Home() {
             <p className="o-row-meta">Nothing has been added recently.</p>
           )}
 
-          <Link to="/record" className="o-chip mt-4 self-start no-underline">
+          <Link to="/record" className="o-chip mt-auto self-start pt-2 no-underline">
             View all updates <IconChevron size={14} />
           </Link>
         </section>
@@ -284,20 +288,22 @@ export default function Home() {
         {/* ---------------------------------------------------- waiting */}
         <section className="o-tile o-tile-waiting" aria-labelledby="home-waiting">
           <div className="o-tile-head">
-            <h2 id="home-waiting" className="o-h3">
-              Waiting for you{' '}
+            <h2 id="home-waiting" className="o-tile-eyebrow">
+              Waiting for you
               {pending.length ? <span className="o-count">{pending.length}</span> : null}
             </h2>
-            <IconDocuments size={18} />
+            <span className="o-tile-icon">
+              <IconDocuments size={18} />
+            </span>
           </div>
 
           {gates.loading && !gates.data ? (
             <p className="o-row-meta">Checking…</p>
           ) : pending.length ? (
-            <ul className="flex flex-col gap-2.5">
+            <ul className="flex flex-col gap-3.5">
               {pending.map((a) => (
                 <li key={a.request_id}>
-                  <span className="o-row-title block truncate">{a.title}</span>
+                  <span className="o-row-title block line-clamp-2">{a.title}</span>
                   <span className="o-row-meta">{ago(a.created_at, now)}</span>
                 </li>
               ))}
@@ -315,7 +321,7 @@ export default function Home() {
             </p>
           )}
 
-          <Link to="/decisions" className="o-chip mt-4 self-start no-underline">
+          <Link to="/decisions" className="o-chip mt-auto self-start pt-2 no-underline">
             Go to decisions <IconChevron size={14} />
           </Link>
         </section>
