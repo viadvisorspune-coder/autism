@@ -89,7 +89,7 @@ export default function Onboarding() {
             />
           ))}
         </div>
-        <p className="o-label mb-6 uppercase" style={{ color: 'var(--ink-3)' }}>
+        <p className="o-label mb-6" style={{ color: 'var(--ink-2)' }}>
           Step {step + 1} of {STEPS.length} · {STEPS[step]}
         </p>
 
@@ -355,7 +355,7 @@ function MeetOrca({ isPatient }: { isPatient: boolean }) {
       </p>
 
       <div className="o-panel mt-6 p-5">
-        <p className="o-label uppercase" style={{ color: 'var(--ink-3)' }}>
+        <p className="o-label" style={{ color: 'var(--ink-2)' }}>
           What it will not do
         </p>
         <p className="o-body o-measure mt-2">

@@ -1159,6 +1159,27 @@ html[data-experience='patient'] .frost-tint {
     --tint-plan: var(--surface-2);
     --tint-new: var(--surface-2);
     --tint-waiting: var(--surface-2);
+
+    /*
+     * The accent, dark enough to be read on its own tint.
+     *
+     * Five things set accent-coloured text on an accent-soft ground: the
+     * selected rail destination, the avatar's initial, the notification count,
+     * a selected filter chip, and the live pill. Measured, Ananya's purple came
+     * out at 3.85:1 on its own tint and Divya's amber at 1.94 — the amber being
+     * effectively unreadable, which is what happens when a colour picked to be
+     * warm on white is then set as text on a wash of itself.
+     *
+     * A separate token rather than a darker accent, because the accent is doing
+     * a second job it does well: it fills the primary button, tints the rail's
+     * selected ground, and draws the whale. Darkening that would change the
+     * product's colour to fix a text problem. This changes only the text.
+     *
+     * Default is the accent itself, which is right for the two looks that
+     * already pass — the clinical blue at 4.84, and the roles whose accent is
+     * ink — so a look only overrides it when its own measurement says to.
+     */
+    --accent-text: var(--accent);
   }
 
   /*
@@ -1175,6 +1196,9 @@ html[data-experience='patient'] .frost-tint {
   html[data-ia='orca'][data-look='warm'] {
     --accent-soft: rgba(224, 164, 88, 0.16);
     --accent-ink: #1c1a25;
+    /* The amber reads at 1.94:1 on its own tint. This is the same hue carried
+       down to 4.61, and it is used for text only — the fills stay amber. */
+    --accent-text: #93631f;
   }
   /*
    * Anil, Ruth, Tejas. The absence of colour is doing work, so the chip's
@@ -1204,6 +1228,8 @@ html[data-experience='patient'] .frost-tint {
     --accent: #7c5cf0;
     --accent-soft: #efeafe;
     --accent-ink: #ffffff;
+    /* 3.85:1 on #efeafe. Same purple, two steps down, at 4.81. */
+    --accent-text: #6b48e8;
 
     --tint-plan: #f2edfd;
     --tint-new: #e8f6f0;
@@ -1362,7 +1388,7 @@ html[data-experience='patient'] .frost-tint {
   }
   .o-rail-link[aria-current='page'] {
     background: var(--accent-soft);
-    color: var(--accent);
+    color: var(--accent-text);
   }
   .o-rail-icon {
     display: grid;
@@ -1396,7 +1422,7 @@ html[data-experience='patient'] .frost-tint {
     place-items: center;
     border-radius: 999px;
     background: var(--accent-soft);
-    color: var(--accent);
+    color: var(--accent-text);
     font-size: 13px;
     font-weight: 700;
   }
@@ -1526,11 +1552,9 @@ html[data-experience='patient'] .frost-tint {
     font-size: 15px;
     font-weight: 600;
   }
-  /* Same correction as the eyebrow: these carry a person's name and a date,
-     which is information, so they clear 4.5:1 rather than sitting at the
-     placeholder ink the rest of the app still uses for row meta. */
+  /* Dates line up in a column here, and nowhere else. `.o-row-meta` carries
+     the colour now, for every row in the product rather than only these. */
   .o-tile .o-row-meta {
-    color: var(--ink-2);
     font-variant-numeric: tabular-nums;
   }
   /* Empty and loading states carry the tile's message when there are no rows,
@@ -1615,11 +1639,27 @@ html[data-experience='patient'] .frost-tint {
     line-height: 1.35;
     color: var(--ink);
   }
+  /*
+   * `--ink-2`, and this line is why the whole sweep happened.
+   *
+   * `.o-row-meta` is the second line of every row in the product — who wrote an
+   * entry and when, which clinician an appointment is with, what a document's
+   * status is. It is information, and it was set in the lightest ink in the
+   * system, which measures 3.36:1 on white in Ananya's palette and 3.65:1 in
+   * the neutral one. Both fail the 4.5:1 that 13px text has to clear, on every
+   * ground the app has: white, the grouping grey, and all three dashboard
+   * tints, where it drops as low as 2.86 — under even the 3:1 that applies to
+   * things nobody has to read.
+   *
+   * `--ink-3` was never wrong; it was used for the wrong thing. Its own
+   * definition says "disabled text and placeholders only", and the one
+   * remaining use of it — the pill input's placeholder — is exactly that.
+   */
   .o-row-meta {
     margin-top: 2px;
     font-size: 13px;
     line-height: 1.4;
-    color: var(--ink-3);
+    color: var(--ink-2);
   }
   .o-rows {
     display: flex;
@@ -1650,6 +1690,21 @@ html[data-experience='patient'] .frost-tint {
    * where "Pending" sits inches from a control that acts on it, and a pill that
    * looked pressable would be a pill people press.
    */
+  /*
+   * A pill takes the ground its container is not.
+   *
+   * The category pill on the right of every row in Record, Decisions and
+   * Documents was grey on a row that had itself just become grey, so it
+   * disappeared into the plate it sits on and read as loose bold text. Same
+   * fault the row's own icon mark had, and the same fix — except that a plain
+   * override would also have flattened the three status pills, whose colours
+   * are the point of them.
+   *
+   * `--plate` does it without that risk: grey surfaces declare what a thing
+   * resting on them should be, the base pill reads it, and the status
+   * modifiers below set `background` outright at the same specificity later in
+   * the file, so they always win. Nothing has to enumerate the modifiers.
+   */
   .o-pill {
     display: inline-flex;
     align-items: center;
@@ -1660,7 +1715,7 @@ html[data-experience='patient'] .frost-tint {
     font-weight: 700;
     line-height: 1.4;
     white-space: nowrap;
-    background: var(--surface-2);
+    background: var(--plate, var(--surface-2));
     color: var(--ink-2);
   }
   .o-pill-waiting {
@@ -1673,7 +1728,7 @@ html[data-experience='patient'] .frost-tint {
   }
   .o-pill-live {
     background: var(--accent-soft, var(--surface-2));
-    color: var(--accent);
+    color: var(--accent-text);
   }
   html[data-ia='orca'][data-look='none'] .o-pill,
   html[data-ia='orca'][data-look='mono'] .o-pill {
@@ -1691,14 +1746,15 @@ html[data-experience='patient'] .frost-tint {
    */
   /* Grey fill, no line — same reasoning as the field above. A white chip
      outlined at eight per cent ink was legible on the tinted panels it used to
-     sit on and is not legible on white. */
+     sit on and is not legible on white. `--plate` for the same reason the pill
+     reads it: a chip inside a grey row would otherwise be grey on grey. */
   .o-chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     border-radius: 999px;
     border: 1px solid transparent;
-    background: var(--surface-2);
+    background: var(--plate, var(--surface-2));
     padding: 8px 16px;
     font-size: 14px;
     font-weight: 500;
@@ -1712,20 +1768,25 @@ html[data-experience='patient'] .frost-tint {
       border-color var(--t-micro, 120ms) var(--ease, ease);
   }
   .o-chip:hover:not(:disabled) {
-    background: #e9e9e6;
+    filter: brightness(0.96);
     color: var(--ink);
   }
-  /* A chip on a grey plate takes the white instead, so it never disappears
-     into the surface it is sitting on. */
-  .o-row .o-chip,
-  .o-panel .o-chip,
-  .o-flat .o-chip {
-    background: var(--surface);
+  /*
+   * The three grey surfaces, declaring what rests on them.
+   *
+   * Read by `.o-pill` and `.o-chip` above. Set here rather than on each of
+   * them so a fourth grey surface added later inherits the behaviour by saying
+   * one thing, and so nothing has to know which components care.
+   */
+  .o-row,
+  .o-panel,
+  .o-flat {
+    --plate: var(--surface);
   }
   .o-chip[aria-pressed='true'] {
     background: var(--accent-soft, var(--surface-2));
     border-color: transparent;
-    color: var(--accent);
+    color: var(--accent-text);
   }
   html[data-ia='orca'][data-look='none'] .o-chip[aria-pressed='true'],
   html[data-ia='orca'][data-look='mono'] .o-chip[aria-pressed='true'] {
@@ -1773,12 +1834,14 @@ html[data-experience='patient'] .frost-tint {
     background: var(--tone, var(--accent));
     box-shadow: 0 0 0 3px var(--paper);
   }
+  /* The day a group of entries happened on. A date is the one thing on the
+     timeline you cannot work out from anything else, so it clears 4.5:1. */
   .o-time-day {
     margin: var(--s-4) 0 var(--s-2);
     font-size: 13px;
     font-weight: 700;
     letter-spacing: 0.02em;
-    color: var(--ink-3);
+    color: var(--ink-2);
   }
   .o-time-day:first-child {
     margin-top: 0;
@@ -1832,7 +1895,7 @@ html[data-experience='patient'] .frost-tint {
     padding: 0 6px;
     border-radius: 999px;
     background: var(--accent-soft, var(--surface-2));
-    color: var(--accent);
+    color: var(--accent-text);
     font-size: 12px;
     font-weight: 700;
   }
