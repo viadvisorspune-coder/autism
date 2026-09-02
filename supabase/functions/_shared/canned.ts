@@ -1,22 +1,23 @@
 /**
- * Two fixed answers, so a demonstration never depends on a workflow.
+ * Three fixed answers, so a demonstration never depends on a workflow.
  *
  * WHY THIS EXISTS. Everything else in ORCA routes a question to a Yoxa
  * deployment and waits for the answer to come back. That is the real product
  * and it is the right design, and it also means a demonstration is only as
- * reliable as a third-party workflow, a network, and a queue on the day. Two
+ * reliable as a third-party workflow, a network, and a queue on the day. Three
  * questions are answered here instead: one that returns text, one that returns
- * a file. They are the two shapes of output the product has, so a person can
- * be shown both without anything leaving this function.
+ * a file this module typesets, and one that returns a file Yoxa actually
+ * produced, kept verbatim. Between them they cover both shapes of output the
+ * product has, without anything leaving this function.
  *
  * WHAT IT IS NOT. It is not a fallback, a cache, or a stand-in for a workflow
- * that failed. It matches two exact questions and nothing else — a question one
+ * that failed. It matches three exact questions and nothing else — a question one
  * word different routes normally and hits the real lanes. Nothing here degrades
  * gracefully into answering questions it does not know, because a demonstration
  * fixture that starts answering real questions is indistinguishable from the
  * product being wrong.
  *
- * IT SAYS WHAT IT IS. Both answers carry a line naming themselves as fixed
+ * IT SAYS WHAT IT IS. Every answer carries a line naming itself as a fixed
  * demonstration answers, for the same reason the rehearsal answer in `start.ts`
  * does: a screen full of realistic prose about somebody's medical record is
  * exactly the thing that must never be mistaken for a real reading of it. The
@@ -24,15 +25,16 @@
  * is not removable by configuration — if these should not be visible, the
  * fixtures should not be deployed.
  *
- * WHOSE RECORD. Both are written against Ananya Rao's seeded record and are
- * only served when the subject of the request is that record. Served against
- * anybody else they would be assertions about a person they were not written
- * about, which is the worst thing this file could do.
+ * WHOSE RECORD. All three are written against Ananya Rao's seeded record and
+ * are only served when the subject of the request is that record. Served
+ * against anybody else they would be assertions about a person they were not
+ * written about, which is the worst thing this file could do.
  */
 
 import { admin } from './yoxa.ts'
 import type { AppActor } from './app.ts'
 import { type Block, simplePdf } from './pdf.ts'
+import { approvalDraftPdf } from './fixture-pdf.ts'
 
 /** The one record these answers are about. */
 const SUBJECT = 'pt-ananya'
@@ -91,13 +93,21 @@ interface Fixture {
     title: string
     category: string
     fileName: string
-    blocks: Block[]
+    /**
+     * Either the blocks to typeset, or a file that already exists.
+     *
+     * `blocks` is for a document this file composes. `bytes` is for one a
+     * workflow already produced and that is kept verbatim -- regenerating it
+     * would make it a different artefact from the one it claims to be.
+     */
+    blocks?: Block[]
+    bytes?: () => Uint8Array
   }
 }
 
-/** The line both answers end with. */
+/** The line every answer ends with. */
 const MARKER =
-  `<p class="o-meta">This is one of two fixed demonstration answers built into ORCA. ` +
+  `<p class="o-meta">This is one of three fixed demonstration answers built into ORCA. ` +
   `It was not produced by a workflow and the record was not read to write it. ` +
   `Every other question goes to a real lane.</p>`
 
@@ -259,6 +269,60 @@ const FIXTURES: Fixture[] = [
       ],
     },
   },
+  /* --------------------------- text in, a real workflow file back out */
+  {
+    /*
+     * The wording Yoxa itself was given.
+     *
+     * The document's own status page quotes the trigger it was produced from --
+     * "i want to get something approved from kavita" -- so the fixture matches
+     * that rather than a tidier sentence somebody might prefer. A fixture whose
+     * question does not match the artefact's own account of its origin is a
+     * fixture that contradicts itself on page one.
+     */
+    asks: [
+      'i want to get something approved from kavita',
+      'i want to get something approved from dr kavita nair',
+      'i need to get something approved from kavita',
+    ],
+    /*
+     * Understand then Produce, which is what routing chooses for a document
+     * request with no recent retrieval behind it and a recipient inside the
+     * care team. Kavita is a psychologist, so this never escalates to the
+     * fifteen-step chain: that path is for a disclosure leaving the care
+     * relationship, and this one does not leave it.
+     */
+    path: 'understand_then_produce',
+    lane: 'produce',
+    reason:
+      'Your record will be read first, then a draft written from what is found. ' +
+      'You see the draft before anyone else.',
+    answerHtml:
+      `<p>The draft is written and attached below. <strong>It has not been sent to Dr Nair ` +
+      `and it has not been approved by anyone.</strong> It sits on your record awaiting your ` +
+      `review.</p>` +
+      `<p>It came back as a template rather than a finished message, and the document says why ` +
+      `on its own second page: the request named who to ask but not what is being asked for. ` +
+      `Who Kavita is in this context, what needs approving, for whom, by when, and on what ` +
+      `evidence are all unconfirmed, so the draft leaves each of them as a bracket for you to ` +
+      `fill rather than guessing at them.</p>` +
+      `<h4>What it refused to do</h4>` +
+      `<ul>` +
+      `<li>Invent the subject of the approval, or who it concerns</li>` +
+      `<li>Assume consent, access, or authorisation had been established</li>` +
+      `<li>Present itself as approved, or as evidence that anybody had agreed</li>` +
+      `</ul>` +
+      `<p>Tell me what you are asking Dr Nair to approve and I can fill the brackets from your ` +
+      `record instead of leaving them open.</p>` +
+      MARKER,
+    document: {
+      title: 'Draft approval request to Dr Kavita Nair',
+      category: 'Clinical',
+      fileName: 'draft-approval-request-to-kavita.pdf',
+      // Kept byte for byte. See fixture-pdf.ts.
+      bytes: approvalDraftPdf,
+    },
+  },
 ]
 
 /** The fixture for this question, if there is one and it is about the right record. */
@@ -313,7 +377,7 @@ export async function serveCanned(
     const path = `${patientId}/${documentId}/${fixture.document.fileName}`
     const { error: upload } = await admin.storage
       .from('orca-artifacts')
-      .upload(path, simplePdf(fixture.document.blocks), {
+      .upload(path, fixture.document.bytes?.() ?? simplePdf(fixture.document.blocks ?? []), {
         contentType: 'application/pdf',
         upsert: true,
       })
