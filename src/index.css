@@ -2,7 +2,11 @@
 
 @theme {
   /*
-   * Sen everywhere, with a real fallback stack behind it.
+   * Hanken Grotesk everywhere, with a real fallback stack behind it.
+   *
+   * The nearest freely-servable face to the Aeonik the reference interface is
+   * set in — same geometric skeleton, same circular bowls, same flat
+   * terminals — and unlike the Sen it replaces it draws a double-storey a.
    *
    * The fallbacks are not decoration: the family is fetched from Google Fonts
    * and the fetch can fail — a blocked host, an offline first load, a
@@ -12,16 +16,17 @@
    * failed font load changes the texture of the page and not its shape.
    */
   --font-sans:
-    'Sen', ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable Text', 'Segoe UI',
-    Roboto, 'Helvetica Neue', Arial, sans-serif;
+    'Hanken Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI Variable Text',
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 
-  /* Neutral ground — a lavender-leaning grey rather than a warm one, so the
-     purple accent sits in the same family as the surfaces around it instead
-     of on top of them. Still low glare: nothing here is pure white but the
-     cards, and nothing is blue-white. */
-  --color-canvas: #f4f3f8;
+  /* White ground. The page itself carries no colour at all now; separation
+     comes from the shadow under a card and from the one grey used to group
+     things, which is exactly how the reference interface is built. */
+  --color-canvas: #ffffff;
   --color-surface: #ffffff;
-  --color-surface-2: #f6f4fb;
+  /* The grouping grey. Neutral rather than lavender-leaning, because on a
+     white ground a tinted grey reads as a colour rather than as a container. */
+  --color-surface-2: #f2f2f0;
   /* The same white as `surface`, under the name the markup actually uses.
      Twelve places ask for `bg-paper` or `text-paper` and no such token
      existed, so those classes generated no CSS whatsoever: cards asking for a
@@ -583,18 +588,27 @@ html[data-experience='patient'] .frost-tint {
   html[data-ia='orca'] {
     /* ---------------------------------------------------------- surfaces
      *
-     * White cards on warm paper. The separation between a card and the page is
-     * now done by the two grounds differing, which is what lets the strokes
-     * come down to a whisper. Previously every card was paper-on-paper with a
-     * full-black 1px outline doing all of the work, and a screen of those reads
-     * as a form to be completed rather than a record to be read.
+     * WHITE PAGE, WHITE CARDS, ONE GREY.
+     *
+     * The page ground was a warm paper and cards were white on top of it, so
+     * the difference between the two grounds did the separating and the
+     * strokes could stay at a whisper. The page is white now, which takes that
+     * away, and the replacement is the one the reference interface uses: the
+     * shadow under a card is what says the card is a card, and a single
+     * neutral grey — never a second one, never a tinted one — is what groups a
+     * block of things inside it.
+     *
+     * The grey is deliberately close to the white. In the reference the inner
+     * panel is about four per cent darker than the card it sits in; anything
+     * more separates the panel from the card instead of grouping what is in
+     * it, and the eye starts reading the container rather than the contents.
      */
-    --paper: #faf8f4;
+    --paper: #ffffff;
     --surface: #ffffff;
-    --surface-2: #f3f0ea;
+    --surface-2: #f2f2f0;
 
-    /* Ink, softened one step off true black. #141414 on paper is 15.4:1;
-       #5a5651 is 6.9:1 and #8b857d is 3.6:1 — the last is for disabled text and
+    /* Ink, softened one step off true black. #141414 on white is 16.4:1;
+       #5a5651 is 7.3:1 and #8b857d is 3.8:1 — the last is for disabled text and
        placeholders only, which is where 3:1 is the bar. */
     --ink: #141414;
     --ink-2: #5a5651;
@@ -602,14 +616,18 @@ html[data-experience='patient'] .frost-tint {
 
     /* ----------------------------------------------------------- radius
      *
-     * Four steps, and they nest downward: a 16px card never contains a 24px
-     * one. Rounding is not decoration and it is not softness for its own sake —
-     * a square corner at full-black stroke is what made the old screens read as
-     * an audit tool.
+     * Four steps, and they nest downward: a card never contains something
+     * rounder than itself. Every step is larger than it was, because the
+     * reference's corners are its most characteristic feature — a 40px outer
+     * radius on a card and a 28px one on the panel inside it — and rounding
+     * that timid is what makes an interface look like a form.
+     *
+     * `--r-full` is a real value here rather than a fallback: pills are the
+     * shape of every control in the reference, and buttons take it below.
      */
-    --r-sm: 8px;
-    --r-md: 16px;
-    --r-lg: 24px;
+    --r-sm: 14px;
+    --r-md: 28px;
+    --r-lg: 40px;
     --r-full: 999px;
 
     /* -------------------------------------------------------- elevation
@@ -619,13 +637,21 @@ html[data-experience='patient'] .frost-tint {
      * screen that wants a decision. There is no hover elevation anywhere: a
      * surface that moves under the pointer is the distraction this interface
      * exists to not have.
+     *
+     * BOTH GO UP, BECAUSE THE PAGE WENT WHITE. These were tuned for white
+     * cards on a warm paper ground, where the two grounds differing did most
+     * of the separating and the shadow only had to confirm it. On white the
+     * shadow is the only thing left, and at four per cent it was invisible —
+     * every card on every screen dissolved into the page. Wide and very soft
+     * rather than dark and tight: the reference's cards read as resting on the
+     * page from a large diffuse shadow, not from a drop shadow.
      */
     --shadow-rest:
       0 1px 2px rgba(17, 17, 17, 0.04),
-      0 2px 8px rgba(17, 17, 17, 0.04);
+      0 4px 16px rgba(17, 17, 17, 0.07);
     --shadow-raised:
       0 2px 4px rgba(17, 17, 17, 0.04),
-      0 8px 24px rgba(17, 17, 17, 0.06);
+      0 12px 36px rgba(17, 17, 17, 0.1);
 
     /* ---------------------------------------------------------- strokes
      *
@@ -753,24 +779,33 @@ html[data-experience='patient'] .frost-tint {
    * Labels are the new role: 14px at 600 with positive tracking. Small text at
    * heavy weight sets cramped without it.
    */
+  /*
+   * Tracking is tighter than it was at every level above body.
+   *
+   * The reference sets its display line very tight — the figures nearly touch
+   * — and that tightness is a large part of what reads as "this face" even
+   * before you can name the face. It is applied only above 20px, because
+   * negative tracking on running text costs legibility and buys nothing.
+   */
   .o-title {
     font-size: 44px;
-    line-height: 1.1;
+    line-height: 1.05;
     font-weight: 700;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.035em;
     text-wrap: balance;
   }
   .o-h2 {
     font-size: 28px;
     line-height: 1.2;
     font-weight: 700;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.025em;
     text-wrap: balance;
   }
   .o-h3 {
     font-size: 20px;
     line-height: 1.3;
-    font-weight: 500;
+    font-weight: 600;
+    letter-spacing: -0.015em;
   }
   .o-answer {
     font-size: 20px;
@@ -855,12 +890,22 @@ html[data-experience='patient'] .frost-tint {
     box-shadow: var(--shadow-rest);
     overflow: hidden;
   }
+  /*
+   * 40px, not 32.
+   *
+   * The reference's cards are unusually generous inside — the gap between the
+   * card's edge and its first line is about as wide as the gap between two of
+   * its own rows — and that is most of why they read as calm rather than as
+   * dense. A 40px inset on a 28px radius also stops the corner curve from
+   * cutting into the first word, which a 32px inset on the old 16px radius
+   * never had to worry about.
+   */
   .o-card-body {
-    padding: var(--s-5);
+    padding: 40px;
   }
   @media (max-width: 640px) {
     .o-card-body {
-      padding: 20px;
+      padding: 24px;
     }
   }
 
@@ -886,6 +931,11 @@ html[data-experience='patient'] .frost-tint {
   .o-flat {
     background: var(--surface-2);
     box-shadow: none;
+    /* It carried no radius of its own and relied on being given `.o-card`
+       alongside. Most call sites do not do that — `.o-flat p-6` is the common
+       form — so every empty state and every refusal was a hard-cornered grey
+       rectangle among rounded everything. It reads as a rendering fault. */
+    border-radius: var(--r-md);
   }
 
   /*
@@ -958,9 +1008,12 @@ html[data-experience='patient'] .frost-tint {
     justify-content: center;
     gap: 8px;
     min-height: 52px;
-    padding: 14px 24px;
+    padding: 14px 28px;
     border: 1px solid var(--line-soft);
-    border-radius: var(--r-sm);
+    /* A pill, not a rounded rectangle. Every control in the reference is fully
+       rounded, and the shape is most of what distinguishes a control from a
+       card when both sit on the same white ground with the same soft edges. */
+    border-radius: var(--r-full);
     background: transparent;
     color: var(--ink);
     font: inherit;
@@ -990,7 +1043,7 @@ html[data-experience='patient'] .frost-tint {
   }
   .o-btn-small {
     min-height: 40px;
-    padding: 8px 16px;
+    padding: 8px 18px;
     font-size: 16px;
   }
 
@@ -1135,9 +1188,12 @@ html[data-experience='patient'] .frost-tint {
   }
 
   html[data-ia='orca'][data-look='full'] {
-    --paper: #fbf9f5;
+    /* White page, white cards, one grey — the same three surfaces as every
+       other look. Ananya's palette differs in its accent and its tints, which
+       are untouched; it no longer differs in what the page is made of. */
+    --paper: #ffffff;
     --surface: #ffffff;
-    --surface-2: #f5f2ec;
+    --surface-2: #f2f2f0;
     --ink: #1c1a25;
     --ink-2: #5f5b6b;
     --ink-3: #8e8a99;
@@ -1153,15 +1209,15 @@ html[data-experience='patient'] .frost-tint {
     --tint-new: #e8f6f0;
     --tint-waiting: #fdf3e2;
 
-    --r-sm: 10px;
-    --r-md: 18px;
-    --r-lg: 26px;
+    --r-sm: 16px;
+    --r-md: 28px;
+    --r-lg: 40px;
 
     --line-hair: rgba(28, 26, 37, 0.07);
     --line-soft: rgba(28, 26, 37, 0.11);
 
-    --shadow-rest: 0 1px 2px rgba(28, 26, 37, 0.03), 0 6px 20px rgba(28, 26, 37, 0.05);
-    --shadow-raised: 0 2px 4px rgba(28, 26, 37, 0.04), 0 14px 34px rgba(28, 26, 37, 0.07);
+    --shadow-rest: 0 1px 2px rgba(28, 26, 37, 0.04), 0 4px 16px rgba(28, 26, 37, 0.07);
+    --shadow-raised: 0 2px 4px rgba(28, 26, 37, 0.04), 0 12px 36px rgba(28, 26, 37, 0.1);
 
     /* The rail is a fixed width because it is a map. A sidebar that resizes
        with the window moves the thing people navigate by. */
@@ -1286,8 +1342,10 @@ html[data-experience='patient'] .frost-tint {
     display: flex;
     align-items: center;
     gap: var(--s-3);
-    border-radius: var(--r-sm);
-    padding: 10px var(--s-3);
+    /* A pill, like every other control. On a 40px row a 14px corner radius
+       reads as a rounded rectangle that did not commit. */
+    border-radius: var(--r-full);
+    padding: 10px var(--s-4);
     color: var(--ink-2);
     font-size: 15px;
     font-weight: 500;
@@ -1364,14 +1422,19 @@ html[data-experience='patient'] .frost-tint {
   /* --------------------------------------------------------------- surfaces */
 
   /* A card that groups a kind of thing rather than holding one thing. The tint
-     is the grouping; it carries no status. */
+     is the grouping; it carries no status.
+
+     Grey by default for the same reason the row is: an untinted tile was white
+     on what is now a white page, and the hairline around it was the only thing
+     saying a group existed. The three tinted modifiers still override it, and
+     their colours are untouched. */
   .o-tile {
     display: flex;
     flex-direction: column;
     border-radius: var(--r-md);
-    border: 1px solid var(--line-hair);
-    background: var(--surface);
-    padding: var(--s-4);
+    border: 1px solid transparent;
+    background: var(--surface-2);
+    padding: var(--s-5);
   }
   .o-tile-plan {
     background: var(--tint-plan, var(--surface));
@@ -1406,8 +1469,15 @@ html[data-experience='patient'] .frost-tint {
    * A row in a list of things you can open.
    *
    * Used on Record, Decisions and Documents, which are the same shape of screen
-   * three times over and were three different shapes of markup. A row is a
-   * white plate with a hairline; the whole plate is the target.
+   * three times over and were three different shapes of markup. The whole
+   * plate is the target.
+   *
+   * IT IS GREY NOW, NOT WHITE WITH A HAIRLINE. A white plate outlined at eight
+   * per cent ink worked when the page behind it was warm paper — the plate was
+   * the lighter thing and the line only confirmed where it ended. On a white
+   * page it is white on white held apart by a line most screens cannot show,
+   * and a list of twelve of them is a list of nothing. The grey is the grouping
+   * surface the reference uses for exactly this, and it needs no line at all.
    */
   .o-row {
     display: flex;
@@ -1415,19 +1485,22 @@ html[data-experience='patient'] .frost-tint {
     gap: var(--s-3);
     width: 100%;
     border-radius: var(--r-sm);
-    border: 1px solid var(--line-hair);
-    background: var(--surface);
-    padding: var(--s-3) var(--s-4);
+    border: 1px solid transparent;
+    background: var(--surface-2);
+    padding: var(--s-4);
     text-align: left;
     color: inherit;
     text-decoration: none;
     transition:
-      border-color var(--t-micro, 120ms) var(--ease, ease),
-      box-shadow var(--t-micro, 120ms) var(--ease, ease);
+      background-color var(--t-micro, 120ms) var(--ease, ease),
+      border-color var(--t-micro, 120ms) var(--ease, ease);
   }
+  /* Ground only, one step darker. No shadow on hover: a row that lifts under
+     the pointer is the distraction this interface exists to not have, and on
+     a grey plate the ground change is the more legible signal anyway. */
   .o-row:hover {
-    border-color: var(--line-soft);
-    box-shadow: var(--shadow-rest);
+    background: #e9e9e6;
+    border-color: var(--line-hair);
   }
   .o-row-main {
     min-width: 0;
@@ -1452,15 +1525,18 @@ html[data-experience='patient'] .frost-tint {
   }
 
   /* The small square that marks what kind of thing a row is. Shape, not
-     colour, because it has to survive the palettes that have no colour. */
+     colour, because it has to survive the palettes that have no colour.
+     White on the row's grey, which is the reverse of what it was — the row
+     took the grey, so the mark has to take the white or the two are the same
+     surface and the mark is invisible. */
   .o-row-mark {
     display: grid;
     height: 32px;
     width: 32px;
     flex: none;
     place-items: center;
-    border-radius: 8px;
-    background: var(--surface-2);
+    border-radius: 11px;
+    background: var(--surface);
     color: var(--ink-2);
   }
 

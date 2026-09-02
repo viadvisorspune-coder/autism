@@ -187,8 +187,14 @@ Deno.serve(async (req) => {
    * that short-circuits all three would report success for work that never
    * happened. Rehearse these questions and you rehearse the real path they
    * would have taken.
+   *
+   * A named `workflow` is excluded for the same reason. Naming a lane is a
+   * request for that lane, not for an answer — the full-pipeline screen names
+   * `fifteen` on every send — and a fixture matching the typed sentence would
+   * hand back a canned answer while reporting no Yoxa run, which reads exactly
+   * like a pipeline that started and lost its id.
    */
-  if (patientId && body.dry_run !== true) {
+  if (patientId && body.dry_run !== true && !str(body.workflow)) {
     const fixture = cannedFor(message, patientId)
     if (fixture) {
       const served = await serveCanned(fixture, actor, patientId, message)

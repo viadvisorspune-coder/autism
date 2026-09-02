@@ -172,30 +172,49 @@ export default function Pipeline() {
         A trigger accepted is not an answer produced, and this screen must not
         let those blur: it says the run started and where to watch it, and makes
         no claim about what it will come back with.
+
+        A run id from Yoxa is what makes "the pipeline is running" true. Without
+        one the record row exists and the chain does not, so the heading says
+        that instead — this page claimed a run was under way when nothing had
+        left, which is the one thing a launcher must never get wrong.
       */}
       {sent ? (
         <section className="o-section" role="status">
           <div className="o-card">
             <div className="o-card-body">
-              <h2 className="o-h3">Sent. The pipeline is running.</h2>
+              <h2 className="o-h3">
+                {sent.yoxaRunId
+                  ? 'Sent. The pipeline is running.'
+                  : 'Recorded, but the pipeline did not start.'}
+              </h2>
               <p className="o-body o-measure mt-3">
-                Nothing has been produced yet and nothing has been disclosed. When the run reaches
-                a decision it will appear on{' '}
-                <Link to="/decisions" className="underline">
-                  Decisions
-                </Link>
-                ; anything it produces lands on{' '}
-                <Link to="/documents" className="underline">
-                  Documents
-                </Link>
-                .
+                {sent.yoxaRunId ? (
+                  <>
+                    Nothing has been produced yet and nothing has been disclosed. When the run
+                    reaches a decision it will appear on{' '}
+                    <Link to="/decisions" className="underline">
+                      Decisions
+                    </Link>
+                    ; anything it produces lands on{' '}
+                    <Link to="/documents" className="underline">
+                      Documents
+                    </Link>
+                    .
+                  </>
+                ) : (
+                  <>
+                    The run was written to the record but Yoxa gave back no run id, so no chain is
+                    under way. Nothing will arrive on Decisions or Documents from this. This is
+                    almost always the fifteen-step deployment not being activated in Yoxa.
+                  </>
+                )}
               </p>
 
               <dl className="mt-5 space-y-3">
                 <div>
                   <dt className="o-label">Yoxa run</dt>
                   <dd className="o-body break-all">
-                    {sent.yoxaRunId ?? 'Not reported. The trigger was accepted without one.'}
+                    {sent.yoxaRunId ?? 'None. Nothing was started.'}
                   </dd>
                 </div>
                 <div>
