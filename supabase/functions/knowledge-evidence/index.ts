@@ -127,8 +127,28 @@ Deno.serve(
     // widest. Asserted identity is thin enough already.
     const viewerRole = (actorRow?.role as string) ?? 'patient'
 
-    const [{ data: eventRows }, { data: strategyRows }, { data: profileRows }, { data: docRows }] =
-      await Promise.all([
+    /**
+     * The diary, folded in the same way the documents are.
+     *
+     * This endpoint read the past and nothing else, so "when do I next see
+     * Kavita" was unanswerable by every agent in both workflows — the
+     * appointment was sitting in `appointments`, drawn on the person's own
+     * Appointments screen by `app-read`, and invisible to retrieval. A record
+     * that can say what happened and not what is about to happen is missing the
+     * half people ask about most.
+     *
+     * Upcoming only. Past appointments are already in the chronology as
+     * timeline events written after the fact, and returning both would have
+     * every session appear twice — once as what was booked and once as what
+     * happened — which is worse than not having them.
+     */
+    const [
+      { data: eventRows },
+      { data: strategyRows },
+      { data: profileRows },
+      { data: docRows },
+      { data: apptRows },
+    ] = await Promise.all([
       events,
       admin
         .from('strategies')
@@ -146,11 +166,24 @@ Deno.serve(
         .eq('patient_id', patientId)
         .contains('access', [viewerRole])
         .order('recorded_on', { ascending: false }),
+      admin
+        .from('appointments')
+        .select('id, professional_id, scheduled_for, purpose, location, status, preparation_status')
+        .eq('patient_id', patientId)
+        .gte('scheduled_for', new Date().toISOString())
+        .neq('status', 'Cancelled')
+        .neq('status', 'Completed')
+        .order('scheduled_for', { ascending: true })
+        .limit(10),
     ])
 
     const sourceIds = [
       ...new Set(
-        [...(eventRows ?? []), ...(docRows ?? [])].map((e) => e.source_id).filter(Boolean),
+        [
+          ...(eventRows ?? []).map((e) => e.source_id),
+          ...(docRows ?? []).map((d) => d.source_id),
+          ...(apptRows ?? []).map((a) => a.professional_id),
+        ].filter(Boolean),
       ),
     ] as string[]
     const { data: sources } = sourceIds.length
@@ -193,6 +226,37 @@ Deno.serve(
       }
     })
 
+    /**
+     * An appointment, shaped like a record so it needs no new field.
+     *
+     * `recorded_on` carries the date it is scheduled for, which puts it at the
+     * top of the chronology below — correct, because a chronology sorted newest
+     * first should open with the thing that has not happened yet.
+     *
+     * Evidence status is 'Reported' rather than 'Professionally documented'
+     * whoever the clinician is: a booking is a plan, and the one field that
+     * tells an agent how far to trust a line should not say a future event is
+     * documented fact.
+     */
+    const upcoming = (apptRows ?? []).map((a) => {
+      const withWhom = nameOf(a.professional_id as string | null, null)
+      const when = new Date(String(a.scheduled_for))
+      return {
+        id: String(a.id),
+        title: `Upcoming appointment with ${withWhom}`,
+        summary:
+          `${a.purpose}. Scheduled for ${when.toISOString().slice(0, 10)}` +
+          `${a.location ? ` at ${a.location}` : ''}. ` +
+          `Preparation: ${String(a.preparation_status).toLowerCase()}.`,
+        category: 'Appointments',
+        recorded_on: String(a.scheduled_for).slice(0, 10),
+        occurred_on: null,
+        evidence_status: 'Reported',
+        source: withWhom,
+        source_role: sources?.find((s) => s.id === a.professional_id)?.role ?? 'system',
+      }
+    })
+
     const strategies = (strategyRows ?? []).map((s) => ({
       id: s.id,
       title: s.title,
@@ -230,9 +294,9 @@ Deno.serve(
     return json({
       patient_id: patientId,
       purpose,
-      // Newest first across both, so an agent reading down gets a chronology
-      // rather than events then documents.
-      records: [...records, ...documents].sort((a, b) =>
+      // Newest first across all three, so an agent reading down gets one
+      // chronology rather than events, then documents, then the diary.
+      records: [...records, ...documents, ...upcoming].sort((a, b) =>
         String(b.recorded_on).localeCompare(String(a.recorded_on)),
       ),
       strategies,
